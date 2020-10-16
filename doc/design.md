@@ -5,7 +5,7 @@ This document describes the high level design and protocol for the management of
 The motivation for this design is to ensure two crucial properties: 
 
 1. That the server key share is secured, even from an attacker that has root access to the server or physical access to the hardware. 
-2. That server key shares are securely deleted (or become unrecoverable) when they expire (i.e. the ownership of a state coin moves to a new user. 
+2. The server key shares are securely deleted (or become unrecoverable) when they expire (i.e. the ownership of a state coin moves to a new user. 
 
 SGX enclaves can achieve both of these properties by generating, updating and using the statecoin server key shares exclusively within secure enclaves. In this case, the server key shares can never leave an enclave and only be updated and used in two-party signing operations when authenticated with a statecoin owner public key - even the system admin and developers with root access would be unable to either extract a key or perform an unauthenticated two-party signing operation. 
 

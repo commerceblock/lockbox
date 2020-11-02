@@ -1,0 +1,3 @@
+testing_mode = true
+# log_file = "log/output.log" # Comment out for stdout
+

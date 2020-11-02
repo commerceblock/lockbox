@@ -21,8 +21,10 @@ use crate::protocol::ecdsa::Ecdsa;
 
 extern crate sgx_types;
 extern crate sgx_urts;
-use sgx_types::*;
-use sgx_urts::SgxEnclave;
+use self::sgx_types::*;
+use self::sgx_urts::SgxEnclave;
+
+static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -38,15 +40,12 @@ impl<
         T: Database + Send + Sync + 'static,
     > Lockbox<T>
 {
-    pub fn load(mut db: T) -> Result<Lockbox<T>, SgxEnclave> {
+    pub fn load(mut db: T) -> Result<Lockbox<T>> {
         // Get config as defaults, Settings.toml and env vars
         let config_rs = Config::load()?;
         db.set_connection_from_config(&config_rs)?;
 
-        let enclave = match init_enclave(){
-            Ok(r) => r,
-            Err(x) => return SEError(x),
-        };
+        let enclave = init_enclave().expect("failed to start enclave");
 
         let lbs = Self {
             config: config_rs,

@@ -41,9 +41,6 @@ bitcoin = { version = "0.25", features = [ "use-serde" ] }
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_urts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
-[patch.'https://github.com/apache/teaclave-sgx-sdk.git']
-sgx_types = { path = "../../../sgx_types" }
-sgx_urts = { path = "../../../sgx_urts" }
 
 [dev-dependencies]
 mockito = "0.27.0"
@@ -60,10 +57,6 @@ default-features = false
 [dependencies.multi-party-ecdsa]
 git = "https://github.com/commerceblock/multi-party-ecdsa"
 tag = "v0.2.7"
-
-[dependencies.multi-party-eddsa]
-git = "https://github.com/KZen-networks/multi-party-eddsa"
-tag = "v0.2.1"
 
 [dependencies.multi-party-schnorr]
 git = "https://github.com/commerceblock/multi-party-schnorr"

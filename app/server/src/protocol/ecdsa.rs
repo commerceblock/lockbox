@@ -25,7 +25,6 @@ use uuid::Uuid;
 cfg_if! {
     if #[cfg(any(test,feature="mockdb"))]{
         use crate::MockDatabase;
-        use monotree::database::MemoryDB;
         type LB = Lockbox::<MockDatabase>;
     } else {
         use crate::PGDatabase;

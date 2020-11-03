@@ -98,7 +98,7 @@ impl Default for Config {
 
 impl Config {
     /// Load Config instance reading default values, overridden with Settings.toml,
-    /// overriden with environment variables in form MERC_[setting_name]
+    /// overriden with environment variables in form LOCKBOX_[setting_name]
     pub fn load() -> Result<Self> {
         let mut conf_rs = ConfigRs::new();
         let _ = conf_rs
@@ -108,8 +108,8 @@ impl Config {
         conf_rs.merge(File::with_name("Settings").required(false))?;
         // Override with settings in file Rocket.toml if exists
         conf_rs.merge(File::with_name("Rocket").required(false))?;
-        // Override any config from env using MERC prefix
-        conf_rs.merge(Environment::with_prefix("MERC"))?;
+        // Override any config from env using LOCKBOX prefix
+        conf_rs.merge(Environment::with_prefix("LOCKBOX"))?;
 
         // Override storage and mainstay config from env variables.
         // Currently doesn't seem to be supported by config_rs.
@@ -122,45 +122,45 @@ impl Config {
         // CO_CLIENTCHAIN__HOST=127.0.0.1:5555
         // CO_CLIENTCHAIN__GENESIS_HASH=706f6...
 
-        if let Ok(v) = env::var("MERC_DB_HOST_W") {
+        if let Ok(v) = env::var("LOCKBOX_DB_HOST_W") {
             let _ = conf_rs.set("storage.db_host_w", v)?;
         }
-        if let Ok(v) = env::var("MERC_DB_PORT_W") {
+        if let Ok(v) = env::var("LOCKBOX_DB_PORT_W") {
             let _ = conf_rs.set("storage.db_port_w", v)?;
         }
-        if let Ok(v) = env::var("MERC_DB_USER_W") {
+        if let Ok(v) = env::var("LOCKBOX_DB_USER_W") {
             let _ = conf_rs.set("storage.db_user_w", v)?;
         }
-        if let Ok(v) = env::var("MERC_DB_PASS_W") {
+        if let Ok(v) = env::var("LOCKBOX_DB_PASS_W") {
             let _ = conf_rs.set("storage.db_pass_w", v)?;
         }
-        if let Ok(v) = env::var("MERC_DB_DATABASE_W") {
+        if let Ok(v) = env::var("LOCKBOX_DB_DATABASE_W") {
             let _ = conf_rs.set("storage.db_database_w", v)?;
         }
 
-        if let Ok(v) = env::var("MERC_DB_HOST_R") {
+        if let Ok(v) = env::var("LOCKBOX_DB_HOST_R") {
             let _ = conf_rs.set("storage.db_host_r", v)?;
         }
-        if let Ok(v) = env::var("MERC_DB_PORT_R") {
+        if let Ok(v) = env::var("LOCKBOX_DB_PORT_R") {
             let _ = conf_rs.set("storage.db_port_r", v)?;
         }
-        if let Ok(v) = env::var("MERC_DB_USER_R") {
+        if let Ok(v) = env::var("LOCKBOX_DB_USER_R") {
             let _ = conf_rs.set("storage.db_user_r", v)?;
         }
-        if let Ok(v) = env::var("MERC_DB_PASS_R") {
+        if let Ok(v) = env::var("LOCKBOX_DB_PASS_R") {
             let _ = conf_rs.set("storage.db_pass_r", v)?;
         }
-        if let Ok(v) = env::var("MERC_DB_DATABASE_R") {
+        if let Ok(v) = env::var("LOCKBOX_DB_DATABASE_R") {
             let _ = conf_rs.set("storage.db_database_r", v)?;
         }
 
-        if let Ok(v) = env::var("MERC_ROCKET_KEEP_ALIVE") {
+        if let Ok(v) = env::var("LOCKBOX_ROCKET_KEEP_ALIVE") {
             let _ = conf_rs.set("rocket.keep_alive", v)?;
         }
-        if let Ok(v) = env::var("MERC_ROCKET_ADDERSS") {
+        if let Ok(v) = env::var("LOCKBOX_ROCKET_ADDERSS") {
             let _ = conf_rs.set("rocket.address", v)?;
         }
-        if let Ok(v) = env::var("MERC_ROCKET_PORT") {
+        if let Ok(v) = env::var("LOCKBOX_ROCKET_PORT") {
             let _ = conf_rs.set("rocket.port", v)?;
         }
 

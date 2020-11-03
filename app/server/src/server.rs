@@ -18,13 +18,7 @@ use rocket::{
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use crate::protocol::ecdsa::Ecdsa;
-
-extern crate sgx_types;
-extern crate sgx_urts;
-use self::sgx_types::*;
-use self::sgx_urts::SgxEnclave;
-
-static ENCLAVE_FILE: &'static str = "enclave.signed.so";
+use crate::enclave::Enclave;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -33,7 +27,7 @@ pub struct Lockbox<
 > {
     pub config: Config,
     pub database: T,
-    pub enclave: SgxEnclave,
+    pub enclave: Enclave,
 }
 
 impl<
@@ -45,7 +39,7 @@ impl<
         let config_rs = Config::load()?;
         db.set_connection_from_config(&config_rs)?;
 
-        let enclave = init_enclave().expect("failed to start enclave");
+        let enclave = Enclave::new().expect("failed to start enclave");
 
         let lbs = Self {
             config: config_rs,
@@ -59,19 +53,6 @@ impl<
     }
 }
 
-fn init_enclave() -> SgxResult<SgxEnclave> {
-    let mut launch_token: sgx_launch_token_t = [0; 1024];
-    let mut launch_token_updated: i32 = 0;
-    // call sgx_create_enclave to initialize an enclave instance
-    // Debug Support: set 2nd parameter to 1
-    let debug = 1;
-    let mut misc_attr = sgx_misc_attribute_t {secs_attr: sgx_attributes_t { flags:0, xfrm:0}, misc_select:0};
-    SgxEnclave::create(ENCLAVE_FILE,
-                       debug,
-                       &mut launch_token,
-                       &mut launch_token_updated,
-                       &mut misc_attr)
-}
 
 #[catch(500)]
 fn internal_error() -> &'static str {
@@ -197,6 +178,5 @@ mod tests {
             .dispatch();   
         assert_eq!(response.status(), Status::Ok);
     }
-
 
 }

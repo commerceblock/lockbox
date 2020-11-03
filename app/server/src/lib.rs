@@ -42,6 +42,7 @@ pub mod error;
 pub mod protocol;
 pub mod server;
 pub mod storage;
+pub mod enclave;
 
 pub type Result<T> = std::result::Result<T, error::LockboxError>;
 

@@ -100,6 +100,8 @@ pub fn get_server<
                 ecdsa::fourth_message,
                 ecdsa::sign_first,
                 ecdsa::sign_second,
+		transfer::transfer_sender,
+                transfer::transfer_receiver,
             ],
         )
         .manage(lbs);

@@ -81,10 +81,10 @@ impl Ecdsa for LB {
 
 #[post("/ecdsa/keygen/first", format = "json", data = "<key_gen_msg1>")]
 pub fn first_message(
-    sc_entity: State<LB>,
+    lockbox: State<LB>,
     key_gen_msg1: Json<KeyGenMsg1>,
 ) -> Result<Json<(Uuid, party_one::KeyGenFirstMsg)>> {
-    match sc_entity.first_message(key_gen_msg1.into_inner()) {
+    match lockbox.first_message(key_gen_msg1.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
     }
@@ -92,10 +92,10 @@ pub fn first_message(
 
 #[post("/ecdsa/keygen/second", format = "json", data = "<key_gen_msg2>")]
 pub fn second_message(
-    sc_entity: State<LB>,
+    lockbox: State<LB>,
     key_gen_msg2: Json<KeyGenMsg2>,
 ) -> Result<Json<party1::KeyGenParty1Message2>> {
-    match sc_entity.second_message(key_gen_msg2.into_inner()) {
+    match lockbox.second_message(key_gen_msg2.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
     }
@@ -103,10 +103,10 @@ pub fn second_message(
 
 #[post("/ecdsa/keygen/third", format = "json", data = "<key_gen_msg3>")]
 pub fn third_message(
-    sc_entity: State<LB>,
+    lockbox: State<LB>,
     key_gen_msg3: Json<KeyGenMsg3>,
 ) -> Result<Json<party_one::PDLFirstMessage>> {
-    match sc_entity.third_message(key_gen_msg3.into_inner()) {
+    match lockbox.third_message(key_gen_msg3.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
     }
@@ -114,10 +114,10 @@ pub fn third_message(
 
 #[post("/ecdsa/keygen/fourth", format = "json", data = "<key_gen_msg4>")]
 pub fn fourth_message(
-    sc_entity: State<LB>,
+    lockbox: State<LB>,
     key_gen_msg4: Json<KeyGenMsg4>,
 ) -> Result<Json<party_one::PDLSecondMessage>> {
-    match sc_entity.fourth_message(key_gen_msg4.into_inner()) {
+    match lockbox.fourth_message(key_gen_msg4.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
     }
@@ -125,18 +125,18 @@ pub fn fourth_message(
 
 #[post("/ecdsa/sign/first", format = "json", data = "<sign_msg1>")]
 pub fn sign_first(
-    sc_entity: State<LB>,
+    lockbox: State<LB>,
     sign_msg1: Json<SignMsg1>,
 ) -> Result<Json<party_one::EphKeyGenFirstMsg>> {
-    match sc_entity.sign_first(sign_msg1.into_inner()) {
+    match lockbox.sign_first(sign_msg1.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
     }
 }
 
 #[post("/ecdsa/sign/second", format = "json", data = "<sign_msg2>")]
-pub fn sign_second(sc_entity: State<LB>, sign_msg2: Json<SignMsg2>) -> Result<Json<Vec<Vec<u8>>>> {
-    match sc_entity.sign_second(sign_msg2.into_inner()) {
+pub fn sign_second(lockbox: State<LB>, sign_msg2: Json<SignMsg2>) -> Result<Json<Vec<Vec<u8>>>> {
+    match lockbox.sign_second(sign_msg2.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
     }

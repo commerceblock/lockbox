@@ -2,6 +2,7 @@
 //!
 //! Struct definitions used in State entity protocols
 
+use crate::state_chain::{State, StateChainSig};
 use bitcoin::{OutPoint, Transaction, TxIn, TxOut};
 use curv::{cryptographic_primitives::proofs::sigma_dlog::DLogProof, BigInt, FE, GE, PK, SK};
 use kms::ecdsa::two_party::party2;
@@ -209,6 +210,55 @@ impl SelfEncryptable for FESer {
     }
 }
 
+/// Sender -> Lockbox
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TransferMsg1 {
+    pub shared_key_id: Uuid,
+    pub state_chain_sig: StateChainSig,
+}
+/// Lockbox -> Sender
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct TransferMsg2 {
+    pub x1: FESer,
+    pub proof_key: ecies::PublicKey,
+}
+/// Sender -> Receiver
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct TransferMsg3 {
+    pub shared_key_id: Uuid,
+    pub t1: FESer, // t1 = o1x1
+    pub state_chain_sig: StateChainSig,
+    pub state_chain_id: Uuid,
+    pub tx_backup_psm: PrepareSignTxMsg,
+    pub rec_addr: SCEAddress, // receivers state entity address (btc address and proof key)
+}
+
+/// Receiver -> Lockbox
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TransferMsg4 {
+    pub shared_key_id: Uuid,
+    pub state_chain_id: Uuid,
+    pub t2: FE, // t2 = t1*o2_inv = o1*x1*o2_inv
+    pub state_chain_sig: StateChainSig,
+    pub o2_pub: GE,
+    pub tx_backup: Transaction,
+    pub batch_data: Option<BatchData>,
+}
+
+/// Lockbox -> Receiver
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TransferMsg5 {
+    pub new_shared_key_id: Uuid,
+    pub s2_pub: GE,
+    pub theta: FE,
+}
+
+/// Data present if transfer is part of an atomic batch transfer
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BatchData {
+    pub id: Uuid,
+    pub commitment: String, // Commitment to transfer input UTXO in case of protocol failure
+}
 
 #[cfg(test)]
 mod tests {

@@ -30,6 +30,7 @@ pub mod mocks;
 
 pub mod error;
 pub mod structs;
+pub mod state_chain;
 pub mod util;
 pub mod ecies;
 

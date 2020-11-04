@@ -7,6 +7,11 @@ authors = ["The Teaclave Authors"]
 name = "helloworldsampleenclave"
 crate-type = ["staticlib"]
 
+[dependencies]
+serde = { git = "https://github.com/mesalock-linux/serde-sgx" }
+serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
+serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx" }
+
 [features]
 default = []
 
@@ -14,6 +19,8 @@ default = []
 sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["backtrace"] }
 sgx_trts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_alloc = { path = "../../sgx/sgx_alloc" }
 sgx_build_helper = { path = "../../sgx/sgx_build_helper" }

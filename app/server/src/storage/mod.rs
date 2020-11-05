@@ -1,4 +1,3 @@
-pub mod db;
 pub use super::Result;
 
 use rocket::http::{ContentType, Status};

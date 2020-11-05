@@ -7,7 +7,6 @@ extern crate shared_lib;
 use shared_lib::{ecies, ecies::WalletDecryptable, state_chain::*, structs::*};
 
 use crate::error::LockboxError;
-use crate::Database;
 use crate::server::Lockbox;
 
 use bitcoin::Transaction;
@@ -21,15 +20,7 @@ use rocket_contrib::json::Json;
 use std::str::FromStr;
 use uuid::Uuid;
 
-cfg_if! {
-    if #[cfg(any(test,feature="mockdb"))]{
-        use crate::MockDatabase;
-        type LB = Lockbox::<MockDatabase>;
-    } else {
-        use crate::PGDatabase;
-        type LB = Lockbox::<PGDatabase>;
-    }
-}
+type LB = Lockbox;
 
 /// Struct holds data when transfer is complete but not yet finalized
 #[derive(Serialize, Deserialize, Debug, Clone)]

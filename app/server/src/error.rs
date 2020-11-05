@@ -4,9 +4,7 @@
 
 //use shared_lib::error::SharedLibError;
 
-use crate::storage::db::Column;
 use config_rs::ConfigError;
-use postgres::Error as PostgresError;
 use rocket::http::{ContentType, Status};
 use rocket::response::Responder;
 use rocket::{Request, Response};
@@ -24,8 +22,6 @@ pub enum LockboxError {
     AuthError,
     /// DB error no ID found
     DBError(DBErrorType, String),
-    /// DB error no data in column for ID
-    DBErrorWC(DBErrorType, String, Column),
     // Inherit errors from Util
     //SharedLibError(String),
 }
@@ -46,11 +42,7 @@ impl From<SystemTimeError> for LockboxError {
         Self::Generic(e.to_string())
     }
 }
-impl From<PostgresError> for LockboxError {
-    fn from(e: PostgresError) -> Self {
-        Self::Generic(e.to_string())
-    }
-}
+
 impl From<ConfigError> for LockboxError {
     fn from(e: ConfigError) -> Self {
         Self::Generic(e.to_string())
@@ -83,14 +75,6 @@ impl fmt::Display for LockboxError {
             LockboxError::Generic(ref e) => write!(f, "Error: {}", e),
             LockboxError::AuthError => write!(f, "Authentication Error: User authorisation failed"),
             LockboxError::DBError(ref e, ref id) => write!(f, "DB Error: {} (id: {})", e.as_str(), id),
-            LockboxError::DBErrorWC(ref e, ref id, ref col) => write!(
-                f,
-                "DB Error: {} (id: {} col: {})",
-                e.as_str(),
-                id,
-                col.to_string()
-            ),
-            //Error::SharedLibError(ref e) => write!(f, "SharedLibError Error: {}", e),
         }
     }
 }

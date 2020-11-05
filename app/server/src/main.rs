@@ -1,10 +1,8 @@
 extern crate server_lib;
-use server_lib::{server, Database, PGDatabase};
+use server_lib::server;
 
 fn main() {
-    server::get_server::<PGDatabase>(
-        PGDatabase::get_new(),
-    )
+    server::get_server()
     .unwrap()
     .launch();
 }

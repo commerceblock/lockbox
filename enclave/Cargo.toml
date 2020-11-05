@@ -16,11 +16,11 @@ serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx" }
 default = []
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
-sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["backtrace"] }
-sgx_trts = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git", tag="v1.1.2" }
+sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["backtrace"], tag="v1.1.2" }
+sgx_trts = { git = "https://github.com/apache/teaclave-sgx-sdk.git", tag="v1.1.2" }
+sgx_tseal = { git = "https://github.com/apache/teaclave-sgx-sdk.git", tag="v1.1.2" }
+sgx_rand = { git = "https://github.com/apache/teaclave-sgx-sdk.git", tag="v1.1.2" }
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_alloc = { path = "../../sgx/sgx_alloc" }
 sgx_build_helper = { path = "../../sgx/sgx_build_helper" }

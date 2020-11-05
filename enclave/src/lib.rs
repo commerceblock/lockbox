@@ -37,6 +37,10 @@ use std::vec::Vec;
 use std::io::{self, Write};
 use std::slice;
 
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_cbor;
+
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is
 // **not** continuous in memory. The `vec` is the bad member.

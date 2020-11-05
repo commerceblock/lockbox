@@ -51,31 +51,31 @@ pub trait Ecdsa {
 
 impl Ecdsa for LB {
     fn master_key(&self, user_id: Uuid) -> Result<()> {
-        unimplemented!()
+       Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
-        unimplemented!()
+       Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<party1::KeyGenParty1Message2> {
-        unimplemented!()
+        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     fn third_message(&self, key_gen_msg3: KeyGenMsg3) -> Result<party_one::PDLFirstMessage> {
-        unimplemented!()
+        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     fn fourth_message(&self, key_gen_msg4: KeyGenMsg4) -> Result<party_one::PDLSecondMessage> {
-        unimplemented!()
+        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     fn sign_first(&self, sign_msg1: SignMsg1) -> Result<party_one::EphKeyGenFirstMsg> {
-        unimplemented!()
+        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Vec<Vec<u8>>> {
-        unimplemented!()
+        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 }
 

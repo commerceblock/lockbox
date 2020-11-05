@@ -5,7 +5,7 @@ use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
 
-static ENCLAVE_FILE: &'static str = "/root/lockbox/bin/enclave.signed.so";
+static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 

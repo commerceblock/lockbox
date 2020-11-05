@@ -110,7 +110,7 @@ extern {
 }
 
 //A trait to mark a struct or part of a struct as sealed
-pub trait SgxSealed{};
+pub trait SgxSealed{}
 
 pub struct SealedData {
 

@@ -37,10 +37,7 @@ use std::vec::Vec;
 use std::io::{self, Write};
 use std::slice;
 
-#[macro_use]
-extern crate serde_derive;
-extern crate serde_cbor;
-
+/*
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is
 // **not** continuous in memory. The `vec` is the bad member.
@@ -52,6 +49,7 @@ struct RandDataSerializable {
     rand: [u8; 16],
     vec: Vec<u8>,
 }
+*/
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {
@@ -83,6 +81,8 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 
     sgx_status_t::SGX_SUCCESS
 }
+
+/*
 
 #[no_mangle]
 pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
@@ -161,3 +161,4 @@ fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(sealed_log: * mut u
     }
 }
 
+*/

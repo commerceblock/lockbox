@@ -15,7 +15,6 @@ pub struct Enclave {
 
 impl Deref for Enclave {
      type Target = SgxEnclave;
-
      fn deref(&self) -> &Self::Target {
      	&self.inner
      }
@@ -62,8 +61,6 @@ impl Enclave {
     	}
 
      }
-
-
      pub fn get_random_sealed_data(&self) -> Result<[u8; 1024]> {
      	 let mut sealed_log = [0; 1024];
 	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
@@ -112,9 +109,7 @@ extern {
 //A trait to mark a struct or part of a struct as sealed
 pub trait SgxSealed{}
 
-pub struct SealedData {
-
-}
+pub struct SealedData {}
 
 #[cfg(test)]
 mod tests {

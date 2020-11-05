@@ -71,28 +71,28 @@ pub trait Transfer {
 
 impl Transfer for LB {
     fn transfer_sender(&self, transfer_msg1: TransferMsg1) -> Result<TransferMsg2> {
-       unimplemented!()
+       Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     fn transfer_receiver(&self, transfer_msg4: TransferMsg4) -> Result<TransferMsg5> {
-       unimplemented!()
+       Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     /// Update DB and SMT after successful transfer.
     /// This function is called immediately in the regular transfer case or after confirmation of atomic
     /// transfers completion in the batch transfer case.
     fn transfer_finalize(&self, finalized_data: &TransferFinalizeData) -> Result<()> {
-       unimplemented!()
+       Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     /// API: Update the state entity database with transfer message 3
     fn transfer_update_msg(&self, transfer_msg3: TransferMsg3) -> Result<()> {
-       unimplemented!()
+       Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     /// API: Get the transfer message 3 set by update_transfer_msg
     fn transfer_get_msg(&self, state_chain_id: Uuid) -> Result<TransferMsg3> {
-       unimplemented!()
+       Err(LockboxError::Generic("unimplemented".to_string()))
     }
 }
 

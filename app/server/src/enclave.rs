@@ -5,7 +5,7 @@ use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
 
-static ENCLAVE_FILE: &'static str = "/root/lockbox/bin/enclave.signed.so";
+static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -63,11 +63,29 @@ impl Enclave {
 
      }
 
+/*
+     pub fn get_random_sealed_data(&self) -> Result<[u8; 1024]> {
+     	 let mut sealed_log = [0; 1024];
+	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+
+	 let result = unsafe {
+	     create_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024 as u32);
+	 };
+
+	 match enclave_ret {
+	      sgx_status_t::SGX_SUCCESS => Ok(sealed_log),
+       	       _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	 }
+     }
+     */
 }
 
 extern {
     fn say_something(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
                      some_string: *const u8, len: usize) -> sgx_status_t;
+
+//    fn create_sealeddata_for_serializable(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+//       		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
 }
 
 #[cfg(test)]
@@ -76,14 +94,32 @@ mod tests {
 
     #[test]
     fn test_new() {
-       assert!(Enclave::new().is_ok())
+       let enc = Enclave::new().unwrap();
+       unsafe {
+              sgx_destroy_enclave(enc.geteid());
+	      }
     }
 
     #[test]
     fn test_say_something() {
        let enc = Enclave::new().unwrap();
        let _ = enc.say_something("From test_say_something. ".to_string()).unwrap();
+       unsafe {
+       	      sgx_destroy_enclave(enc.geteid());
+	      }
     }
+
+/*
+    #[test]
+    #[ignore]
+    fn test_get_random_sealed_data() {
+       let enc = Enclave::new().unwrap();
+       let rsd = enc.get_random_sealed_data().unwrap();
+       unsafe {
+       	      sgx_destroy_enclave(enc.geteid());
+	      }
+    }
+    */
 }
 
 

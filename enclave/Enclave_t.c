@@ -27,6 +27,18 @@
 )
 
 
+typedef struct ms_create_sealeddata_for_serializable_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_sealed_log;
+	uint32_t ms_sealed_log_size;
+} ms_create_sealeddata_for_serializable_t;
+
+typedef struct ms_verify_sealeddata_for_serializable_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_sealed_log;
+	uint32_t ms_sealed_log_size;
+} ms_verify_sealeddata_for_serializable_t;
+
 typedef struct ms_say_something_t {
 	sgx_status_t ms_retval;
 	const uint8_t* ms_some_string;
@@ -465,6 +477,101 @@ typedef struct ms_sgx_thread_set_multiple_untrusted_events_ocall_t {
 	size_t ms_total;
 } ms_sgx_thread_set_multiple_untrusted_events_ocall_t;
 
+static sgx_status_t SGX_CDECL sgx_create_sealeddata_for_serializable(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_create_sealeddata_for_serializable_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_create_sealeddata_for_serializable_t* ms = SGX_CAST(ms_create_sealeddata_for_serializable_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	uint8_t* _tmp_sealed_log = ms->ms_sealed_log;
+	uint32_t _tmp_sealed_log_size = ms->ms_sealed_log_size;
+	size_t _len_sealed_log = _tmp_sealed_log_size;
+	uint8_t* _in_sealed_log = NULL;
+
+	CHECK_UNIQUE_POINTER(_tmp_sealed_log, _len_sealed_log);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_sealed_log != NULL && _len_sealed_log != 0) {
+		if ( _len_sealed_log % sizeof(*_tmp_sealed_log) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		if ((_in_sealed_log = (uint8_t*)malloc(_len_sealed_log)) == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		memset((void*)_in_sealed_log, 0, _len_sealed_log);
+	}
+
+	ms->ms_retval = create_sealeddata_for_serializable(_in_sealed_log, _tmp_sealed_log_size);
+	if (_in_sealed_log) {
+		if (memcpy_s(_tmp_sealed_log, _len_sealed_log, _in_sealed_log, _len_sealed_log)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+	}
+
+err:
+	if (_in_sealed_log) free(_in_sealed_log);
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_verify_sealeddata_for_serializable(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_verify_sealeddata_for_serializable_t));
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+	ms_verify_sealeddata_for_serializable_t* ms = SGX_CAST(ms_verify_sealeddata_for_serializable_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	uint8_t* _tmp_sealed_log = ms->ms_sealed_log;
+	uint32_t _tmp_sealed_log_size = ms->ms_sealed_log_size;
+	size_t _len_sealed_log = _tmp_sealed_log_size;
+	uint8_t* _in_sealed_log = NULL;
+
+	CHECK_UNIQUE_POINTER(_tmp_sealed_log, _len_sealed_log);
+
+	//
+	// fence after pointer checks
+	//
+	sgx_lfence();
+
+	if (_tmp_sealed_log != NULL && _len_sealed_log != 0) {
+		if ( _len_sealed_log % sizeof(*_tmp_sealed_log) != 0)
+		{
+			status = SGX_ERROR_INVALID_PARAMETER;
+			goto err;
+		}
+		_in_sealed_log = (uint8_t*)malloc(_len_sealed_log);
+		if (_in_sealed_log == NULL) {
+			status = SGX_ERROR_OUT_OF_MEMORY;
+			goto err;
+		}
+
+		if (memcpy_s(_in_sealed_log, _len_sealed_log, _tmp_sealed_log, _len_sealed_log)) {
+			status = SGX_ERROR_UNEXPECTED;
+			goto err;
+		}
+
+	}
+
+	ms->ms_retval = verify_sealeddata_for_serializable(_in_sealed_log, _tmp_sealed_log_size);
+
+err:
+	if (_in_sealed_log) free(_in_sealed_log);
+	return status;
+}
+
 static sgx_status_t SGX_CDECL sgx_say_something(void* pms)
 {
 	CHECK_REF_POINTER(pms, sizeof(ms_say_something_t));
@@ -569,10 +676,12 @@ static sgx_status_t SGX_CDECL sgx_t_global_exit_ecall(void* pms)
 
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[3];
+	struct {void* ecall_addr; uint8_t is_priv; uint8_t is_switchless;} ecall_table[5];
 } g_ecall_table = {
-	3,
+	5,
 	{
+		{(void*)(uintptr_t)sgx_create_sealeddata_for_serializable, 0, 0},
+		{(void*)(uintptr_t)sgx_verify_sealeddata_for_serializable, 0, 0},
 		{(void*)(uintptr_t)sgx_say_something, 0, 0},
 		{(void*)(uintptr_t)sgx_t_global_init_ecall, 0, 0},
 		{(void*)(uintptr_t)sgx_t_global_exit_ecall, 0, 0},
@@ -581,70 +690,70 @@ SGX_EXTERNC const struct {
 
 SGX_EXTERNC const struct {
 	size_t nr_ocall;
-	uint8_t entry_table[60][3];
+	uint8_t entry_table[60][5];
 } g_dyn_entry_table = {
 	60,
 	{
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
-		{0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
+		{0, 0, 0, 0, 0, },
 	}
 };
 

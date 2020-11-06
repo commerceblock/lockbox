@@ -4,6 +4,9 @@ extern crate sgx_urts;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
+//#[macro_use]
+//extern crate serde_derive;
+//extern crate serde_cbor;
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -106,10 +109,6 @@ extern {
        		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
 }
 
-//A trait to mark a struct or part of a struct as sealed
-pub trait SgxSealed{}
-
-pub struct SealedData {}
 
 #[cfg(test)]
 mod tests {

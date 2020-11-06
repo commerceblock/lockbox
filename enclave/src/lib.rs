@@ -22,9 +22,11 @@
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
 
 extern crate sgx_types;
+extern crate sgx_tseal;
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
+extern crate sgx_rand;
 
 use sgx_types::{sgx_status_t, sgx_sealed_data_t};
 use std::string::String;
@@ -32,7 +34,8 @@ use sgx_types::marker::ContiguousMemory;
 use std::vec::Vec;
 use std::io::{self, Write};
 use std::slice;
-
+use sgx_tseal::{SgxSealedData};
+use sgx_rand::{Rng, StdRng};
 
 #[macro_use]
 extern crate serde_derive;

@@ -33,8 +33,7 @@ use std::vec::Vec;
 use std::io::{self, Write};
 use std::slice;
 
-<<<<<<< HEAD
-=======
+
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_cbor;
@@ -51,8 +50,6 @@ struct RandDataSerializable {
     rand: [u8; 16],
     vec: Vec<u8>,
 }
->>>>>>> sgx_seal
-
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {
@@ -85,8 +82,6 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
     sgx_status_t::SGX_SUCCESS
 }
 
-<<<<<<< HEAD
-=======
 #[no_mangle]
 pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
@@ -163,4 +158,4 @@ fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(sealed_log: * mut u
         SgxSealedData::<[T]>::from_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
     }
 }
->>>>>>> sgx_seal
+

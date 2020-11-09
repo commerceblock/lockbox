@@ -1,7 +1,7 @@
 # lockbox
 Key share management in SGX secure enclaves.
 
-# Docker build
+## Docker build
 
 ### Build docker image by executing:
 ```bash

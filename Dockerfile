@@ -5,6 +5,7 @@ COPY . /root/lockbox
 RUN set -x \
     && apt update \
     && apt install -y libgmp-dev \
+    && rm -rf /var/lib/apt/lists/* \
     && git clone https://github.com/apache/incubator-teaclave-sgx-sdk.git /root/sgx \
     && cd /opt/intel \
     && wget https://download.01.org/intel-sgx/sgx-linux/2.11/distro/ubuntu18.04-server/sgx_linux_x64_sdk_2.11.100.2.bin \
@@ -16,7 +17,6 @@ RUN set -x \
     && export PKG_CONFIG_PATH=$SGX_SDK/pkgconfig \
     && export BINUTILS_PREFIX=/usr \
     && cd /root/lockbox \
-    && make \
-    && rm -rf /var/lib/apt/lists/*
+    && make -j$(nproc)
 
 CMD ["bash", "-c"]

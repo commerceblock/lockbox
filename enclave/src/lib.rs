@@ -37,6 +37,7 @@ use std::slice;
 extern crate serde_derive;
 extern crate serde_cbor;
 
+static SEALED_LOG_SIZE: u32 = 1024;
 
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is
@@ -50,6 +51,30 @@ struct RandDataSerializable {
     vec: Vec<u8>,
 }
 
+
+extern crate sgx_serialize;
+use sgx_serialize::{SerializeHelper, DeSerializeHelper};
+#[macro_use]
+extern crate sgx_serialize_derive;
+
+
+pub trait SGXSealable {
+   fn get_sealed(&self) -> Result<SgxSealedData<[u8]>> {
+
+
+    }
+
+    fn get_encoded_vec(&self) -> Option<Vec<u8>> {
+	let helper = SerializeHelper::new();
+	helper.encode(self)
+    }
+
+    fn get_encoded_slice(&self) -> Option<&[u8]> {
+	self.get_encoded_vec().map(|v| v.as_slice())
+    }
+    
+    fn from_sealed(&SgxSealedData<[u8]>) -> Result<Self> {}
+}
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {

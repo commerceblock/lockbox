@@ -7,15 +7,7 @@ use cfg_if::cfg_if;
 use crate::{server::Lockbox, structs::*};
 use crate::error::LockboxError;
 
-cfg_if! {
-    if #[cfg(any(test,feature="mockdb"))]{
-        use crate::MockDatabase;
-        type LB = Lockbox::<MockDatabase>;
-    } else {
-        use crate::PGDatabase;
-        type LB = Lockbox::<PGDatabase>;
-    }
-}
+type LB = Lockbox;
 
 #[post("/enclave/hello", format = "json", data = "<hello_message>")]
 pub fn enclave_hello(

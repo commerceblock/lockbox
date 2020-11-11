@@ -3,4 +3,3 @@
 members = ["server", "client", "shared"]
 [patch.'https://github.com/mesalock-linux/cbor-sgx']
 sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-

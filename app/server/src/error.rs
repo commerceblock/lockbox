@@ -1,6 +1,6 @@
 //! # Error
 //!
-//! Custom Error types for server
+//! Custom Error types for lockbox
 
 //use shared_lib::error::SharedLibError;
 

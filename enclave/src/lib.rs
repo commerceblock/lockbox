@@ -25,6 +25,8 @@ extern crate sgx_types;
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
+extern crate sgx_rand;
+extern crate sgx_tseal;
 
 use sgx_types::{sgx_status_t, sgx_sealed_data_t};
 use std::string::String;
@@ -32,10 +34,16 @@ use sgx_types::marker::ContiguousMemory;
 use std::vec::Vec;
 use std::io::{self, Write};
 use std::slice;
+use std::convert::TryInto;
+use sgx_rand::{Rng, StdRng};
+use sgx_tseal::{SgxSealedData};
+use std::ops::{Deref, DerefMut};
 
+extern crate sgx_serialize;
+use sgx_serialize::{SerializeHelper, DeSerializeHelper};
 #[macro_use]
-extern crate serde_derive;
-extern crate serde_cbor;
+extern crate sgx_serialize_derive;
+
 
 static SEALED_LOG_SIZE: u32 = 1024;
 
@@ -44,20 +52,38 @@ static SEALED_LOG_SIZE: u32 = 1024;
 // **not** continuous in memory. The `vec` is the bad member.
 // However, it is serializable. So we can serialize it first and
 // put convert the Vec<u8> to [u8] then put [u8] to sgx_seal API!
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[derive(Serializable, DeSerializable, Clone, Default, Debug)]
 struct RandDataSerializable {
     key: u32,
     rand: [u8; 16],
     vec: Vec<u8>,
 }
 
+struct SGXSealable {
+    inner: [u8; 1024]
+}
 
-extern crate sgx_serialize;
-use sgx_serialize::{SerializeHelper, DeSerializeHelper};
-#[macro_use]
-extern crate sgx_serialize_derive;
+impl Deref for SGXSealable {
+     type Target = [u8; 1024];
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
 
+impl DerefMut for SGXSealable {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
 
+impl From<RandDataSerializable> for SGXSealable {
+    fn from(item: RandDataSerializable) -> Self {
+	let helper = SerializeHelper::new(); 
+	Self { inner: helper.encode(item).unwrap().try_into().unwrap() }
+    }
+}
+
+/*
 pub trait SGXSealable {
    fn get_sealed(&self) -> Result<SgxSealedData<[u8]>> {
 
@@ -75,6 +101,7 @@ pub trait SGXSealable {
     
     fn from_sealed(&SgxSealedData<[u8]>) -> Result<Self> {}
 }
+ */
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {
@@ -121,6 +148,7 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
 
     data.vec.extend(data.rand.iter());
 
+    /*
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
     let encoded_slice = encoded_vec.as_slice();
     println!("Length of encoded slice: {}", encoded_slice.len());
@@ -139,7 +167,7 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
     }
 
     println!("{:?}", data);
-
+*/
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -165,10 +193,11 @@ pub extern "C" fn verify_sealeddata_for_serializable(sealed_log: * mut u8, seale
     let encoded_slice = unsealed_data.get_decrypt_txt();
     println!("Length of encoded slice: {}", encoded_slice.len());
     println!("Encoded slice: {:?}", encoded_slice);
+    /*
     let data: RandDataSerializable = serde_cbor::from_slice(encoded_slice).unwrap();
 
     println!("{:?}", data);
-
+*/
     sgx_status_t::SGX_SUCCESS
 }
 

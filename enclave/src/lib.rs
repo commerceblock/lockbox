@@ -28,13 +28,13 @@ extern crate sgx_tstd as std;
 extern crate sgx_rand;
 extern crate sgx_tseal;
 
-use sgx_types::{sgx_status_t, sgx_sealed_data_t};
+use sgx_types::{sgx_status_t, sgx_sealed_data_t, SgxResult, SgxError};
 use std::string::String;
 use sgx_types::marker::ContiguousMemory;
 use std::vec::Vec;
 use std::io::{self, Write};
 use std::slice;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use sgx_rand::{Rng, StdRng};
 use sgx_tseal::{SgxSealedData};
 use std::ops::{Deref, DerefMut};
@@ -43,9 +43,6 @@ extern crate sgx_serialize;
 use sgx_serialize::{SerializeHelper, DeSerializeHelper};
 #[macro_use]
 extern crate sgx_serialize_derive;
-
-
-static SEALED_LOG_SIZE: u32 = 1024;
 
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is
@@ -59,49 +56,84 @@ struct RandDataSerializable {
     vec: Vec<u8>,
 }
 
-struct SGXSealable {
-    inner: [u8; 1024]
+pub struct SgxSealable {
+    inner: [u8; Self::size()]
 }
 
-impl Deref for SGXSealable {
-     type Target = [u8; 1024];
+impl SgxSealable {
+    fn to_sealed(&self) -> SgxResult<SgxSealedData<[u8]>> {
+	let aad: [u8; 0] = [0_u8; 0];
+	SgxSealedData::<[u8]>::seal_data(&aad, self.deref())
+    }
+    #[inline]
+    pub const fn size() -> usize {
+	1024
+    }
+}
+
+impl Deref for SgxSealable {
+     type Target = [u8; Self::size()];
      fn deref(&self) -> &Self::Target {
      	&self.inner
      }
 }
 
-impl DerefMut for SGXSealable {
+impl DerefMut for SgxSealable {
      fn deref_mut(&mut self) -> &mut Self::Target {
      	&mut self.inner
      }
 }
 
-impl From<RandDataSerializable> for SGXSealable {
+pub struct SgxSealedLog {
+    inner: * mut u8
+}
+
+impl SgxSealedLog{
+    #[inline]
+    pub const fn size() -> usize {
+	SgxSealable::size()
+    }
+}
+
+impl Deref for SgxSealedLog {
+    type Target = * mut u8;
+     fn deref(&self) -> &Self::Target {
+        &self.inner
+     }
+}
+
+impl DerefMut for SgxSealedLog {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+     }
+}
+
+impl TryFrom<SgxSealable> for SgxSealedLog {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+	let sealed_data = match item.to_sealed(){
+	    Ok(v) => v,
+	    Err(e) => return Err(e)
+	};
+	let sealed_log: * mut u8 = std::ptr::null_mut();
+	match unsafe {
+            sealed_data.to_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, Self::size() as u32)
+	} {
+	    Some(v) => {
+		Ok(Self{inner: sealed_log})
+	    },
+	    None => Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	}
+    }
+}
+
+impl From<RandDataSerializable> for SgxSealable {
     fn from(item: RandDataSerializable) -> Self {
 	let helper = SerializeHelper::new(); 
 	Self { inner: helper.encode(item).unwrap().try_into().unwrap() }
     }
 }
 
-/*
-pub trait SGXSealable {
-   fn get_sealed(&self) -> Result<SgxSealedData<[u8]>> {
-
-
-    }
-
-    fn get_encoded_vec(&self) -> Option<Vec<u8>> {
-	let helper = SerializeHelper::new();
-	helper.encode(self)
-    }
-
-    fn get_encoded_slice(&self) -> Option<&[u8]> {
-	self.get_encoded_vec().map(|v| v.as_slice())
-    }
-    
-    fn from_sealed(&SgxSealedData<[u8]>) -> Result<Self> {}
-}
- */
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {
@@ -148,6 +180,10 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
 
     data.vec.extend(data.rand.iter());
 
+    let data_s = SgxSealable::from(data);
+
+    
+    
     /*
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
     let encoded_slice = encoded_vec.as_slice();

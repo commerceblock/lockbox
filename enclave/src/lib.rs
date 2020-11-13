@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License..
 
-#![crate_name = "helloworldsampleenclave"]
+#![crate_name = "lockbox_enclave_lib"]
 #![crate_type = "staticlib"]
 
 #![cfg_attr(not(target_env = "sgx"), no_std)]

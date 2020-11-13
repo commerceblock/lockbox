@@ -41,7 +41,6 @@ sgx_types = { git = "https://github.com/apache/teaclave-sgx-sdk.git"}
 sgx_urts = { git = "https://github.com/apache/teaclave-sgx-sdk.git"}
 
 
-
 [dev-dependencies]
 mockito = "0.27.0"
 
@@ -81,3 +80,6 @@ mockdb = []
 
 [dependencies.shared]
 path = "../shared"
+
+[dependencies.lockbox_enclave]
+path = "../../enclave" 

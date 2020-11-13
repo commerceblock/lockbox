@@ -13,11 +13,8 @@ use bitcoin::Transaction;
 use rocket::State;
 use rocket_contrib::json::Json;
 use uuid::Uuid;
-use curv::{
-    arithmetic::traits::Converter,
-    elliptic::curves::traits::ECPoint,
-    {BigInt, FE, GE}
-};
+use curv::FE;
+
 type LB = Lockbox;
 
 /// Struct holds data when transfer is complete but not yet finalized

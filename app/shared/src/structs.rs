@@ -264,8 +264,6 @@ pub struct BatchData {
 mod tests {
     use super::*;
     use crate::util::keygen::generate_keypair;
-    use bitcoin::secp256k1::{Secp256k1, SecretKey};
-    use rand::rngs::OsRng;
 
     #[test]
     fn test_encrypt_fe_ser() {

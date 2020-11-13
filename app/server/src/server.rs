@@ -114,7 +114,6 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito;
     use shared_lib::structs::{KeyGenMsg1, Protocol};
     use uuid::Uuid;
     use crate::protocol::ecdsa::Ecdsa;
@@ -130,7 +129,7 @@ mod tests {
     #[test]
     fn test_ping() {
         let client = get_client();
-        let mut response = client
+        let response = client
             .get("/ping")
             .dispatch();   
         assert_eq!(response.status(), Status::Ok);

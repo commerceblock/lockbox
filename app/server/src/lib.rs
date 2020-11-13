@@ -3,6 +3,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 #[macro_use]
 extern crate rocket;
+#[allow(unused_imports)]
 #[macro_use]
 extern crate rocket_contrib;
 extern crate chrono;
@@ -11,6 +12,7 @@ extern crate uuid;
 #[macro_use]
 extern crate failure;
 extern crate error_chain;
+#[allow(unused_imports)]
 #[macro_use]
 extern crate log;
 extern crate cfg_if;
@@ -28,9 +30,6 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
-#[cfg(test)]
-#[macro_use]
-extern crate serial_test;
 extern crate mockall;
 #[cfg(test)]
 extern crate mockito;

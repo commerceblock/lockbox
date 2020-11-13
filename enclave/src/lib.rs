@@ -32,7 +32,7 @@ extern crate sgx_tseal;
 extern crate serde_derive;
 extern crate serde_cbor;
 
-use sgx_types::{sgx_status_t, sgx_sealed_data_t, SgxResult, SgxError};
+use sgx_types::{sgx_status_t, sgx_sealed_data_t, SgxResult};
 use std::string::String;
 use sgx_types::marker::ContiguousMemory;
 use std::vec::Vec;

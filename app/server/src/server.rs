@@ -5,20 +5,13 @@ use log::LevelFilter;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config as LogConfig, Root as LogRoot};
 use log4rs::encode::pattern::PatternEncoder;
-use mockall::*;
 
 use rocket;
 use rocket::{
-    http::{ContentType, Status},
-    local::Client,
     config::{Config as RocketConfig, Environment},
     Request, Rocket,
 };
-use std::sync::{Arc, Mutex};
-use uuid::Uuid;
-use crate::protocol::ecdsa::Ecdsa;
 use crate::enclave::Enclave;
-use shared_lib::structs::{KeyGenMsg1, Protocol};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -61,7 +54,7 @@ fn not_found(req: &Request) -> String {
 }
 
 pub fn get_server()-> Result<Rocket> {
-    let mut lbs = Lockbox::load()?;
+    let lbs = Lockbox::load()?;
 
     set_logging_config(&lbs.config.log_file);
 
@@ -122,7 +115,14 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 mod tests {
     use super::*;
     use mockito;
-   
+    use shared_lib::structs::{KeyGenMsg1, Protocol};
+    use uuid::Uuid;
+    use crate::protocol::ecdsa::Ecdsa;
+    use rocket::{
+	http::Status,
+	local::Client,
+    };
+    
     fn get_client() -> Client {
         Client::new(get_server().expect("valid rocket instance")).expect("client")   
     }

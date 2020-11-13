@@ -1,19 +1,11 @@
 pub use super::super::Result;
 
-use crate::error::{DBErrorType, LockboxError};
-use crate::{server::Lockbox, structs::*};
+use crate::error::LockboxError;
+use crate::server::Lockbox;
 use shared_lib::{
-    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, Protocol, SignMsg1, SignMsg2},
-    util::reverse_hex_str,
+    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, SignMsg1, SignMsg2},
 };
 
-use bitcoin::{hashes::sha256d, secp256k1::Signature, Transaction};
-use cfg_if::cfg_if;
-use curv::{
-    arithmetic::traits::Converter,
-    elliptic::curves::traits::ECPoint,
-    {BigInt, FE, GE},
-};
 pub use kms::ecdsa::two_party::*;
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 use rocket::State;
@@ -40,35 +32,34 @@ pub trait Ecdsa {
 }
 
 impl Ecdsa for Lockbox {
-    fn master_key(&self, user_id: Uuid) -> Result<()> {
+    fn master_key(&self, _user_id: Uuid) -> Result<()> {
        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
-	
-	self.enclave.say_something("calling enclave from first_message".to_string());
+	let _ = self.enclave.say_something("calling enclave from first_message".to_string()).map_err(|e| LockboxError::Generic(e.to_string()))?;
 	let sealed = self.enclave.get_random_sealed_data().map_err(|e| LockboxError::Generic(e.to_string()))?;
 	self.enclave.verify_sealed_data(sealed).map_err(|e| LockboxError::Generic(e.to_string()))?;
 	Err(LockboxError::Generic("sealed and unsealed data successfully".to_string()))
     }
 
-    fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<party1::KeyGenParty1Message2> {
+    fn second_message(&self, _key_gen_msg2: KeyGenMsg2) -> Result<party1::KeyGenParty1Message2> {
         Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
-    fn third_message(&self, key_gen_msg3: KeyGenMsg3) -> Result<party_one::PDLFirstMessage> {
+    fn third_message(&self, _key_gen_msg3: KeyGenMsg3) -> Result<party_one::PDLFirstMessage> {
         Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
-    fn fourth_message(&self, key_gen_msg4: KeyGenMsg4) -> Result<party_one::PDLSecondMessage> {
+    fn fourth_message(&self, _key_gen_msg4: KeyGenMsg4) -> Result<party_one::PDLSecondMessage> {
         Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
-    fn sign_first(&self, sign_msg1: SignMsg1) -> Result<party_one::EphKeyGenFirstMsg> {
+    fn sign_first(&self, _sign_msg1: SignMsg1) -> Result<party_one::EphKeyGenFirstMsg> {
         Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
-    fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Vec<Vec<u8>>> {
+    fn sign_second(&self, _sign_msg2: SignMsg2) -> Result<Vec<Vec<u8>>> {
         Err(LockboxError::Generic("unimplemented".to_string()))
     }
 }

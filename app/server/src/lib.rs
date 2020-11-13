@@ -46,15 +46,4 @@ pub mod enclave;
 
 pub type Result<T> = std::result::Result<T, error::LockboxError>;
 
-//use crate::protocol::transfer::TransferFinalizeData;
-use mockall::predicate::*;
-use mockall::*;
-//use shared_lib::{state_chain::*, structs::TransferMsg3, Root};
-use std::collections::{HashMap, HashSet};
-use uuid::Uuid;
 
-use structs::*;
-
-pub mod structs {
-    use super::*;
-}

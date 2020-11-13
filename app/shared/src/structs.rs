@@ -2,18 +2,18 @@
 //!
 //! Struct definitions used in State entity protocols
 
-use crate::state_chain::{State, StateChainSig};
-use bitcoin::{OutPoint, Transaction, TxIn, TxOut};
+use crate::state_chain::{ StateChainSig};
+use bitcoin::{Transaction, TxIn, TxOut};
 use curv::{cryptographic_primitives::proofs::sigma_dlog::DLogProof, BigInt, FE, GE, PK, SK};
 use kms::ecdsa::two_party::party2;
 use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::party_two;
 
 use bitcoin::{secp256k1::PublicKey, Address};
-use std::{collections::HashSet, fmt};
+use std::fmt;
 use uuid::Uuid;
 
 use crate::ecies;
-use crate::ecies::{Encryptable, SelfEncryptable, WalletDecryptable};
+use crate::ecies::{Encryptable, SelfEncryptable};
 
 /// State Entity protocols
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]

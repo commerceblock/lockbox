@@ -62,10 +62,10 @@ impl Enclave {
 
      }
      pub fn get_random_sealed_data(&self) -> Result<[u8; 1024]> {
-     	 let mut sealed_log = [0; 1024];
+     	 let sealed_log = [0; 1024];
 	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
-	 let result = unsafe {
+	 let _result = unsafe {
 	     create_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
 	 };
 

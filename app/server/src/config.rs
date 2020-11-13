@@ -7,7 +7,6 @@ use super::Result;
 use config_rs::{Config as ConfigRs, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::env;
-use std::str::FromStr;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 /// Storage specific config

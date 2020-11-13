@@ -56,6 +56,7 @@ struct RandDataSerializable {
     vec: Vec<u8>,
 }
 
+#[derive(Clone, Debug)]
 pub struct SgxSealable {
     inner: [u8; Self::size()]
 }
@@ -65,6 +66,7 @@ impl SgxSealable {
 	let aad: [u8; 0] = [0_u8; 0];
 	SgxSealedData::<[u8]>::seal_data(&aad, self.deref())
     }
+
     #[inline]
     pub const fn size() -> usize {
 	1024
@@ -72,7 +74,7 @@ impl SgxSealable {
 }
 
 impl Deref for SgxSealable {
-     type Target = [u8; Self::size()];
+     type Target = [u8];
      fn deref(&self) -> &Self::Target {
      	&self.inner
      }
@@ -84,6 +86,7 @@ impl DerefMut for SgxSealable {
      }
 }
 
+#[derive(Clone, Debug)]
 pub struct SgxSealedLog {
     inner: * mut u8
 }
@@ -91,7 +94,7 @@ pub struct SgxSealedLog {
 impl SgxSealedLog{
     #[inline]
     pub const fn size() -> usize {
-	SgxSealable::size()
+	1024
     }
 }
 
@@ -107,6 +110,7 @@ impl DerefMut for SgxSealedLog {
         &mut self.inner
      }
 }
+
 
 impl TryFrom<SgxSealable> for SgxSealedLog {
     type Error = sgx_status_t;
@@ -127,12 +131,21 @@ impl TryFrom<SgxSealable> for SgxSealedLog {
     }
 }
 
-impl From<RandDataSerializable> for SgxSealable {
-    fn from(item: RandDataSerializable) -> Self {
-	let helper = SerializeHelper::new(); 
-	Self { inner: helper.encode(item).unwrap().try_into().unwrap() }
+impl TryFrom<RandDataSerializable> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: RandDataSerializable) -> Result<Self, Self::Error> {
+	let helper = SerializeHelper::new();
+	let encoded_vec = helper.encode(item).unwrap();
+	let encoded_slice = encoded_vec.as_slice();
+	//let sealed_log: * mut u8 = std::ptr::null_mut();
+	//let encoded_arr: [u8; Self::size()] = encoded_slice;
+	match encoded_slice.try_into(){
+	    Ok(inner) => Ok(Self{inner}),
+	    Err(e) => return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	}
     }
 }
+
 
 
 #[no_mangle]
@@ -180,9 +193,20 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
 
     data.vec.extend(data.rand.iter());
 
-    let data_s = SgxSealable::from(data);
+    let sealable : SgxSealable = match data.try_into(){
+	Ok(x) => x,
+	Err(ret) => return ret
+    };
 
-    
+//    let sealed_data = match sealable.to_sealed(){
+//	Ok(x) => x,
+//        Err(ret) => return ret
+//    };
+
+    let sealed_log = match SgxSealedLog::try_from(sealable){
+	Ok(x) => x,
+        Err(ret) => return ret
+    };
     
     /*
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
@@ -201,9 +225,9 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
+     */
+    println!("{:?}", sealed_log);
 
-    println!("{:?}", data);
-*/
     sgx_status_t::SGX_SUCCESS
 }
 

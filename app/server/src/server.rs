@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use crate::protocol::ecdsa::Ecdsa;
 use crate::enclave::Enclave;
+use shared_lib::structs::{KeyGenMsg1, Protocol};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -135,4 +136,14 @@ mod tests {
         assert_eq!(response.status(), Status::Ok);
     }
 
+	
+    #[test]
+    fn test_first_message() {
+	let server = Lockbox::load().unwrap();
+	let msg = KeyGenMsg1{shared_key_id: Uuid::new_v4(), protocol: Protocol::Transfer};
+	match server.first_message(msg) {
+	    Ok(_) => assert!(false, "expected err"),
+	    Err(e) => assert!(e.to_string().contains("sealed and unsealed data successfully"))
+	}
+    }
 }

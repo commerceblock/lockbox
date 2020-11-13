@@ -13,6 +13,7 @@ use std::fmt;
 use std::io::Cursor;
 use std::time::SystemTimeError;
 
+
 /// State Entity library specific errors
 #[derive(Debug, Deserialize)]
 pub enum LockboxError {
@@ -31,6 +32,8 @@ impl From<String> for LockboxError {
         Self::Generic(e)
     }
 }
+
+
 //impl From<SharedLibError> for Error {
 //    fn from(e: SharedLibError) -> Error {
 //        Error::SharedLibError(e.to_string())

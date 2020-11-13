@@ -45,7 +45,11 @@ impl Ecdsa for Lockbox {
     }
 
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
-       Err(LockboxError::Generic("unimplemented".to_string()))
+	
+	self.enclave.say_something("calling enclave from first_message".to_string());
+	let sealed = self.enclave.get_random_sealed_data().map_err(|e| LockboxError::Generic(e.to_string()))?;
+	self.enclave.verify_sealed_data(sealed).map_err(|e| LockboxError::Generic(e.to_string()))?;
+	Err(LockboxError::Generic("sealed and unsealed data successfully".to_string()))
     }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<party1::KeyGenParty1Message2> {
@@ -131,3 +135,4 @@ pub fn sign_second(lockbox: State<Lockbox>, sign_msg2: Json<SignMsg2>) -> Result
         Err(e) => return Err(e),
     }
 }
+

@@ -1,6 +1,6 @@
 //! # Error
 //!
-//! Custom Error types for server
+//! Custom Error types for lockbox
 
 //use shared_lib::error::SharedLibError;
 
@@ -12,6 +12,7 @@ use std::error;
 use std::fmt;
 use std::io::Cursor;
 use std::time::SystemTimeError;
+
 
 /// State Entity library specific errors
 #[derive(Debug, Deserialize)]
@@ -31,6 +32,8 @@ impl From<String> for LockboxError {
         Self::Generic(e)
     }
 }
+
+
 //impl From<SharedLibError> for Error {
 //    fn from(e: SharedLibError) -> Error {
 //        Error::SharedLibError(e.to_string())

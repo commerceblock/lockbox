@@ -20,14 +20,7 @@ extern crate daemon_engine;
 extern crate tokio;
 
 #[macro_use]
-extern crate log;
-
-#[macro_use]
 extern crate failure;
-
-#[cfg(test)]
-#[macro_use]
-extern crate serial_test;
 
 extern crate base64;
 extern crate bitcoin;

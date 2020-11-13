@@ -3,8 +3,7 @@ use rocket::http::Status;
 pub use super::super::Result;
 use rocket::State;
 use rocket_contrib::json::Json;
-use cfg_if::cfg_if;
-use crate::{server::Lockbox, structs::*};
+use crate::server::Lockbox;
 use crate::error::LockboxError;
 
 type LB = Lockbox;

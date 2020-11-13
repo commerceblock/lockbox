@@ -15,7 +15,6 @@ pub struct Enclave {
 
 impl Deref for Enclave {
      type Target = SgxEnclave;
-
      fn deref(&self) -> &Self::Target {
      	&self.inner
      }
@@ -62,14 +61,12 @@ impl Enclave {
     	}
 
      }
-
-/*
      pub fn get_random_sealed_data(&self) -> Result<[u8; 1024]> {
-     	 let mut sealed_log = [0; 1024];
+     	 let sealed_log = [0; 1024];
 	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
-	 let result = unsafe {
-	     create_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024 as u32);
+	 let _result = unsafe {
+	     create_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
 	 };
 
 	 match enclave_ret {
@@ -77,16 +74,42 @@ impl Enclave {
        	       _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
 	 }
      }
-     */
+
+     pub fn verify_sealed_data(&self, sealed_log: [u8; 1024]) -> Result<()> {
+     	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+
+	 let _result = unsafe {
+	     verify_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	 };
+
+	 match enclave_ret {
+	      sgx_status_t::SGX_SUCCESS => Ok(()),
+       	       _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	 }
+     }
+
+     pub fn destroy(&self) {
+     	 unsafe {
+	     sgx_destroy_enclave(self.geteid());
+	 }
+     }
 }
 
 extern {
     fn say_something(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
                      some_string: *const u8, len: usize) -> sgx_status_t;
 
-//    fn create_sealeddata_for_serializable(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-//       		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
+    fn create_sealeddata_for_serializable(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+       		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
+
+    fn verify_sealeddata_for_serializable(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+       		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
 }
+
+//A trait to mark a struct or part of a struct as sealed
+pub trait SgxSealed{}
+
+pub struct SealedData {}
 
 #[cfg(test)]
 mod tests {
@@ -95,31 +118,30 @@ mod tests {
     #[test]
     fn test_new() {
        let enc = Enclave::new().unwrap();
-       unsafe {
-              sgx_destroy_enclave(enc.geteid());
-	      }
+       enc.destroy();
     }
 
     #[test]
     fn test_say_something() {
        let enc = Enclave::new().unwrap();
        let _ = enc.say_something("From test_say_something. ".to_string()).unwrap();
-       unsafe {
-       	      sgx_destroy_enclave(enc.geteid());
-	      }
+       enc.destroy();
     }
 
-/*
     #[test]
-    #[ignore]
     fn test_get_random_sealed_data() {
        let enc = Enclave::new().unwrap();
-       let rsd = enc.get_random_sealed_data().unwrap();
-       unsafe {
-       	      sgx_destroy_enclave(enc.geteid());
-	      }
+       let _rsd = enc.get_random_sealed_data().unwrap();
+       enc.destroy();
     }
-    */
+
+    #[test]
+    fn test_verify_sealed_data() {
+       let enc = Enclave::new().unwrap();
+       let rsd = enc.get_random_sealed_data().unwrap();
+       enc.verify_sealed_data(rsd).unwrap();
+       enc.destroy();
+    }
 }
 
 

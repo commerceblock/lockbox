@@ -4,21 +4,16 @@
 
 pub use super::super::Result;
 extern crate shared_lib;
-use shared_lib::{ecies, ecies::WalletDecryptable, state_chain::*, structs::*};
+use shared_lib::{state_chain::*, structs::*};
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
 
 use bitcoin::Transaction;
-use cfg_if::cfg_if;
-use curv::{
-    elliptic::curves::traits::{ECPoint, ECScalar},
-    {BigInt, FE, GE},
-};
 use rocket::State;
 use rocket_contrib::json::Json;
-use std::str::FromStr;
 use uuid::Uuid;
+use curv::FE;
 
 type LB = Lockbox;
 
@@ -61,28 +56,28 @@ pub trait Transfer {
 }
 
 impl Transfer for LB {
-    fn transfer_sender(&self, transfer_msg1: TransferMsg1) -> Result<TransferMsg2> {
+    fn transfer_sender(&self, _transfer_msg1: TransferMsg1) -> Result<TransferMsg2> {
        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
-    fn transfer_receiver(&self, transfer_msg4: TransferMsg4) -> Result<TransferMsg5> {
+    fn transfer_receiver(&self, _transfer_msg4: TransferMsg4) -> Result<TransferMsg5> {
        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     /// Update DB and SMT after successful transfer.
     /// This function is called immediately in the regular transfer case or after confirmation of atomic
     /// transfers completion in the batch transfer case.
-    fn transfer_finalize(&self, finalized_data: &TransferFinalizeData) -> Result<()> {
+    fn transfer_finalize(&self, _finalized_data: &TransferFinalizeData) -> Result<()> {
        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     /// API: Update the state entity database with transfer message 3
-    fn transfer_update_msg(&self, transfer_msg3: TransferMsg3) -> Result<()> {
+    fn transfer_update_msg(&self, _transfer_msg3: TransferMsg3) -> Result<()> {
        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
     /// API: Get the transfer message 3 set by update_transfer_msg
-    fn transfer_get_msg(&self, state_chain_id: Uuid) -> Result<TransferMsg3> {
+    fn transfer_get_msg(&self, _state_chain_id: Uuid) -> Result<TransferMsg3> {
        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 }

@@ -28,6 +28,10 @@ extern crate sgx_tstd as std;
 extern crate sgx_rand;
 extern crate sgx_tseal;
 
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_cbor;
+
 use sgx_types::{sgx_status_t, sgx_sealed_data_t, SgxResult, SgxError};
 use std::string::String;
 use sgx_types::marker::ContiguousMemory;
@@ -235,7 +239,6 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
         Err(ret) => return ret
     };
 
-    println!("Sealed data: {:?}", sealed_data);
     
     println!("Getting sealed log for slice");    
     

@@ -69,6 +69,10 @@ impl SgxSealable {
 	SgxSealedData::<[u8]>::seal_data(&aad, self.deref().as_slice())
     }
 
+    fn try_from_sealed(sd: &SgxSealedData<[u8]>) -> SgxResult<Self> {
+	sd.unseal_data().map(|x|Self{inner: x.get_decrypt_txt().to_vec()})
+    }
+
     #[inline]
     pub const fn size() -> usize {
 	1024
@@ -152,8 +156,20 @@ impl TryFrom<RandDataSerializable> for SgxSealable {
 	    }
 	};
 	let res = Self{inner: encoded_vec};
-	println!("Ok - returning {:?}", res);
 	Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for RandDataSerializable {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+	match serde_cbor::from_slice(&item){
+	    Ok(v) => Ok(v),
+	    Err(_e) => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	    }
+	}
     }
 }
 
@@ -214,7 +230,6 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
         Err(ret) => return ret
     };
 
-    println!("Getting sealed log for slice");    
     
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, sealed_log_size);
     if opt.is_none() {
@@ -237,22 +252,20 @@ pub extern "C" fn verify_sealeddata_for_serializable(sealed_log: * mut u8, seale
         },
     };
 
-    let result = sealed_data.unseal_data();
-    let unsealed_data = match result {
+    let unsealed_data = match SgxSealable::try_from_sealed(&sealed_data){
         Ok(x) => x,
         Err(ret) => {
             return ret;
         },
     };
 
-    let encoded_slice = unsealed_data.get_decrypt_txt();
-    println!("Length of encoded slice: {}", encoded_slice.len());
-    println!("Encoded slice: {:?}", encoded_slice);
-    /*
-    let data: RandDataSerializable = serde_cbor::from_slice(encoded_slice).unwrap();
-
+    let data = match RandDataSerializable::try_from(unsealed_data) {
+	Ok(v) => v,
+	Err(e) => return e
+    };
+    
     println!("{:?}", data);
-*/
+
     sgx_status_t::SGX_SUCCESS
 }
 

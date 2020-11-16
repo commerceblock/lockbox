@@ -34,6 +34,16 @@ impl Lockbox
 
         let enclave = Enclave::new().expect("failed to start enclave");
 
+	let mut path;
+	cfg_if::cfg_if! {
+	    if #[cfg(test)] {
+		let tempdir = TempDir::new(&format!("/tmp/{}",Uuid::new_v4().to_hyphenated())).unwrap();
+		path = tempdir.path();
+	    } else {
+		path = config_rs.storage.db_path.to_owned();
+	    }
+	}
+	
 	let path = ("/root/lockbox/database");
 
 	let mut database = match DB::open_default(path) {

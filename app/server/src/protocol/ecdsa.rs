@@ -12,7 +12,7 @@ use rocket::State;
 use rocket_contrib::json::Json;
 use std::string::ToString;
 use uuid::Uuid;
-
+use crate::Key;
 
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
@@ -40,6 +40,9 @@ impl Ecdsa for Lockbox {
 	let _ = self.enclave.say_something("calling enclave from first_message".to_string()).map_err(|e| LockboxError::Generic(e.to_string()))?;
 	let sealed = self.enclave.get_random_sealed_data().map_err(|e| LockboxError::Generic(e.to_string()))?;
 	self.enclave.verify_sealed_data(sealed).map_err(|e| LockboxError::Generic(e.to_string()))?;
+	let id = Uuid::new_v4();
+	self.database.put(Key::from_uuid(&id),sealed);
+	
 	Err(LockboxError::Generic("sealed and unsealed data successfully".to_string()))
     }
 

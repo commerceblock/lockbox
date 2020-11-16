@@ -13,11 +13,16 @@ use rocket::{
 };
 use crate::enclave::Enclave;
 
+use tempdir::TempDir;
+use rocksdb::{DB, Options as DBOptions};
+use uuid::Uuid;
+
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 pub struct Lockbox {
     pub config: Config,
     pub enclave: Enclave,
+    pub database: DB,
 }
 
 
@@ -29,9 +34,17 @@ impl Lockbox
 
         let enclave = Enclave::new().expect("failed to start enclave");
 
+	let path = ("/root/lockbox/database");
+
+	let mut database = match DB::open_default(path) {
+	    Ok(db) => { db },
+	    Err(e) => { panic!("failed to open database: {:?}", e) }
+	};
+	
         Ok(Self {
             config: config_rs,
-            enclave
+            enclave,
+	    database
         })
 
     }
@@ -127,6 +140,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_ping() {
         let client = get_client();
         let response = client
@@ -137,9 +151,11 @@ mod tests {
 
 	
     #[test]
+    #[serial]
     fn test_first_message() {
 	let server = Lockbox::load().unwrap();
-	let msg = KeyGenMsg1{shared_key_id: Uuid::new_v4(), protocol: Protocol::Transfer};
+	let shared_key_id = uuid::Uuid::new_v4();
+	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Transfer};
 	match server.first_message(msg) {
 	    Ok(_) => assert!(false, "expected err"),
 	    Err(e) => assert!(e.to_string().contains("sealed and unsealed data successfully"))

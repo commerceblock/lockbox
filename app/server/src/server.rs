@@ -1,55 +1,62 @@
 use super::protocol::*;
 use crate::config::Config;
-use crate::Database;
 
 use log::LevelFilter;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config as LogConfig, Root as LogRoot};
 use log4rs::encode::pattern::PatternEncoder;
-use mockall::*;
 
 use rocket;
 use rocket::{
-    http::{ContentType, Status},
-    local::Client,
     config::{Config as RocketConfig, Environment},
     Request, Rocket,
 };
-use std::sync::{Arc, Mutex};
-use uuid::Uuid;
-use crate::protocol::ecdsa::Ecdsa;
 use crate::enclave::Enclave;
+
+use tempdir::TempDir;
+use rocksdb::{DB, Options as DBOptions};
+use uuid::Uuid;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-pub struct Lockbox<
-    T: Database + Send + Sync + 'static,
-> {
+pub struct Lockbox {
     pub config: Config,
-    pub database: T,
     pub enclave: Enclave,
+    pub database: DB,
 }
 
-impl<
-        T: Database + Send + Sync + 'static,
-    > Lockbox<T>
+
+impl Lockbox
 {
-    pub fn load(mut db: T) -> Result<Lockbox<T>> {
+    pub fn load() -> Result<Lockbox> {
         // Get config as defaults, Settings.toml and env vars
         let config_rs = Config::load()?;
-        db.set_connection_from_config(&config_rs)?;
 
         let enclave = Enclave::new().expect("failed to start enclave");
 
-        let lbs = Self {
+	let mut path;
+	cfg_if::cfg_if! {
+	    if #[cfg(test)] {
+		let tempdir = TempDir::new(&format!("/tmp/{}",Uuid::new_v4().to_hyphenated())).unwrap();
+		path = tempdir.path();
+	    } else {
+		path = config_rs.storage.db_path.to_owned();
+	    }
+	}
+	
+	let path = ("/root/lockbox/database");
+
+	let mut database = match DB::open_default(path) {
+	    Ok(db) => { db },
+	    Err(e) => { panic!("failed to open database: {:?}", e) }
+	};
+	
+        Ok(Self {
             config: config_rs,
-            database: db,
-            enclave
-        };
+            enclave,
+	    database
+        })
 
-
-
-        Ok(lbs)
     }
 }
 
@@ -69,22 +76,10 @@ fn not_found(req: &Request) -> String {
     format!("Unknown route '{}'.", req.uri())
 }
 
-pub fn get_server<
-    T: Database + Send + Sync + 'static,
->(
-    db: T,
-) -> Result<Rocket> {
-    let mut lbs = Lockbox::<T>::load(db)?;
+pub fn get_server()-> Result<Rocket> {
+    let lbs = Lockbox::load()?;
 
     set_logging_config(&lbs.config.log_file);
-
-    // Initialise DBs
-    lbs.database.init()?;
-    if lbs.config.testing_mode {
-        info!("Server running in testing mode.");
-        // reset dbs
-        lbs.database.reset()?;
-    }
 
     let rocket_config = get_rocket_config(&lbs.config);
 
@@ -139,46 +134,41 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
         .unwrap()
 }
 
-/// Get postgres URL from env vars. Suffix can be "TEST", "W", or "R"
-pub fn get_postgres_url(
-    host: String,
-    port: String,
-    user: String,
-    pass: String,
-    database: String,
-) -> String {
-    format!(
-        "postgresql://{}:{}@{}:{}/{}",
-        user, pass, host, port, database
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito;
-    use crate::MockDatabase;
-   
-    fn get_mock_db() -> MockDatabase {
-        let mut db = MockDatabase::new(); 
-        db.expect_set_connection_from_config().returning(|_| Ok(()));
-        db.expect_init().returning(|| Ok(()));
-        db.expect_reset().returning(|| Ok(()));
-        db
-    }
-
-    fn get_client(db : MockDatabase) -> Client {
-        Client::new(get_server(db).expect("valid rocket instance")).expect("client")   
+    use shared_lib::structs::{KeyGenMsg1, Protocol};
+    use uuid::Uuid;
+    use crate::protocol::ecdsa::Ecdsa;
+    use rocket::{
+	http::Status,
+	local::Client,
+    };
+    
+    fn get_client() -> Client {
+        Client::new(get_server().expect("valid rocket instance")).expect("client")   
     }
 
     #[test]
+    #[serial]
     fn test_ping() {
-        let mut db = get_mock_db(); 
-        let client = get_client(db);
-        let mut response = client
+        let client = get_client();
+        let response = client
             .get("/ping")
             .dispatch();   
         assert_eq!(response.status(), Status::Ok);
     }
 
+	
+    #[test]
+    #[serial]
+    fn test_first_message() {
+	let server = Lockbox::load().unwrap();
+	let shared_key_id = uuid::Uuid::new_v4();
+	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Transfer};
+	match server.first_message(msg) {
+	    Ok(_) => assert!(false, "expected err"),
+	    Err(e) => assert!(e.to_string().contains("sealed and unsealed data successfully"))
+	}
+    }
 }

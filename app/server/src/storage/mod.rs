@@ -1,11 +1,9 @@
-pub mod db;
 pub use super::Result;
 
 use rocket::http::{ContentType, Status};
 use rocket::response::Responder;
 use std::io::Cursor;
 use std::{error, fmt};
-use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub enum StorageError {

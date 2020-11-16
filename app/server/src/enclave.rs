@@ -65,10 +65,10 @@ impl Enclave {
 
      }
      pub fn get_random_sealed_data(&self) -> Result<[u8; 1024]> {
-     	 let mut sealed_log = [0; 1024];
+     	 let sealed_log = [0; 1024];
 	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
-	 let result = unsafe {
+	 let _result = unsafe {
 	     create_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
 	 };
 
@@ -81,7 +81,7 @@ impl Enclave {
      pub fn verify_sealed_data(&self, sealed_log: [u8; 1024]) -> Result<()> {
      	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
-	 let result = unsafe {
+	 let _result = unsafe {
 	     verify_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
 	 };
 
@@ -109,7 +109,6 @@ extern {
        		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -130,7 +129,7 @@ mod tests {
     #[test]
     fn test_get_random_sealed_data() {
        let enc = Enclave::new().unwrap();
-       let rsd = enc.get_random_sealed_data().unwrap();
+       let _rsd = enc.get_random_sealed_data().unwrap();
        enc.destroy();
     }
 

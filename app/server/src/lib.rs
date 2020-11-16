@@ -51,7 +51,7 @@ pub type Result<T> = std::result::Result<T, error::LockboxError>;
 
 use uuid::Uuid;
 use std::convert::AsRef;
-
+use std::fmt;
 
 pub struct Key(Uuid);
 
@@ -72,5 +72,11 @@ impl Key {
 impl AsRef<[u8]> for Key {
     fn as_ref(&self) -> &[u8]{
 	self.0.as_bytes()
+    }
+}
+
+impl fmt::Display for Key {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.0)
     }
 }

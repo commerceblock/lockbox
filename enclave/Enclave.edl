@@ -23,11 +23,11 @@ enclave {
     trusted {
         /* define ECALLs here. */
         public sgx_status_t say_something([in, size=len] const uint8_t* some_string, size_t len);
-	public sgx_status_t get_random_sealed_log([in, size=1024]
-	   uint8_t* sealed_log, uint32_t rand_size);
+	public sgx_status_t get_random_sealed_log([in, size=size]
+	   uint8_t* sealed_log, uint32_t size, uint32_t rand_size);
 
-	public sgx_status_t verify_sealed_log([in, size=1024]
-	   uint8_t* sealed_log);
+	public sgx_status_t verify_sealed_log([in, size=size]
+	   uint8_t* sealed_log, uint32_t size);
 
 	   };
 };

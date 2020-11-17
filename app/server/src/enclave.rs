@@ -69,7 +69,7 @@ impl Enclave {
 	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
 	 let _result = unsafe {
-	     get_random_sealed_log(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, rand_size);
+	     get_random_sealed_log(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024, rand_size);
 	 };
 
 	 match enclave_ret {
@@ -82,7 +82,7 @@ impl Enclave {
      	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
 	 let _result = unsafe {
-	     verify_sealed_log(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8);
+	     verify_sealed_log(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
 	 };
 
 	 match enclave_ret {
@@ -103,10 +103,10 @@ extern {
                      some_string: *const u8, len: usize) -> sgx_status_t;
 
     fn get_random_sealed_log(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-       		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
+       		sealed_log: * mut u8, size: u32, rand_size: u32) -> sgx_status_t;
 
     fn verify_sealed_log(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-       		sealed_log: * mut u8) -> sgx_status_t;
+       		sealed_log: * mut u8, size: u32) -> sgx_status_t;
 }
 
 #[cfg(test)]
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn test_verify_sealed_log() {
        let enc = Enclave::new().unwrap();
-       let rsd = enc.get_random_sealed_log(100).unwrap();
+       let rsd = enc.get_random_sealed_log(1020).unwrap();
        enc.verify_sealed_log(rsd).unwrap();
        enc.destroy();
     }

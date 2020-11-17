@@ -44,6 +44,36 @@ use std::default::Default;
 extern crate serde_derive;
 extern crate serde_cbor;
 
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+struct SerializableData {
+    inner: Vec<u8>,
+}
+
+impl SerializableData {
+
+    fn new_random(size: usize) -> SgxResult<Self> {
+	if size > SgxSealable::size() {
+	    println!("size too great");
+	    return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
+	}
+
+	let mut rand = match StdRng::new() {
+            Ok(rng) => rng,
+            Err(_) => { return Err(sgx_status_t::SGX_ERROR_UNEXPECTED); },
+	};
+	let mut randVec = vec![0;size];
+	let mut randBytes = randVec.as_mut_slice();
+	rand.fill_bytes(randBytes);
+	let randVec = randBytes.iter().cloned().collect();
+	println!("randVec: {:?}", randVec);
+	let inner: Vec<u8> = randVec;
+	
+	Ok(Self { inner })
+    }
+}
+
+
 #[derive(Clone, Debug, Default)]
 pub struct SgxSealable {
     inner: Vec<u8>
@@ -57,27 +87,6 @@ impl SgxSealable {
 
     fn try_from_sealed(sd: &SgxSealedData<[u8]>) -> SgxResult<Self> {
 	sd.unseal_data().map(|x|Self{inner: x.get_decrypt_txt().to_vec()})
-    }
-
-
-    fn new_random(size: usize) -> SgxResult<Self> {
-	if size > SgxSealable::size() {
-	    return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
-	}
-
-	let mut randVec = Vec::<u8>::new();
-	let mut rand = match StdRng::new() {
-            Ok(rng) => rng,
-            Err(_) => { return Err(sgx_status_t::SGX_ERROR_UNEXPECTED); },
-	};
-	let mut randVec = vec![0;size];
-	let mut randBytes = randVec.as_mut_slice();
-	rand.fill_bytes(randBytes);
-
-	match SgxSealable::try_from(randBytes){
-	    Ok(v) => Ok(v),
-	    Err(_) => return Err(sgx_status_t::SGX_ERROR_UNEXPECTED)
-	}
     }
     
     #[inline]
@@ -165,13 +174,42 @@ impl TryFrom<SgxSealable> for SgxSealedLog {
 	};
 	let mut sealed_log  = Self::default();
 
-	println!("To sealed log");
+	println!("To sealed log from SgxSealable");
 	let opt = to_sealed_log_for_slice(&sealed_data, (*sealed_log).as_mut_ptr(), Self::size() as u32);
 	if opt.is_none() {
             return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
 	}
 	println!("Got sealed log");
 	Ok(sealed_log)
+    }
+}
+
+impl TryFrom<SerializableData> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: SerializableData) -> Result<Self, Self::Error> {
+	let encoded_vec = match serde_cbor::to_vec(&item){
+	    Ok(v) => v,
+	    Err(e) => {
+		println!("error: {:?}",e);
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+	    }
+	};
+	let res = Self{inner: encoded_vec};
+	Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for SerializableData {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+	match serde_cbor::from_slice(&item){
+	    Ok(v) => Ok(v),
+	    Err(_e) => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	    }
+	}
     }
 }
 
@@ -207,14 +245,22 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 }
 
 #[no_mangle]
-pub extern "C" fn get_random_sealed_log(sealed_log: * mut u8, rand_size: u32) -> sgx_status_t {
+pub extern "C" fn get_random_sealed_log(sealed_log: * mut u8, size: u32, rand_size: u32) -> sgx_status_t {
 
+    println!("get serializable...");
+
+    let mut data = match SerializableData::new_random(rand_size as usize){
+	Ok(v) => v,
+	Err(e) => return e,
+    };
+    println!("data:  {:?}", data);
     println!("get sealable...");
-    let sealable = match SgxSealable::new_random(rand_size as usize){
+    let sealable = match SgxSealable::try_from(data){
 	Ok(v) => v,
 	Err(e) => return e
     };
 
+    println!("sealable:  {:?}", sealable);
     println!("seal...");
     let sealed_data = match sealable.to_sealed() {
 	Ok(x) => x,
@@ -222,7 +268,7 @@ pub extern "C" fn get_random_sealed_log(sealed_log: * mut u8, rand_size: u32) ->
     };
 
     println!("sealed log...");
-    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, SgxSealedLog::size() as u32);
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, size);
     println!("...got sealed log");
     if opt.is_none() {
 	println!("sealed log for slice failed 1...");
@@ -232,15 +278,11 @@ pub extern "C" fn get_random_sealed_log(sealed_log: * mut u8, rand_size: u32) ->
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
 
+
     println!("{:?}", sealed_log);
 
-    sgx_status_t::SGX_SUCCESS
-}
 
-#[no_mangle]
-pub extern "C" fn verify_sealed_log(sealed_log: * mut u8) -> sgx_status_t {
-
-    let opt = from_sealed_log_for_slice::<u8>(sealed_log, SgxSealedLog::size() as u32);
+    let opt = from_sealed_log_for_slice::<u8>(sealed_log, size);
     println!("sealed data from log");
     let sealed_data = match opt {
         Some(x) => x,
@@ -256,10 +298,45 @@ pub extern "C" fn verify_sealed_log(sealed_log: * mut u8) -> sgx_status_t {
         },
     };
 
-//    let data = match  SgxSealable::try_from(unsealed_data) {
-//	Ok(v) => v,
-//	Err(e) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-//    };
+    let data = match  SerializableData::try_from(unsealed_data) {
+	Ok(v) => v,
+	Err(e) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+
+    println!("{:?}", sealed_log);
+
+    
+
+    
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn verify_sealed_log(sealed_log: * mut u8, size: u32) -> sgx_status_t {
+
+    println!("sealed data for slice...");
+    let opt = from_sealed_log_for_slice::<u8>(sealed_log, size);
+    println!("sealed data from log");
+    let sealed_data = match opt {
+        Some(x) => x,
+        None => {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        },
+    };
+    println!("unsealed data from sealed data");
+    let unsealed_data = match SgxSealable::try_from_sealed(&sealed_data){
+        Ok(x) => x,
+        Err(ret) => {
+            return ret;
+        },
+    };
+
+    println!("deserializing...");
+    let data = match  SerializableData::try_from(unsealed_data) {
+	Ok(v) => v,
+	Err(e) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+    println!("deserialized");
 
     println!("{:?}", sealed_log);
 

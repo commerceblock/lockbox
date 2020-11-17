@@ -64,12 +64,12 @@ impl Enclave {
     	}
 
      }
-     pub fn get_random_sealed_data(&self) -> Result<[u8; 1024]> {
+     pub fn get_random_sealed_log(&self, rand_size: u32) -> Result<[u8; 1024]> {
      	 let sealed_log = [0; 1024];
 	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
 	 let _result = unsafe {
-	     create_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	     get_random_sealed_log(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, rand_size);
 	 };
 
 	 match enclave_ret {
@@ -78,11 +78,11 @@ impl Enclave {
 	 }
      }
 
-     pub fn verify_sealed_data(&self, sealed_log: [u8; 1024]) -> Result<()> {
+     pub fn verify_sealed_log(&self, sealed_log: [u8; 1024]) -> Result<()> {
      	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
 	 let _result = unsafe {
-	     verify_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	     verify_sealed_log(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8);
 	 };
 
 	 match enclave_ret {
@@ -102,11 +102,11 @@ extern {
     fn say_something(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
                      some_string: *const u8, len: usize) -> sgx_status_t;
 
-    fn create_sealeddata_for_serializable(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    fn get_random_sealed_log(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
        		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
 
-    fn verify_sealeddata_for_serializable(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-       		sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t;
+    fn verify_sealed_log(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+       		sealed_log: * mut u8) -> sgx_status_t;
 }
 
 #[cfg(test)]
@@ -127,17 +127,17 @@ mod tests {
     }
 
     #[test]
-    fn test_get_random_sealed_data() {
+    fn test_get_random_sealed_log() {
        let enc = Enclave::new().unwrap();
-       let _rsd = enc.get_random_sealed_data().unwrap();
+       let _rsd = enc.get_random_sealed_log(100).unwrap();
        enc.destroy();
     }
 
     #[test]
-    fn test_verify_sealed_data() {
+    fn test_verify_sealed_log() {
        let enc = Enclave::new().unwrap();
-       let rsd = enc.get_random_sealed_data().unwrap();
-       enc.verify_sealed_data(rsd).unwrap();
+       let rsd = enc.get_random_sealed_log(100).unwrap();
+       enc.verify_sealed_log(rsd).unwrap();
        enc.destroy();
     }
 }

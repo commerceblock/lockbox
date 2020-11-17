@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = ["The Teaclave Authors"]
 
 [lib]
-name = "lockbox_enclave_lib"
+name = "lockbox_enclave"
 path = "src/lib.rs"
 crate-type = ["staticlib"]
 

@@ -69,7 +69,7 @@ impl Enclave {
 	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
 	 let _result = unsafe {
-	     create_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	     create_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
 	 };
 
 	 match enclave_ret {
@@ -82,7 +82,7 @@ impl Enclave {
      	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
 	 let _result = unsafe {
-	     verify_sealeddata_for_serializable(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	     verify_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
 	 };
 
 	 match enclave_ret {
@@ -103,10 +103,10 @@ extern {
                      some_string: *const u8, len: usize) -> sgx_status_t;
 
 
-    fn create_sealeddata_for_serializable(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    fn create_sealed_secret_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
             sealed_log: * mut u8, sealed_log_size: u32 );
 
-    fn verify_sealeddata_for_serializable(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    fn verify_sealed_secret_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
             sealed_log: * mut u8, sealed_log_size: u32);
 
 }

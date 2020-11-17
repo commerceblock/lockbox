@@ -1,4 +1,4 @@
-// Licensed to the Apache Software Foundation (ASF) under one
+// Licensed to the Apache Software Foundation secretkey(ASF) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
 // regarding copyright ownership.  The ASF licenses this file
@@ -57,7 +57,9 @@ struct RandDataSerializable {
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
-struct SecretKey([u8; 32]);
+struct SecretKey{
+    inner: [u8; 32]
+}
 
 impl SecretKey {
     fn new_random() -> SgxResult<SecretKey> {
@@ -67,7 +69,7 @@ impl SecretKey {
 	};
 	let mut key = [0u8; 32];
 	rand.fill_bytes(&mut key);
-	Ok(Self(key))
+	Ok(Self{inner: key})
     }
 }
 
@@ -201,7 +203,7 @@ impl TryFrom<SecretKey> for SgxSealable {
 
 	    }
 	};
-	let res = Self{inner: encoded_vec};
+	let res = Self{ inner: encoded_vec };
 	Ok(res)
     }
 }
@@ -250,20 +252,14 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 }
 
 #[no_mangle]
-pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
+pub extern "C" fn create_sealed_secret_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
-    let mut data = RandDataSerializable::default();
-    data.key = 0x1234;
-
-    let mut rand = match StdRng::new() {
-        Ok(rng) => rng,
-        Err(_) => { return sgx_status_t::SGX_ERROR_UNEXPECTED; },
+    let mut data = match SecretKey::new_random(){
+	Ok(v) => v,
+	Err(e) => return e,
     };
-    rand.fill_bytes(&mut data.rand);
 
-    data.vec.extend(data.rand.iter());
-
-    let sealable : SgxSealable = match data.try_into(){
+    let sealable = match SgxSealable::try_from(data){
 	Ok(x) => x,
 	Err(ret) => return ret
     };
@@ -285,7 +281,7 @@ pub extern "C" fn create_sealeddata_for_serializable(sealed_log: * mut u8, seale
 
 
 #[no_mangle]
-pub extern "C" fn verify_sealeddata_for_serializable(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
+pub extern "C" fn verify_sealed_secret_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
     let opt = from_sealed_log_for_slice::<u8>(sealed_log, sealed_log_size);
     let sealed_data = match opt {
@@ -302,7 +298,7 @@ pub extern "C" fn verify_sealeddata_for_serializable(sealed_log: * mut u8, seale
         },
     };
 
-    let data = match RandDataSerializable::try_from(unsealed_data) {
+    let data = match SecretKey::try_from(unsealed_data) {
 	Ok(v) => v,
 	Err(e) => return e
     };

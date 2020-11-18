@@ -104,14 +104,32 @@ impl Enclave {
 	}
     }
 
-    //Return the sealed log of a key pair
-    pub fn create_sealed_key_pair(&self) -> Result<[u8; 1024]> {
+    pub fn sk_tweak_mul_assign(&self, sealed_log1: [u8; 1024], sealed_log2: [u8; 1024]) -> Result<[u8; 1024]> {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
+	let _result = unsafe {
+	    sk_tweak_add_assign(self.geteid(), &mut enclave_ret, sealed_log1.as_ptr() as * mut u8, 1024, sealed_log2.as_ptr() as * mut u8, 1024);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok((sealed_log1)),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
     }
 
-    pub fn verify_sealed_key_pair(&self) -> Result<[u8; 1024]> {
+    pub fn sk_tweak_add_assign(&self, sealed_log1: [u8; 1024], sealed_log2: [u8; 1024]) -> Result<[u8; 1024]> {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
+	let _result = unsafe {
+	    sk_tweak_mul_assign(self.geteid(), &mut enclave_ret, sealed_log1.as_ptr() as * mut u8, 1024, sealed_log2.as_ptr() as * mut u8, 1024);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok((sealed_log1)),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
     }
+
     
     pub fn destroy(&self) {
      	unsafe {
@@ -133,6 +151,15 @@ extern {
 
     fn calc_sha256(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		   input_str: * const u8, len: u32, hash: * mut u8);
+
+    fn sk_tweak_add_assign(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+			   sealed_log1: * mut u8, sealed_log1_size: u32,
+			   sealed_log2: * mut u8, sealed_log2_size: u32);
+
+    fn sk_tweak_mul_assign(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+			   sealed_log1: * mut u8, sealed_log1_size: u32,
+			   sealed_log2: * mut u8, sealed_log2_size: u32);
+
 }
 
 #[cfg(test)]
@@ -175,6 +202,29 @@ mod tests {
 	assert_eq!(hash, expected_hash);
 	enc.destroy();
     }
+
+    #[test]
+    fn test_sk_tweak_add_assign() {
+	let enc = Enclave::new().unwrap();
+	let rsd1 = enc.get_random_sealed_log(32).unwrap();
+	let rsd2 = enc.get_random_sealed_log(32).unwrap();
+
+	let rsd = enc.sk_tweak_add_assign(rsd1, rsd2).unwrap();
+
+	enc.destroy();
+    }
+
+    #[test]
+    fn test_sk_tweak_mul_assign() {
+	let enc = Enclave::new().unwrap();
+	let rsd1 = enc.get_random_sealed_log(32).unwrap();
+	let rsd2 = enc.get_random_sealed_log(32).unwrap();
+
+	let rsd = enc.sk_tweak_mul_assign(rsd1, rsd2).unwrap();
+	
+	enc.destroy();
+    }
+
 }
 
 

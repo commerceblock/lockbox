@@ -28,6 +28,7 @@ extern crate sgx_tcrypto;
 #[macro_use]
 extern crate sgx_tstd as std;
 extern crate sgx_rand;
+extern crate secp256k1;
 
 use sgx_types::{sgx_status_t, sgx_sealed_data_t, SgxResult};
 use sgx_tcrypto::*;  
@@ -41,6 +42,7 @@ use sgx_rand::{Rng, StdRng};
 use sgx_tseal::{SgxSealedData};
 use std::ops::{Deref, DerefMut};
 use std::default::Default;
+
 
 #[macro_use]
 extern crate serde_derive;
@@ -58,9 +60,22 @@ struct RandDataSerializable {
     vec: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
 struct SecretKey{
     inner: [u8; 32]
+}
+
+impl Deref for SecretKey {
+     type Target = [u8; 32];
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for SecretKey {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
 }
 
 impl SecretKey {
@@ -366,6 +381,201 @@ pub extern "C" fn calc_sha256(input_str: *const u8,
     }
 
     sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn generate_keypair(input_str: *const u8) -> sgx_status_t {
+
+    let mut rand = match StdRng::new() {
+        Ok(rng) => rng,
+        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+    let mut rands = [0u8;32];
+    rand.fill_bytes(&mut rands);
+
+    let privkey = match secp256k1::SecretKey::parse(&rands){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+
+    let pubkey = secp256k1::PublicKey::from_secret_key(&privkey);
+    
+//    let (privkey, pubkey) = match secp256k1.generate_keypair(&mut thread_rng()){
+//	Ok(v) => v,
+//	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+  //  };
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u32, sealed_log2: * mut u8, sealed_log2_size: * mut u8) -> sgx_status_t {
+
+
+    let opt1 = from_sealed_log_for_slice::<u8>(sealed_log1, sealed_log1_size);
+    let opt2 = from_sealed_log_for_slice::<u8>(sealed_log1, sealed_log1_size);
+    let sealed_data1 = match opt1 {
+        Some(x) => x,
+        None => {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        },
+    };
+    let sealed_data2 = match opt2 {
+        Some(x) => x,
+        None => {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        },
+    };
+
+    let unsealed_data1 = match SgxSealable::try_from_sealed(&sealed_data1){
+        Ok(x) => x,
+        Err(ret) => {
+            return ret;
+        },
+    };
+    let unsealed_data2 = match SgxSealable::try_from_sealed(&sealed_data2){
+        Ok(x) => x,
+        Err(ret) => {
+            return ret;
+        },
+    };
+
+    let data1 = match SecretKey::try_from(unsealed_data1) {
+	Ok(v) => v,
+	Err(e) => return e
+    };
+
+
+    let mut sk1 = match secp256k1::SecretKey::parse(&data1){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+
+    let data1_test = SecretKey{inner: sk1.serialize()};
+
+    assert_eq!(data1, data1_test);
+    
+    let data2 = match SecretKey::try_from(unsealed_data2) {
+	Ok(v) => v,
+	Err(e) => return e
+    };
+
+    let sk2 = match secp256k1::SecretKey::parse(&data2){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+    
+    println!("{:?}, {:?}", sk1, sk2);
+
+    match sk1.tweak_add_assign(&sk2){
+	Ok(v) => (),
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+
+
+    let sealable = match SgxSealable::try_from(SecretKey{inner: sk1.serialize()}){
+        Ok(x) => x,
+        Err(ret) => return ret
+    };
+
+    let sealed_data = match sealable.to_sealed(){
+        Ok(x) => x,
+        Err(ret) => return ret
+    };
+
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log1, sealed_log1_size);
+    if opt.is_none() {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+    
+    
+    sgx_status_t::SGX_SUCCESS
+    
+}
+
+
+#[no_mangle]
+pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u32, sealed_log2: * mut u8, sealed_log2_size: * mut u8) -> sgx_status_t {
+
+    let opt1 = from_sealed_log_for_slice::<u8>(sealed_log1, sealed_log1_size);
+    let opt2 = from_sealed_log_for_slice::<u8>(sealed_log1, sealed_log1_size);
+    let sealed_data1 = match opt1 {
+        Some(x) => x,
+        None => {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        },
+    };
+    let sealed_data2 = match opt2 {
+        Some(x) => x,
+        None => {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        },
+    };
+
+    let unsealed_data1 = match SgxSealable::try_from_sealed(&sealed_data1){
+        Ok(x) => x,
+        Err(ret) => {
+            return ret;
+        },
+    };
+    let unsealed_data2 = match SgxSealable::try_from_sealed(&sealed_data2){
+        Ok(x) => x,
+        Err(ret) => {
+            return ret;
+        },
+    };
+
+    let data1 = match SecretKey::try_from(unsealed_data1) {
+	Ok(v) => v,
+	Err(e) => return e
+    };
+
+
+    let mut sk1 = match secp256k1::SecretKey::parse(&data1){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+
+    let data1_test = SecretKey{inner: sk1.serialize()};
+
+    assert_eq!(data1, data1_test);
+    
+    let data2 = match SecretKey::try_from(unsealed_data2) {
+	Ok(v) => v,
+	Err(e) => return e
+    };
+
+    let sk2 = match secp256k1::SecretKey::parse(&data2){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+    
+    println!("{:?}, {:?}", sk1, sk2);
+
+    match sk1.tweak_mul_assign(&sk2){
+	Ok(v) => (),
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+
+
+    let sealable = match SgxSealable::try_from(SecretKey{inner: sk1.serialize()}){
+        Ok(x) => x,
+        Err(ret) => return ret
+    };
+
+    let sealed_data = match sealable.to_sealed(){
+        Ok(x) => x,
+        Err(ret) => return ret
+    };
+
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log1, sealed_log1_size);
+    if opt.is_none() {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+    
+    
+    sgx_status_t::SGX_SUCCESS
+    
 }
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<[T]>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {

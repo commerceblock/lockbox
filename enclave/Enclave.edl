@@ -33,5 +33,18 @@ enclave {
         public sgx_status_t calc_sha256([in, size=len] const uint8_t* input_str,
                                         size_t len,
                                         [out] uint8_t hash[32]);
-    };
+
+
+        public sgx_status_t sk_tweak_add_assign([in, size=sealed_log1_size]
+            uint8_t* sealed_log1, uint32_t sealed_log1_size,
+	    [in, size=sealed_log2_size]
+            uint8_t* sealed_log2, uint32_t sealed_log2_size);
+
+        public sgx_status_t sk_tweak_mul_assign([in, size=sealed_log1_size]
+            uint8_t* sealed_log1, uint32_t sealed_log1_size,
+	    [in, size=sealed_log2_size]
+            uint8_t* sealed_log2, uint32_t sealed_log2_size);
+	    };
 };
+
+

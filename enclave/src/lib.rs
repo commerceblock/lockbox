@@ -23,12 +23,14 @@
 
 extern crate sgx_types;
 extern crate sgx_tseal;
+extern crate sgx_tcrypto;
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
 extern crate sgx_rand;
 
 use sgx_types::{sgx_status_t, sgx_sealed_data_t, SgxResult};
+use sgx_tcrypto::*;  
 use std::string::String;
 use sgx_types::marker::ContiguousMemory;
 use std::vec::Vec;
@@ -304,6 +306,64 @@ pub extern "C" fn verify_sealed_secret_key(sealed_log: * mut u8, sealed_log_size
     };
     
     println!("{:?}", data);
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+/// A Ecall function takes a string and output its SHA256 digest.
+///
+/// # Parameters
+///
+/// **input_str**
+///
+/// A raw pointer to the string to be calculated.
+///
+/// **some_len**
+///
+/// An unsigned int indicates the length of input string
+///
+/// **hash**
+///
+/// A const reference to [u8;32] array, which is the destination buffer which contains the SHA256 digest, caller allocated.
+///
+/// # Return value
+///
+/// **SGX_SUCCESS** on success. The SHA256 digest is stored in the destination buffer.
+///
+/// # Requirements
+///
+/// Caller allocates the input buffer and output buffer.
+///
+/// # Errors
+///
+/// **SGX_ERROR_INVALID_PARAMETER**
+///
+/// Indicates the parameter is invalid
+#[no_mangle]
+pub extern "C" fn calc_sha256(input_str: *const u8,
+                              some_len: usize,
+                              hash: &mut [u8;32]) -> sgx_status_t {
+
+    println!("calc_sha256 invoked!");
+
+    // First, build a slice for input_str
+    let input_slice = unsafe { slice::from_raw_parts(input_str, some_len) };
+
+    // slice::from_raw_parts does not guarantee the length, we need a check
+    if input_slice.len() != some_len {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+
+    println!("Input string len = {}, input len = {}", input_slice.len(), some_len);
+
+    // Second, convert the vector to a slice and calculate its SHA256
+    let result = rsgx_sha256_slice(&input_slice);
+
+    // Third, copy back the result
+    match result {
+        Ok(output_hash) => *hash = output_hash,
+        Err(x) => return x
+    }
 
     sgx_status_t::SGX_SUCCESS
 }

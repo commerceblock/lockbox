@@ -14,8 +14,10 @@ default = []
 [dependencies]
 serde = { git = "https://github.com/mesalock-linux/serde-sgx" }
 sgx_serialize_derive = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tcrypto = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
 serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx" }
+
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_types = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
@@ -24,3 +26,4 @@ sgx_trts = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git
 sgx_tseal = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_serialize = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+

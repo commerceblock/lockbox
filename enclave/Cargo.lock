@@ -27,6 +27,7 @@ dependencies = [
  "sgx_rand",
  "sgx_serialize",
  "sgx_serialize_derive",
+ "sgx_tcrypto",
  "sgx_trts",
  "sgx_tseal",
  "sgx_tstd",

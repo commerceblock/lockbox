@@ -30,72 +30,94 @@ impl DerefMut for Enclave {
 }
 
 impl Enclave {
-     pub fn new() -> Result<Self> {
-         let mut launch_token: sgx_launch_token_t = [0; 1024];
-	 let mut launch_token_updated: i32 = 0;
-    	 // call sgx_create_enclave to initialize an enclave instance
-    	 // Debug Support: set 2nd parameter to 1
-    	 let debug = 1;
-    	 let mut misc_attr = sgx_misc_attribute_t {secs_attr: sgx_attributes_t { flags:0, xfrm:0}, misc_select:0};
-    	 match SgxEnclave::create(ENCLAVE_FILE,
-			  debug,
-                       	  &mut launch_token,
-                       	  &mut launch_token_updated,
-                       	  &mut misc_attr){
-			  Ok(v) => Ok(Self{inner:v}),
-			  Err(e) => return Err(LockboxError::Generic(e.to_string()).into()),
+    pub fn new() -> Result<Self> {
+        let mut launch_token: sgx_launch_token_t = [0; 1024];
+	let mut launch_token_updated: i32 = 0;
+    	// call sgx_create_enclave to initialize an enclave instance
+    	// Debug Support: set 2nd parameter to 1
+    	let debug = 1;
+    	let mut misc_attr = sgx_misc_attribute_t {secs_attr: sgx_attributes_t { flags:0, xfrm:0}, misc_select:0};
+    	match SgxEnclave::create(ENCLAVE_FILE,
+				 debug,
+                       		 &mut launch_token,
+                       		 &mut launch_token_updated,
+                       		 &mut misc_attr){
+	    Ok(v) => Ok(Self{inner:v}),
+	    Err(e) => return Err(LockboxError::Generic(e.to_string()).into()),
 	}
-     }
-
-     pub fn say_something(&self, input_string: String) -> Result<String> {
+    }
+    
+    pub fn say_something(&self, input_string: String) -> Result<String> {
      	let mut retval = sgx_status_t::SGX_SUCCESS;
-
+	
      	let result = unsafe {
             say_something(self.geteid(),
-                      &mut retval,
-                      input_string.as_ptr() as * const u8,
-                      input_string.len())
+			  &mut retval,
+			  input_string.as_ptr() as * const u8,
+			  input_string.len())
     	};
 	
     	match result {
-              sgx_status_t::SGX_SUCCESS => Ok(result.as_str().to_string()),
-       	       _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
-        	  
+            sgx_status_t::SGX_SUCCESS => Ok(result.as_str().to_string()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+        	
     	}
+	
+    }
+    
+    pub fn get_random_sealed_log(&self, rand_size: u32) -> Result<[u8; 1024]> {
+     	let sealed_log = [0; 1024];
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	
+	let _result = unsafe {
+	    create_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(sealed_log),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
 
-     }
-     pub fn get_random_sealed_log(&self, rand_size: u32) -> Result<[u8; 1024]> {
-     	 let sealed_log = [0; 1024];
-	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+    pub fn verify_sealed_log(&self, sealed_log: [u8; 1024]) -> Result<()> {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	
+	let _result = unsafe {
+	    verify_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+    
+    pub fn calc_sha256(&self, input_string: String) -> Result<[u8; 32]>{
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	let mut hash = [0u8;32];
+	let _result = unsafe {
+	    calc_sha256(self.geteid(), &mut enclave_ret, input_string.as_ptr() as * const u8, input_string.len() as u32, hash.as_ptr() as * mut u8);
+	};
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(hash),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
 
-	 let _result = unsafe {
-	     create_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
-	 };
+    //Return the sealed log of a key pair
+    pub fn create_sealed_key_pair(&self) -> Result<[u8; 1024]> {
+	
+    }
 
-	 match enclave_ret {
-	      sgx_status_t::SGX_SUCCESS => Ok(sealed_log),
-       	       _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
-	 }
-     }
-
-     pub fn verify_sealed_log(&self, sealed_log: [u8; 1024]) -> Result<()> {
-     	 let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-
-	 let _result = unsafe {
-	     verify_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
-	 };
-
-	 match enclave_ret {
-	      sgx_status_t::SGX_SUCCESS => Ok(()),
-       	       _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
-	 }
-     }
-
-     pub fn destroy(&self) {
-     	 unsafe {
-	     sgx_destroy_enclave(self.geteid());
-	 }
-     }
+    pub fn verify_sealed_key_pair(&self) -> Result<[u8; 1024]> {
+	
+    }
+    
+    pub fn destroy(&self) {
+     	unsafe {
+	    sgx_destroy_enclave(self.geteid());
+	}
+    }
 }
 
 extern {
@@ -107,8 +129,10 @@ extern {
             sealed_log: * mut u8, sealed_log_size: u32 );
 
     fn verify_sealed_secret_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-            sealed_log: * mut u8, sealed_log_size: u32);
+				sealed_log: * mut u8, sealed_log_size: u32);
 
+    fn calc_sha256(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		   input_str: * const u8, len: u32, hash: * mut u8);
 }
 
 #[cfg(test)]
@@ -141,6 +165,15 @@ mod tests {
        let rsd = enc.get_random_sealed_log(1020).unwrap();
        enc.verify_sealed_log(rsd).unwrap();
        enc.destroy();
+    }
+
+    #[test]
+    fn test_calc_sha256() {
+	let enc = Enclave::new().unwrap();
+	let hash = enc.calc_sha256("test string".to_string()).unwrap();
+	let expected_hash: [u8;32] = [213, 87, 156, 70, 223, 204, 127, 24, 32, 112, 19, 230, 91, 68, 228, 203, 78, 44, 34, 152, 244, 172, 69, 123, 168, 248, 39, 67, 243, 30, 147, 11];
+	assert_eq!(hash, expected_hash);
+	enc.destroy();
     }
 }
 

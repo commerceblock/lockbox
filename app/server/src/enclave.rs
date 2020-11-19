@@ -7,6 +7,8 @@ use crate::error::LockboxError;
 //#[macro_use]
 //extern crate serde_derive;
 //extern crate serde_cbor;
+extern crate bitcoin;
+use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -130,6 +132,46 @@ impl Enclave {
 	}
     }
 
+    pub fn sign(&self, message: &Message, sealed_log: &[u8; 1024]) -> Result<Signature> {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+
+
+	let sig = [0u8;64];
+	
+	let _result = unsafe {
+	    sign(self.geteid(), &mut enclave_ret,
+	    message.as_ptr(),  sealed_log.as_ptr() as *mut u8, sig.as_ptr() as *mut u8);
+	};
+
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => match Signature::from_compact(&sig){
+		Ok(v) => Ok(v),
+		Err(e) => Err(e.into()),
+	    },
+            _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
+    pub fn get_public_key(&self, sealed_log: &[u8; 1024]) -> Result<PublicKey> {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+
+	let mut public_key = [0u8;33];
+	
+	let _result = unsafe {
+	    get_public_key(self.geteid(), &mut enclave_ret,
+	    sealed_log.as_ptr() as *mut u8, public_key.as_mut_ptr());
+	};
+
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => {
+		match PublicKey::from_slice(&public_key){
+		    Ok(v) => Ok(v),
+		    Err(e) => Err(e.into()),
+		}
+	    },
+            _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
+	}
+    }
     
     pub fn destroy(&self) {
      	unsafe {
@@ -150,16 +192,22 @@ extern {
 				sealed_log: * mut u8, sealed_log_size: u32);
 
     fn calc_sha256(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-		   input_str: * const u8, len: u32, hash: * mut u8);
+		   input_str: * const u8, len: u32, hash: * mut u8) -> sgx_status_t;
 
     fn sk_tweak_add_assign(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 			   sealed_log1: * mut u8, sealed_log1_size: u32,
-			   sealed_log2: * mut u8, sealed_log2_size: u32);
+			   sealed_log2: * mut u8, sealed_log2_size: u32) -> sgx_status_t;
 
     fn sk_tweak_mul_assign(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 			   sealed_log1: * mut u8, sealed_log1_size: u32,
-			   sealed_log2: * mut u8, sealed_log2_size: u32);
+			   sealed_log2: * mut u8, sealed_log2_size: u32) -> sgx_status_t;
 
+
+    fn sign(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+	    some_message: * const u8,  sk_sealed_log: *mut u8, sig: *mut u8) -> sgx_status_t;
+
+    fn get_public_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		      sk_sealed_log: *mut u8, public_key: *mut u8) -> sgx_status_t;	
 }
 
 #[cfg(test)]
@@ -222,6 +270,28 @@ mod tests {
 
 	let rsd = enc.sk_tweak_mul_assign(rsd1, rsd2).unwrap();
 	
+	enc.destroy();
+    }
+
+    #[test]
+    fn test_sign_verify() {
+	let enc = Enclave::new().unwrap();
+	let rsd1 = enc.get_random_sealed_log(32).unwrap();
+	let msg_data : [u8;32] = [214, 88, 152, 71, 224, 205, 127, 22, 31, 115, 20, 230, 91, 68, 228, 203, 78, 44, 34, 152, 244, 172, 69, 123, 168, 248, 39, 67, 243, 30, 147, 11];
+	let message = Message::from_slice(&msg_data).unwrap();
+	let signature = enc.sign(&message, &rsd1).unwrap();
+	let pubkey = enc.get_public_key(&rsd1).unwrap();
+
+	let secp = Secp256k1::new();
+	secp.verify(&message, &signature, &pubkey).unwrap();
+
+	let msg_data_wrong : [u8;32] = [213, 88, 152, 71, 224, 205, 127, 22, 31, 115, 20, 230, 91, 68, 228, 203, 78, 44, 34, 152, 244, 172, 69, 123, 168, 248, 39, 67, 243, 30, 147, 11];
+	let message_wrong = Message::from_slice(&msg_data_wrong).unwrap();
+	match secp.verify(&message_wrong, &signature, &pubkey){
+	    Ok(_) => assert!(false, "expected Err: Incorrect Signature"),
+	    Err(e) => assert!(e.to_string().contains("signature failed verification"), format!("{} does not contain \"signature failed verification\"", e)),
+	}
+
 	enc.destroy();
     }
 

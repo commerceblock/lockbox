@@ -44,6 +44,11 @@ enclave {
             uint8_t* sealed_log1, uint32_t sealed_log1_size,
 	    [in, size=sealed_log2_size]
             uint8_t* sealed_log2, uint32_t sealed_log2_size);
+
+        public sgx_status_t sign([in] uint8_t some_message[32], [in, size=1024] uint8_t* sealed_log,[out] uint8_t sig[32]);
+
+        public sgx_status_t get_public_key([in, size=1024] uint8_t* sealed_log,[out] uint8_t public_key[33]);	
+
 	    };
 };
 

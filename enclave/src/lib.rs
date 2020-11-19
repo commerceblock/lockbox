@@ -61,11 +61,11 @@ struct RandDataSerializable {
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
-struct SecretKey{
+struct Bytes32{
     inner: [u8; 32]
 }
 
-impl TryFrom<(* mut u8, u32)> for SecretKey {
+impl TryFrom<(* mut u8, u32)> for Bytes32 {
     type Error = sgx_status_t;
     fn try_from(item: (* mut u8, u32)) -> Result<Self, Self::Error> {
 	let opt = from_sealed_log_for_slice::<u8>(item.0, item.1);
@@ -80,22 +80,30 @@ impl TryFrom<(* mut u8, u32)> for SecretKey {
     }
 }
 
+impl From<* const u8> for Bytes32 {
+    fn from(item: * const u8) -> Self {
+	let inner_slice = unsafe { slice::from_raw_parts(item, 32) };
+	let inner: [u8;32] = inner_slice.try_into().unwrap();
+	Self{inner}
+    }
+}
 
-impl Deref for SecretKey {
+
+impl Deref for Bytes32 {
      type Target = [u8; 32];
      fn deref(&self) -> &Self::Target {
      	&self.inner
      }
 }
 
-impl DerefMut for SecretKey {
+impl DerefMut for Bytes32 {
      fn deref_mut(&mut self) -> &mut Self::Target {
      	&mut self.inner
      }
 }
 
-impl SecretKey {
-    fn new_random() -> SgxResult<SecretKey> {
+impl Bytes32 {
+    fn new_random() -> SgxResult<Bytes32> {
 	let mut rand = match StdRng::new() {
             Ok(rng) => rng,
             Err(_) => { return Err(sgx_status_t::SGX_ERROR_UNEXPECTED); },
@@ -225,9 +233,9 @@ impl TryFrom<SgxSealable> for RandDataSerializable {
 }
 
 
-impl TryFrom<SecretKey> for SgxSealable {
+impl TryFrom<Bytes32> for SgxSealable {
     type Error = sgx_status_t;
-    fn try_from(item: SecretKey) -> Result<Self, Self::Error> {
+    fn try_from(item: Bytes32) -> Result<Self, Self::Error> {
 	let encoded_vec = match serde_cbor::to_vec(&item){
 	    Ok(v) => v,
 	    Err(e) => {
@@ -241,7 +249,7 @@ impl TryFrom<SecretKey> for SgxSealable {
     }
 }
 
-impl TryFrom<SgxSealable> for SecretKey {
+impl TryFrom<SgxSealable> for Bytes32 {
     type Error = sgx_status_t;
     fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
 	match serde_cbor::from_slice(&item){
@@ -287,7 +295,7 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 #[no_mangle]
 pub extern "C" fn create_sealed_secret_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
-    let mut data = match SecretKey::new_random(){
+    let mut data = match Bytes32::new_random(){
 	Ok(v) => v,
 	Err(e) => return e,
     };
@@ -316,7 +324,7 @@ pub extern "C" fn create_sealed_secret_key(sealed_log: * mut u8, sealed_log_size
 #[no_mangle]
 pub extern "C" fn verify_sealed_secret_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
-    let data = match SecretKey::try_from((sealed_log, sealed_log_size)) {
+    let data = match Bytes32::try_from((sealed_log, sealed_log_size)) {
 	Ok(v) => v,
 	Err(e) => return e
     };
@@ -412,7 +420,7 @@ pub extern "C" fn generate_keypair(input_str: *const u8) -> sgx_status_t {
 #[no_mangle]
 pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u32, sealed_log2: * mut u8, sealed_log2_size: u32) -> sgx_status_t {
 
-    let data1 = match SecretKey::try_from((sealed_log1, sealed_log1_size)) {
+    let data1 = match Bytes32::try_from((sealed_log1, sealed_log1_size)) {
 	Ok(v) => v,
 	Err(e) => return e
     };
@@ -422,11 +430,11 @@ pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
-    let data1_test = SecretKey{inner: sk1.serialize()};
+    let data1_test = Bytes32{inner: sk1.serialize()};
 
     assert_eq!(data1, data1_test);
 
-    let data2 = match SecretKey::try_from((sealed_log2, sealed_log2_size)) {
+    let data2 = match Bytes32::try_from((sealed_log2, sealed_log2_size)) {
 	Ok(v) => v,
 	Err(e) => return e
     };
@@ -444,7 +452,7 @@ pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u
     };
 
 
-    let sealable = match SgxSealable::try_from(SecretKey{inner: sk1.serialize()}){
+    let sealable = match SgxSealable::try_from(Bytes32{inner: sk1.serialize()}){
         Ok(x) => x,
         Err(ret) => return ret
     };
@@ -466,7 +474,7 @@ pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u
 #[no_mangle]
 pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u32, sealed_log2: * mut u8, sealed_log2_size: u32) -> sgx_status_t {
 
-    let data1 = match SecretKey::try_from((sealed_log1, sealed_log1_size)) {
+    let data1 = match Bytes32::try_from((sealed_log1, sealed_log1_size)) {
 	Ok(v) => v,
 	Err(e) => return e
     };
@@ -476,11 +484,11 @@ pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
-    let data1_test = SecretKey{inner: sk1.serialize()};
+    let data1_test = Bytes32{inner: sk1.serialize()};
 
     assert_eq!(data1, data1_test);
 
-    let data2 = match SecretKey::try_from((sealed_log2, sealed_log2_size)) {
+    let data2 = match Bytes32::try_from((sealed_log2, sealed_log2_size)) {
 	Ok(v) => v,
 	Err(e) => return e
     };
@@ -497,7 +505,7 @@ pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
-    let sealable = match SgxSealable::try_from(SecretKey{inner: sk1.serialize()}){
+    let sealable = match SgxSealable::try_from(Bytes32{inner: sk1.serialize()}){
         Ok(x) => x,
         Err(ret) => return ret
     };
@@ -515,16 +523,32 @@ pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u
     sgx_status_t::SGX_SUCCESS
 }
 
-//#[no_mangle]
-//pub extern "C" fn sign(some_message: *const u8, sk_sealed_log: * mut u8) -> sgx_status_t {
-
-//}
-
-/*
 #[no_mangle]
-pub extern "C" fn get_public_key(sealed_log: * mut u8, sealed_log_size: u32, public_key: * mut u8) -> sgx_status_t {
+pub extern "C" fn sign(some_message: &[u8;32], sk_sealed_log: * mut u8, sig: &mut[u8; 64]) -> sgx_status_t {
+    let message = secp256k1::Message::parse(some_message);
+
+    let sk_bytes = match Bytes32::try_from((sk_sealed_log, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+        Err(e) => return e
+    };
+
+    let sk = match secp256k1::SecretKey::parse(&sk_bytes){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+
+    let (signature, _recoveryId) = secp256k1::sign(&message, &sk);
+
+    *sig = signature.serialize();
     
-    let data = match SecretKey::try_from((sealed_log, sealed_log_size)) {
+    sgx_status_t::SGX_SUCCESS
+}
+
+
+#[no_mangle]
+pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) -> sgx_status_t {
+    
+    let data = match Bytes32::try_from((sealed_log, SgxSealedLog::size() as u32)) {
 	Ok(v) => v,
 	Err(e) => return e
     };
@@ -534,11 +558,11 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, sealed_log_size: u32, pub
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
-    let pk = PublicKey::from(&sk);
+    *public_key = secp256k1::PublicKey::from_secret_key(&sk).serialize_compressed();
     
     sgx_status_t::SGX_SUCCESS
 }
-*/
+
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<[T]>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
     unsafe {

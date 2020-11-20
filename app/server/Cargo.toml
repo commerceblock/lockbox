@@ -39,6 +39,7 @@ cfg-if = "0.1.10"
 bitcoin = { version = "0.25", features = [ "use-serde" ] }
 sgx_types = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
 sgx_urts = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
+paillier = { git = "https://github.com/KZen-networks/rust-paillier", tag = "v0.3.3"}
 rocksdb= "0.15.0"
 tempdir = "0.3.7"
 

@@ -849,6 +849,7 @@ dependencies = [
 [[package]]
 name = "curv"
 version = "0.2.7"
+source = "git+https://github.com/commerceblock/curv?tag=v0.2.7#9cf42f0b8baf49f074764f2199766457fa94af0c"
 dependencies = [
  "blake2b_simd",
  "digest 0.8.1",

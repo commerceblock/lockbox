@@ -1,5 +1,5 @@
 #![feature(stdsimd)]
 [workspace]
 members = ["server", "client", "shared"]
-[patch."https://github.com/commerceblock/curv"]
-curv = { path = '/root/curv', features =  ["ec_secp256k1"] }
+#[patch."https://github.com/commerceblock/curv"]
+#curv = { path = '/root/curv', features =  ["ec_secp256k1"] }

@@ -17,6 +17,7 @@ use rocket_contrib::json::Json;
 use std::string::ToString;
 use uuid::Uuid;
 use curv::cryptographic_primitives::proofs::sigma_dlog::*;
+use crate::Key;
 use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, EncryptedPairs, Proof};
 use paillier::EncryptionKey;
 
@@ -42,7 +43,49 @@ impl Ecdsa for Lockbox {
 	Ok(())
     }
 
-    fn first_message(&self, _key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
+
+    fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
+
+        // Generate shared key
+        let (key_gen_first_msg, comm_witness, ec_key_pair) =
+//            if key_gen_msg1.protocol == Protocol::Deposit {
+                MasterKey1::key_gen_first_message();
+  //          } else {
+    //            let s2: FE = db.get_ecdsa_s2(user_id)?;
+      //          let theta: FE = db.get_ecdsa_theta(user_id)?;
+        //        MasterKey1::key_gen_first_message_predefined(s2 * theta)
+          //  };
+
+ 	Err(LockboxError::Generic("unimplemented".to_string()))
+	
+	let user_id = &Key::from_uuid(&key_gen_msg1.shared_key_id);
+
+        // Create new entry in ecdsa table if key not already in table.
+        match self.database.get(user_id) {
+            Ok(Some(_)) =>  {
+                return Err(LockboxError::Generic(format!(
+                    "Key Generation already completed for ID {}",
+                    user_id
+                )))
+            },
+	    Ok(None) => (),
+            Err(e) => return Err(e.into()),
+        };
+
+	/*
+        // Generate shared key
+        let (key_gen_first_msg, comm_witness, ec_key_pair) =
+            if key_gen_msg1.protocol == Protocol::Deposit {
+                MasterKey1::key_gen_first_message()
+            } else {
+                let s2: FE = db.get_ecdsa_s2(user_id)?;
+                let theta: FE = db.get_ecdsa_theta(user_id)?;
+                MasterKey1::key_gen_first_message_predefined(s2 * theta)
+            };
+
+        db.update_keygen_first_msg(&user_id, &key_gen_first_msg, comm_witness, ec_key_pair)?;
+         */
+
 	Ok((Uuid::nil(), party_one::KeyGenFirstMsg {
 	    pk_commitment: BigInt::zero(),
 	    zk_pok_commitment: BigInt::zero(),

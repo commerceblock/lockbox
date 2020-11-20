@@ -22,9 +22,7 @@ pub enum LockboxError {
     /// Athorisation failed
     AuthError,
     /// DB error no ID found
-    DBError(DBErrorType, String),
-    // Inherit errors from Util
-    //SharedLibError(String),
+    DBError(String),
 }
 
 impl From<String> for LockboxError {
@@ -33,12 +31,12 @@ impl From<String> for LockboxError {
     }
 }
 
+impl From<rocksdb::Error> for LockboxError {
+    fn from(e: rocksdb::Error) -> Self {
+	LockboxError::DBError(e.into_string())
+    }
+}
 
-//impl From<SharedLibError> for Error {
-//    fn from(e: SharedLibError) -> Error {
-//        Error::SharedLibError(e.to_string())
-//    }
-//}
 
 impl From<SystemTimeError> for LockboxError {
     fn from(e: SystemTimeError) -> Self {
@@ -52,32 +50,13 @@ impl From<ConfigError> for LockboxError {
     }
 }
 
-/// DB error types
-#[derive(Debug, Deserialize)]
-pub enum DBErrorType {
-    /// No identifier
-    NoDataForID,
-    /// No update made
-    UpdateFailed,
-    // Connection to db failed
-    ConnectionFailed,
-}
-impl DBErrorType {
-    fn as_str(&self) -> &'static str {
-        match *self {
-            DBErrorType::NoDataForID => "No data for identifier.",
-            DBErrorType::UpdateFailed => "No update made.",
-            DBErrorType::ConnectionFailed => "Connection failed.",
-        }
-    }
-}
 
 impl fmt::Display for LockboxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             LockboxError::Generic(ref e) => write!(f, "Error: {}", e),
             LockboxError::AuthError => write!(f, "Authentication Error: User authorisation failed"),
-            LockboxError::DBError(ref e, ref id) => write!(f, "DB Error: {} (id: {})", e.as_str(), id),
+            LockboxError::DBError(ref e) => write!(f, "DB Error: {}", e),
         }
     }
 }

@@ -1,10 +1,11 @@
 [package]
-name = "Helloworldsampleenclave"
+name = "lockbox_enclave"
 version = "1.0.0"
 authors = ["The Teaclave Authors"]
 
 [lib]
-name = "helloworldsampleenclave"
+name = "lockbox_enclave"
+path = "src/lib.rs"
 crate-type = ["staticlib"]
 
 [features]
@@ -13,15 +14,17 @@ default = []
 [dependencies]
 serde = { git = "https://github.com/mesalock-linux/serde-sgx" }
 sgx_serialize_derive = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tcrypto = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 serde_derive = { git = "https://github.com/mesalock-linux/serde-sgx" }
 serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx" }
+libsecp256k1 = { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx.git" }
+rand = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3" }
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_types = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tstd = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git", default-features=false }
+sgx_tstd = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
 sgx_trts = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tseal = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_serialize = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-
 

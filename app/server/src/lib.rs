@@ -24,6 +24,8 @@ extern crate bitcoin;
 extern crate curv;
 extern crate kms;
 extern crate multi_party_ecdsa;
+extern crate rocksdb;
+extern crate tempdir;
 
 #[macro_use]
 extern crate serde_derive;
@@ -33,7 +35,9 @@ extern crate serde_json;
 extern crate mockall;
 #[cfg(test)]
 extern crate mockito;
-
+#[cfg(test)]
+#[macro_use]
+extern crate serial_test;
 extern crate shared_lib;
 
 pub mod config;
@@ -45,4 +49,34 @@ pub mod enclave;
 
 pub type Result<T> = std::result::Result<T, error::LockboxError>;
 
+use uuid::Uuid;
+use std::convert::AsRef;
+use std::fmt;
 
+pub struct Key(Uuid);
+
+impl Key {
+    fn new() -> Self {
+	Self(Uuid::new_v4())
+    }
+
+    fn from_uuid(id: &Uuid) -> Self {
+	Self(*id)
+    }
+    
+    fn inner(&self) -> Uuid {
+	self.0
+    }
+}
+
+impl AsRef<[u8]> for Key {
+    fn as_ref(&self) -> &[u8]{
+	self.0.as_bytes()
+    }
+}
+
+impl fmt::Display for Key {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "({})", self.0)
+    }
+}

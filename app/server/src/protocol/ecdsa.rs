@@ -12,7 +12,7 @@ use rocket::State;
 use rocket_contrib::json::Json;
 use std::string::ToString;
 use uuid::Uuid;
-
+use crate::Key;
 
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
@@ -36,10 +36,59 @@ impl Ecdsa for Lockbox {
        Err(LockboxError::Generic("unimplemented".to_string()))
     }
 
-    fn first_message(&self, _key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
+/*
+    fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
+        let user_id = key_gen_msg1.shared_key_id;
+
+	//let first_message_secret = FE_sealed
+
+        // Generate shared key
+        let (key_gen_first_msg, comm_witness, ec_key_pair) =
+//            if key_gen_msg1.protocol == Protocol::Deposit {
+                MasterKey1::key_gen_first_message();
+  //          } else {
+    //            let s2: FE = db.get_ecdsa_s2(user_id)?;
+      //          let theta: FE = db.get_ecdsa_theta(user_id)?;
+        //        MasterKey1::key_gen_first_message_predefined(s2 * theta)
+          //  };
+
+ 	Err(LockboxError::Generic("unimplemented".to_string()))
+*/
+    fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
 	let _ = self.enclave.say_something("calling enclave from first_message".to_string()).map_err(|e| LockboxError::Generic(e.to_string()))?;
-	let sealed = self.enclave.get_random_sealed_data().map_err(|e| LockboxError::Generic(e.to_string()))?;
-	self.enclave.verify_sealed_data(sealed).map_err(|e| LockboxError::Generic(e.to_string()))?;
+	let sealed = self.enclave.get_random_sealed_log(1024).map_err(|e| LockboxError::Generic(e.to_string()))?;
+	self.enclave.verify_sealed_log(sealed).map_err(|e| LockboxError::Generic(e.to_string()))?;
+
+	
+	let user_id = &Key::from_uuid(&key_gen_msg1.shared_key_id);
+
+        // Create new entry in ecdsa table if key not already in table.
+        match self.database.get(user_id) {
+            Ok(Some(_)) =>  {
+                return Err(LockboxError::Generic(format!(
+                    "Key Generation already completed for ID {}",
+                    user_id
+                )))
+            },
+	    Ok(None) => (),
+            Err(e) => return Err(e.into()),
+        };
+
+	/*
+        // Generate shared key
+        let (key_gen_first_msg, comm_witness, ec_key_pair) =
+            if key_gen_msg1.protocol == Protocol::Deposit {
+                MasterKey1::key_gen_first_message()
+            } else {
+                let s2: FE = db.get_ecdsa_s2(user_id)?;
+                let theta: FE = db.get_ecdsa_theta(user_id)?;
+                MasterKey1::key_gen_first_message_predefined(s2 * theta)
+            };
+
+        db.update_keygen_first_msg(&user_id, &key_gen_first_msg, comm_witness, ec_key_pair)?;
+*/
+
+
 	Err(LockboxError::Generic("sealed and unsealed data successfully".to_string()))
     }
 

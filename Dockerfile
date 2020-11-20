@@ -4,7 +4,7 @@ COPY . /root/lockbox
 
 RUN set -x \
     && apt update \
-    && apt install -y libgmp-dev \
+    && apt install -y libgmp-dev llvm clang \
     && git clone https://github.com/apache/incubator-teaclave-sgx-sdk.git /root/sgx \
     && cd /opt/intel \
     && wget https://download.01.org/intel-sgx/sgx-linux/2.11/distro/ubuntu18.04-server/sgx_linux_x64_sdk_2.11.100.2.bin \

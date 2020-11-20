@@ -1,19 +1,12 @@
 pub use super::super::Result;
 
-use crate::error::{DBErrorType, LockboxError};
-use crate::{server::Lockbox, structs::*};
+use crate::error::LockboxError;
+use crate::server::Lockbox;
 use shared_lib::{
-    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, Protocol, SignMsg1, SignMsg2},
-    util::reverse_hex_str,
+    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, SignMsg1, SignMsg2},
 };
 
-use bitcoin::{hashes::sha256d, secp256k1::Signature, Transaction};
-use cfg_if::cfg_if;
-use curv::{
-    arithmetic::traits::Converter,
-    elliptic::curves::traits::{ECPoint, ECScalar},
-    {BigInt, FE, GE},
-};
+use bitcoin::elliptic::curves::traits::{ECPoint, ECScalar};
 pub use kms::ecdsa::two_party::*;
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 use rocket::State;
@@ -42,11 +35,11 @@ pub trait Ecdsa {
 }
 
 impl Ecdsa for Lockbox {
-    fn master_key(&self, user_id: Uuid) -> Result<()> {
+    fn master_key(&self, _user_id: Uuid) -> Result<()> {
 	Ok(())
     }
 
-    fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
+    fn first_message(&self, _key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
 	Ok((Uuid::nil(), party_one::KeyGenFirstMsg {
 	    pk_commitment: BigInt::zero(),
 	    zk_pok_commitment: BigInt::zero(),
@@ -69,7 +62,7 @@ impl Ecdsa for Lockbox {
 	Ok(None)
     }
 
-    fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Vec<Vec<u8>>> {
+    fn sign_second(&self, _sign_msg2: SignMsg2) -> Result<Vec<Vec<u8>>> {
 	Ok(Vec::<Vec::<u8>>::new())
     }
 }
@@ -136,3 +129,4 @@ pub fn sign_second(lockbox: State<Lockbox>, sign_msg2: Json<SignMsg2>) -> Result
         Err(e) => return Err(e),
     }
 }
+

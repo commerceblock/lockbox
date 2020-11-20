@@ -2,10 +2,7 @@
 //!
 //! Custom Error types for client
 
-use shared_lib::error::SharedLibError;
-
 use bitcoin::util::{address::Error as AddressError, bip32::Error as Bip32Error};
-use daemon_engine::DaemonError;
 use reqwest::Error as ReqwestError;
 use std::error;
 use std::fmt;

@@ -5,18 +5,12 @@ use log::LevelFilter;
 use log4rs::append::file::FileAppender;
 use log4rs::config::{Appender, Config as LogConfig, Root as LogRoot};
 use log4rs::encode::pattern::PatternEncoder;
-use mockall::*;
 
 use rocket;
 use rocket::{
-    http::{ContentType, Status},
-    local::Client,
     config::{Config as RocketConfig, Environment},
     Request, Rocket,
 };
-use std::sync::{Arc, Mutex};
-use uuid::Uuid;
-use crate::protocol::ecdsa::Ecdsa;
 use crate::enclave::Enclave;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -60,7 +54,7 @@ fn not_found(req: &Request) -> String {
 }
 
 pub fn get_server()-> Result<Rocket> {
-    let mut lbs = Lockbox::load()?;
+    let lbs = Lockbox::load()?;
 
     set_logging_config(&lbs.config.log_file);
 
@@ -120,8 +114,14 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockito;
-   
+    use shared_lib::structs::{KeyGenMsg1, Protocol};
+    use uuid::Uuid;
+    use crate::protocol::ecdsa::Ecdsa;
+    use rocket::{
+	http::Status,
+	local::Client,
+    };
+    
     fn get_client() -> Client {
         Client::new(get_server().expect("valid rocket instance")).expect("client")   
     }
@@ -129,10 +129,20 @@ mod tests {
     #[test]
     fn test_ping() {
         let client = get_client();
-        let mut response = client
+        let response = client
             .get("/ping")
             .dispatch();   
         assert_eq!(response.status(), Status::Ok);
     }
 
+	
+    #[test]
+    fn test_first_message() {
+	let server = Lockbox::load().unwrap();
+	let msg = KeyGenMsg1{shared_key_id: Uuid::new_v4(), protocol: Protocol::Transfer};
+	match server.first_message(msg) {
+	    Ok(_) => assert!(false, "expected err"),
+	    Err(e) => assert!(e.to_string().contains("sealed and unsealed data successfully"))
+	}
+    }
 }

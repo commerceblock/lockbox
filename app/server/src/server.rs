@@ -121,6 +121,8 @@ mod tests {
 	http::Status,
 	local::Client,
     };
+    pub use kms::ecdsa::two_party::*;                                                                                                      
+    pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*; 
     
     fn get_client() -> Client {
         Client::new(get_server().expect("valid rocket instance")).expect("client")   
@@ -140,9 +142,9 @@ mod tests {
     fn test_first_message() {
 	let server = Lockbox::load().unwrap();
 	let msg = KeyGenMsg1{shared_key_id: Uuid::new_v4(), protocol: Protocol::Transfer};
-	match server.first_message(msg) {
-	    Ok(_) => assert!(false, "expected err"),
-	    Err(e) => assert!(e.to_string().contains("sealed and unsealed data successfully"))
-	}
+
+	let expected = 	Uuid::nil();
+
+	assert_eq!(server.first_message(msg).unwrap().0, expected);
     }
 }

@@ -6,7 +6,10 @@ use shared_lib::{
     structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, SignMsg1, SignMsg2},
 };
 
-use bitcoin::elliptic::curves::traits::{ECPoint, ECScalar};
+use curv::{
+    {BigInt, FE, GE},
+    elliptic::curves::traits::{ECPoint, ECScalar}
+};
 pub use kms::ecdsa::two_party::*;
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 use rocket::State;

@@ -37,6 +37,9 @@ extern crate mockito;
 
 extern crate shared_lib;
 
+extern crate zk_paillier;
+extern crate paillier;
+
 pub mod config;
 pub mod error;
 pub mod protocol;

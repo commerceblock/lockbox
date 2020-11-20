@@ -11,7 +11,7 @@ use bitcoin::{hashes::sha256d, secp256k1::Signature, Transaction};
 use cfg_if::cfg_if;
 use curv::{
     arithmetic::traits::Converter,
-    elliptic::curves::traits::ECPoint,
+    elliptic::curves::traits::{ECPoint, ECScalar},
     {BigInt, FE, GE},
 };
 pub use kms::ecdsa::two_party::*;
@@ -20,7 +20,9 @@ use rocket::State;
 use rocket_contrib::json::Json;
 use std::string::ToString;
 use uuid::Uuid;
-
+use curv::cryptographic_primitives::proofs::sigma_dlog::*;
+use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, EncryptedPairs, Proof};
+use paillier::EncryptionKey;
 
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
@@ -28,44 +30,47 @@ pub trait Ecdsa {
 
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)>;
 
-    fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<party1::KeyGenParty1Message2>;
+    fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>>;
 
-    fn third_message(&self, key_gen_msg3: KeyGenMsg3) -> Result<party_one::PDLFirstMessage>;
+    fn third_message(&self, key_gen_msg3: KeyGenMsg3) -> Result<Option<party_one::PDLFirstMessage>>;
 
-    fn fourth_message(&self, key_gen_msg4: KeyGenMsg4) -> Result<party_one::PDLSecondMessage>;
+    fn fourth_message(&self, key_gen_msg4: KeyGenMsg4) -> Result<Option<party_one::PDLSecondMessage>>;
 
-    fn sign_first(&self, sign_msg1: SignMsg1) -> Result<party_one::EphKeyGenFirstMsg>;
+    fn sign_first(&self, sign_msg1: SignMsg1) -> Result<Option<party_one::EphKeyGenFirstMsg>>;
 
     fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Vec<Vec<u8>>>;
 }
 
 impl Ecdsa for Lockbox {
     fn master_key(&self, user_id: Uuid) -> Result<()> {
-       Err(LockboxError::Generic("unimplemented".to_string()))
+	Ok(())
     }
 
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
-       Err(LockboxError::Generic("unimplemented".to_string()))
+	Ok((Uuid::nil(), party_one::KeyGenFirstMsg {
+	    pk_commitment: BigInt::zero(),
+	    zk_pok_commitment: BigInt::zero(),
+	}))
     }
 
-    fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<party1::KeyGenParty1Message2> {
-        Err(LockboxError::Generic("unimplemented".to_string()))
+    fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>> {
+	Ok(None)
     }
 
-    fn third_message(&self, key_gen_msg3: KeyGenMsg3) -> Result<party_one::PDLFirstMessage> {
-        Err(LockboxError::Generic("unimplemented".to_string()))
+    fn third_message(&self, key_gen_msg3: KeyGenMsg3) -> Result<Option<party_one::PDLFirstMessage>> {
+	Ok(None)
     }
 
-    fn fourth_message(&self, key_gen_msg4: KeyGenMsg4) -> Result<party_one::PDLSecondMessage> {
-        Err(LockboxError::Generic("unimplemented".to_string()))
+    fn fourth_message(&self, key_gen_msg4: KeyGenMsg4) -> Result<Option<party_one::PDLSecondMessage>> {
+	Ok(None)
     }
 
-    fn sign_first(&self, sign_msg1: SignMsg1) -> Result<party_one::EphKeyGenFirstMsg> {
-        Err(LockboxError::Generic("unimplemented".to_string()))
+    fn sign_first(&self, sign_msg1: SignMsg1) -> Result<Option<party_one::EphKeyGenFirstMsg>> {
+	Ok(None)
     }
 
     fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Vec<Vec<u8>>> {
-        Err(LockboxError::Generic("unimplemented".to_string()))
+	Ok(Vec::<Vec::<u8>>::new())
     }
 }
 
@@ -84,7 +89,7 @@ pub fn first_message(
 pub fn second_message(
     lockbox: State<Lockbox>,
     key_gen_msg2: Json<KeyGenMsg2>,
-) -> Result<Json<party1::KeyGenParty1Message2>> {
+) -> Result<Json<Option<party1::KeyGenParty1Message2>>> {
     match lockbox.second_message(key_gen_msg2.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
@@ -95,7 +100,7 @@ pub fn second_message(
 pub fn third_message(
     lockbox: State<Lockbox>,
     key_gen_msg3: Json<KeyGenMsg3>,
-) -> Result<Json<party_one::PDLFirstMessage>> {
+) -> Result<Json<Option<party_one::PDLFirstMessage>>> {
     match lockbox.third_message(key_gen_msg3.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
@@ -106,7 +111,7 @@ pub fn third_message(
 pub fn fourth_message(
     lockbox: State<Lockbox>,
     key_gen_msg4: Json<KeyGenMsg4>,
-) -> Result<Json<party_one::PDLSecondMessage>> {
+) -> Result<Json<Option<party_one::PDLSecondMessage>>> {
     match lockbox.fourth_message(key_gen_msg4.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
@@ -117,7 +122,7 @@ pub fn fourth_message(
 pub fn sign_first(
     lockbox: State<Lockbox>,
     sign_msg1: Json<SignMsg1>,
-) -> Result<Json<party_one::EphKeyGenFirstMsg>> {
+) -> Result<Json<Option<party_one::EphKeyGenFirstMsg>>> {
     match lockbox.sign_first(sign_msg1.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),

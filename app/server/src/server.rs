@@ -169,7 +169,7 @@ mod tests {
 	let shared_key_id = uuid::Uuid::new_v4();
 
 	let expected = 	Uuid::nil();
-
+	let msg = KeyGenMsg1{shared_key_id: Uuid::new_v4(), protocol: Protocol::Transfer};
 	assert_eq!(server.first_message(msg).unwrap().0, expected);
     }
 }

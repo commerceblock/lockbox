@@ -3778,6 +3778,7 @@ dependencies = [
  "monotree",
  "multi-party-ecdsa",
  "multi-party-schnorr",
+ "paillier",
  "rocket",
  "rocket_contrib",
  "rocksdb",

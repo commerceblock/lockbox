@@ -56,7 +56,6 @@ impl Ecdsa for Lockbox {
         //        MasterKey1::key_gen_first_message_predefined(s2 * theta)
           //  };
 
- 	Err(LockboxError::Generic("unimplemented".to_string()))
 	
 	let user_id = &Key::from_uuid(&key_gen_msg1.shared_key_id);
 

@@ -17,7 +17,7 @@ RUN set -x \
     && export PKG_CONFIG_PATH=$SGX_SDK/pkgconfig \
     && export BINUTILS_PREFIX=/usr \
     && cd /root/lockbox \
-    && make -j$(nproc) \
+    && make \
     && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

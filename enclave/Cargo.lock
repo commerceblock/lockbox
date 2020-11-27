@@ -45,20 +45,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "c2-chacha"
-version = "0.2.3"
-source = "git+https://github.com/mesalock-linux/cryptocorrosion-sgx#32d7de50b5f03a10fe5a42167410be2dd3c2e389"
-dependencies = [
- "byteorder",
- "ppv-lite86",
- "stream-cipher",
-]
-
-[[package]]
 name = "cc"
-version = "1.0.62"
+version = "1.0.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1770ced377336a88a67c473594ccc14eca6f4559217c34f64aac8f83d641b40"
+checksum = "95752358c8f7552394baf48cd82695b345628ad3f170d607de3ca03b8dacca15"
 
 [[package]]
 name = "cfg-if"
@@ -84,7 +74,7 @@ dependencies = [
 [[package]]
 name = "curv"
 version = "0.2.8"
-source = "git+https://github.com/commerceblock/curv.git?branch=sgx#6000316384153462b4dae6a3fd98485c99430534"
+source = "git+https://github.com/commerceblock/curv.git?branch=sgx#dc86cd9a61a9e082f325be495a9003c452624d05"
 dependencies = [
  "digest 0.8.1 (git+https://github.com/mesalock-linux/rustcrypto-traits-sgx?tag=sgx_1.1.3)",
  "hmac 0.7.1 (git+https://github.com/mesalock-linux/rustcrypto-MACs-sgx?tag=sgx_1.1.3)",
@@ -92,7 +82,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "rand",
- "secp256k1-sgx 0.1.0 (git+https://github.com/commerceblock/curv.git?branch=sgx)",
+ "secp256k1-sgx",
  "serde",
  "serde_cbor",
  "serde_derive",
@@ -240,7 +230,7 @@ version = "1.0.0"
 dependencies = [
  "curv",
  "libsecp256k1",
- "secp256k1-sgx 0.1.0 (git+https://github.com/commerceblock/rust-secp256k1-sgx.git)",
+ "secp256k1-sgx",
  "serde",
  "serde_cbor",
  "serde_derive",
@@ -257,7 +247,7 @@ dependencies = [
 [[package]]
 name = "num-bigint-dig"
 version = "0.6.0"
-source = "git+https://github.com/commerceblock/curv.git?branch=sgx#6000316384153462b4dae6a3fd98485c99430534"
+source = "git+https://github.com/mesalock-linux/num-bigint-sgx?branch=dig#bfba2d78dbe6272861f040a96edc2d1c23665d07"
 dependencies = [
  "byteorder",
  "lazy_static",
@@ -284,7 +274,7 @@ dependencies = [
 [[package]]
 name = "num-iter"
 version = "0.1.39"
-source = "git+https://github.com/mesalock-linux/num-iter-sgx?tag=sgx_1.1.3#f19fc44fcad0b82a040e5a24c511e5049cc04b60"
+source = "git+https://github.com/mesalock-linux/num-iter-sgx#f19fc44fcad0b82a040e5a24c511e5049cc04b60"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -348,7 +338,7 @@ dependencies = [
 [[package]]
 name = "rand"
 version = "0.7.3"
-source = "git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3#55697c5a4007d13e8d5f37be7216be1b18fb8ebf"
+source = "git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3#83583f073de3b4f75c3c3ef5e174d484ed941f85"
 dependencies = [
  "getrandom",
  "packed_simd_2",
@@ -359,10 +349,10 @@ dependencies = [
 
 [[package]]
 name = "rand_chacha"
-version = "0.2.1"
-source = "git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3#55697c5a4007d13e8d5f37be7216be1b18fb8ebf"
+version = "0.2.2"
+source = "git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3#83583f073de3b4f75c3c3ef5e174d484ed941f85"
 dependencies = [
- "c2-chacha",
+ "ppv-lite86",
  "rand_core",
  "sgx_tstd",
 ]
@@ -370,7 +360,7 @@ dependencies = [
 [[package]]
 name = "rand_core"
 version = "0.5.1"
-source = "git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3#55697c5a4007d13e8d5f37be7216be1b18fb8ebf"
+source = "git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3#83583f073de3b4f75c3c3ef5e174d484ed941f85"
 dependencies = [
  "getrandom",
  "sgx_tstd",
@@ -380,17 +370,6 @@ dependencies = [
 name = "secp256k1-sgx"
 version = "0.1.0"
 source = "git+https://github.com/commerceblock/rust-secp256k1-sgx.git#07922dc8942a35ce74b18408957f1a6c02c48abd"
-dependencies = [
- "cc",
- "libc",
- "sgx_rand",
- "sgx_tstd",
-]
-
-[[package]]
-name = "secp256k1-sgx"
-version = "0.1.0"
-source = "git+https://github.com/commerceblock/curv.git?branch=sgx#6000316384153462b4dae6a3fd98485c99430534"
 dependencies = [
  "cc",
  "libc",
@@ -423,7 +402,7 @@ source = "git+https://github.com/mesalock-linux/serde-sgx#f65f251fee55aa1618f3c2
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",
- "syn 1.0.48",
+ "syn 1.0.51",
 ]
 
 [[package]]
@@ -609,7 +588,7 @@ dependencies = [
 [[package]]
 name = "smallvec"
 version = "1.1.0"
-source = "git+https://github.com/mesalock-linux/rust-smallvec-sgx?tag=sgx_1.1.3#344d280886e88e1dd923b54d7e36fd46fc0e725e"
+source = "git+https://github.com/mesalock-linux/rust-smallvec-sgx#344d280886e88e1dd923b54d7e36fd46fc0e725e"
 dependencies = [
  "sgx_tstd",
 ]
@@ -619,14 +598,6 @@ name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
-
-[[package]]
-name = "stream-cipher"
-version = "0.3.2"
-source = "git+https://github.com/mesalock-linux/rustcrypto-traits-sgx#7a5cb154f438c2401b3d8e37de96dd0acf8f493e"
-dependencies = [
- "generic-array",
-]
 
 [[package]]
 name = "subtle"
@@ -649,9 +620,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.48"
+version = "1.0.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc371affeffc477f42a221a1e4297aedcea33d47d19b61455588bd9d8f6b19ac"
+checksum = "3b4f34193997d92804d359ed09953e25d5138df6bcc055a71bf68ee89fdf9223"
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",

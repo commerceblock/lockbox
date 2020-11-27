@@ -1,6 +1,7 @@
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
+//extern crate curv;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
@@ -9,6 +10,7 @@ use crate::error::LockboxError;
 //extern crate serde_cbor;
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
+use curv::{BigInt, FE};
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -178,6 +180,7 @@ impl Enclave {
 	    sgx_destroy_enclave(self.geteid());
 	}
     }
+
 }
 
 extern {

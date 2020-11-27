@@ -28,9 +28,11 @@ extern crate sgx_tcrypto;
 #[macro_use]
 extern crate sgx_tstd as std;
 extern crate sgx_rand;
-extern crate secp256k1;
+extern crate libsecp256k1 as libsecp256k1;
+extern crate secp256k1_sgx as secp256k1;
+extern crate curv;
 
-use sgx_types::{sgx_status_t, sgx_sealed_data_t, SgxResult};
+use sgx_types::*;
 use sgx_tcrypto::*;  
 use std::string::String;
 use sgx_types::marker::ContiguousMemory;
@@ -42,7 +44,15 @@ use sgx_rand::{Rng, StdRng};
 use sgx_tseal::{SgxSealedData};
 use std::ops::{Deref, DerefMut};
 use std::default::Default;
-
+use curv::{BigInt, FE, GE, PK};
+use curv::elliptic::curves::traits::{ECScalar, ECPoint};
+use curv::elliptic::curves::secp256_k1::SK;
+use curv::arithmetic_sgx::traits::Samplable;
+use curv::cryptographic_primitives_sgx::proofs::sigma_ec_ddh::*;
+use curv::cryptographic_primitives_sgx::proofs::sigma_dlog::*;
+use curv::cryptographic_primitives_sgx::proofs::ProofError;
+use curv::elliptic::curves::traits::*;
+use curv::arithmetic_sgx::traits::*;
 
 #[macro_use]
 extern crate serde_derive;
@@ -402,18 +412,19 @@ pub extern "C" fn generate_keypair(input_str: *const u8) -> sgx_status_t {
     let mut rands = [0u8;32];
     rand.fill_bytes(&mut rands);
 
-    let privkey = match secp256k1::SecretKey::parse(&rands){
+    let privkey = match libsecp256k1::SecretKey::parse(&rands){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
 
-    let pubkey = secp256k1::PublicKey::from_secret_key(&privkey);
-    
-//    let (privkey, pubkey) = match secp256k1.generate_keypair(&mut thread_rng()){
-//	Ok(v) => v,
-//	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
-  //  };
+    let pubkey = libsecp256k1::PublicKey::from_secret_key(&privkey);
 
+    /*
+    let (privkey, pubkey) = match secp256k1.generate_keypair(&mut thread_rng()){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+*/
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -425,7 +436,7 @@ pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(e) => return e
     };
     
-    let mut sk1 = match secp256k1::SecretKey::parse(&data1){
+    let mut sk1 = match libsecp256k1::SecretKey::parse(&data1){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
@@ -439,7 +450,7 @@ pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(e) => return e
     };
 
-    let sk2 = match secp256k1::SecretKey::parse(&data2){
+    let sk2 = match libsecp256k1::SecretKey::parse(&data2){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
@@ -466,7 +477,7 @@ pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
-    
+
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -479,7 +490,7 @@ pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(e) => return e
     };
 
-    let mut sk1 = match secp256k1::SecretKey::parse(&data1){
+    let mut sk1 = match libsecp256k1::SecretKey::parse(&data1){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
@@ -493,7 +504,7 @@ pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(e) => return e
     };
 
-    let sk2 = match secp256k1::SecretKey::parse(&data2){
+    let sk2 = match libsecp256k1::SecretKey::parse(&data2){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
@@ -519,50 +530,122 @@ pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
-        
+
     sgx_status_t::SGX_SUCCESS
 }
 
 #[no_mangle]
 pub extern "C" fn sign(some_message: &[u8;32], sk_sealed_log: * mut u8, sig: &mut[u8; 64]) -> sgx_status_t {
-    let message = secp256k1::Message::parse(some_message);
+
+    let message = libsecp256k1::Message::parse(some_message);
 
     let sk_bytes = match Bytes32::try_from((sk_sealed_log, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
         Err(e) => return e
     };
 
-    let sk = match secp256k1::SecretKey::parse(&sk_bytes){
+    let sk = match libsecp256k1::SecretKey::parse(&sk_bytes){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
-    let (signature, _recoveryId) = secp256k1::sign(&message, &sk);
+    let (signature, _recoveryId) = libsecp256k1::sign(&message, &sk);
 
     *sig = signature.serialize();
-    
+
     sgx_status_t::SGX_SUCCESS
 }
 
 
 #[no_mangle]
 pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) -> sgx_status_t {
-    
+
     let data = match Bytes32::try_from((sealed_log, SgxSealedLog::size() as u32)) {
 	Ok(v) => v,
 	Err(e) => return e
     };
 
-    let mut sk = match secp256k1::SecretKey::parse(&data){
+    
+    let mut sk = match libsecp256k1::SecretKey::parse(&data){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
+    /*
+    let s = secp256k1::Secp256k1::new();
 
-    *public_key = secp256k1::PublicKey::from_secret_key(&sk).serialize_compressed();
+        
+    let csk = SK::from_slice(&s, &*data).unwrap();
+     */
+    
+    let bigint1 = BigInt::sample(1024);
+
+    //let mut fe : FE = ECScalar::from(&bigint1);
+    let mut fe : FE = ECScalar::zero();
+    let q = FE::q();
+    //FE::zero();
+  //  fe.set_element(csk);
+    let bi = BigInt::from(1);
+
+    let secret_share: FE = curv::elliptic::curves::traits::ECScalar::from(&bi);
+
+    let msg = secp256k1::Message::from_slice(data.deref()).unwrap();
+
+
+
+//--------
+
+    let sk_bigint = secret_share.to_big_int();
+    let q_third = FE::q();
+    //assert!(sk_bigint < q_third.div_floor(&BigInt::from(3)));
+    let base: GE = ECPoint::generator();
+//    let public_share = base.scalar_mul(&secret_share.get_element());
+    
+//    let d_log_proof = DLogProof::prove(&secret_share);
+
+//    let pk_commitment_blind_factor = BigInt::sample(SECURITY_BITS);
+//    let pk_commitment = HashCommitment::create_commitment_with_user_defined_randomness(
+//        &public_share.bytes_compressed_to_big_int(),
+//        &pk_commitment_blind_factor,
+//    );
+    
+//    let zk_pok_blind_factor = BigInt::sample(SECURITY_BITS);
+//    let zk_pok_commitment = HashCommitment::create_commitment_with_user_defined_randomness(
+//        &d_log_proof
+//            .pk_t_rand_commitment
+//            .bytes_compressed_to_big_int(),
+//        &zk_pok_blind_factor,
+//    );
+
+//    let ec_key_pair = EcKeyPair {
+//        public_share,
+//        secret_share,
+//    };
+//    secret_share.zeroize();
+
+/*
+    (
+        KeyGenFirstMsg {
+            pk_commitment,
+            zk_pok_commitment,
+        },
+        CommWitness {
+            pk_commitment_blind_factor,
+            zk_pok_blind_factor,
+            public_share: ec_key_pair.public_share,
+            d_log_proof,
+        },
+        ec_key_pair,
+    )
+*/
+
+  
+//--------------
+    //*public_key = PK::from_secret_key(&s, &csk).serialize_compressed();
+    
+    *public_key = libsecp256k1::PublicKey::from_secret_key(&sk).serialize_compressed();
     
     sgx_status_t::SGX_SUCCESS
 }
-
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<[T]>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
     unsafe {

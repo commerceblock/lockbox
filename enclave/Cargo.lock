@@ -240,7 +240,6 @@ version = "1.0.0"
 dependencies = [
  "curv",
  "libsecp256k1",
- "rand",
  "secp256k1-sgx 0.1.0",
  "serde",
  "serde_cbor",

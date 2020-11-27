@@ -1,11 +1,12 @@
 FROM baiduxlab/sgx-rust:latest
 
 COPY . /root/lockbox
+COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 
 RUN set -x \
     && apt update \
     && apt install -y libgmp-dev llvm clang \
-    && git clone https://github.com/apache/incubator-teaclave-sgx-sdk.git /root/sgx \
+    && git clone -b master --single-branch https://github.com/apache/incubator-teaclave-sgx-sdk.git /root/sgx \
     && cd /opt/intel \
     && wget https://download.01.org/intel-sgx/sgx-linux/2.11/distro/ubuntu18.04-server/sgx_linux_x64_sdk_2.11.100.2.bin \
     && chmod +x sgx_linux_x64_sdk_2.11.100.2.bin \
@@ -19,4 +20,4 @@ RUN set -x \
     && make \
     && rm -rf /var/lib/apt/lists/*
 
-CMD ["bash", "-c"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

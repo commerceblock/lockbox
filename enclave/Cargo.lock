@@ -240,7 +240,7 @@ version = "1.0.0"
 dependencies = [
  "curv",
  "libsecp256k1",
- "secp256k1-sgx 0.1.0",
+ "secp256k1-sgx 0.1.0 (git+https://github.com/commerceblock/rust-secp256k1-sgx.git)",
  "serde",
  "serde_cbor",
  "serde_derive",
@@ -379,6 +379,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sgx"
 version = "0.1.0"
+source = "git+https://github.com/commerceblock/rust-secp256k1-sgx.git#07922dc8942a35ce74b18408957f1a6c02c48abd"
 dependencies = [
  "cc",
  "libc",

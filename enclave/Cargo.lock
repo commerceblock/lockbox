@@ -84,7 +84,6 @@ dependencies = [
 [[package]]
 name = "curv"
 version = "0.2.8"
-source = "git+https://github.com/commerceblock/curv.git?branch=sgx#6000316384153462b4dae6a3fd98485c99430534"
 dependencies = [
  "digest 0.8.1 (git+https://github.com/mesalock-linux/rustcrypto-traits-sgx?tag=sgx_1.1.3)",
  "hmac 0.7.1 (git+https://github.com/mesalock-linux/rustcrypto-MACs-sgx?tag=sgx_1.1.3)",
@@ -92,7 +91,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "rand",
- "secp256k1-sgx 0.1.0 (git+https://github.com/commerceblock/curv.git?branch=sgx)",
+ "secp256k1-sgx 0.1.0 (git+https://github.com/commerceblock/rust-secp256k1-sgx.git)",
  "serde",
  "serde_cbor",
  "serde_derive",
@@ -240,7 +239,6 @@ version = "1.0.0"
 dependencies = [
  "curv",
  "libsecp256k1",
- "rand",
  "secp256k1-sgx 0.1.0",
  "serde",
  "serde_cbor",
@@ -258,7 +256,7 @@ dependencies = [
 [[package]]
 name = "num-bigint-dig"
 version = "0.6.0"
-source = "git+https://github.com/commerceblock/curv.git?branch=sgx#6000316384153462b4dae6a3fd98485c99430534"
+source = "git+https://github.com/mesalock-linux/num-bigint-sgx?branch=dig#bfba2d78dbe6272861f040a96edc2d1c23665d07"
 dependencies = [
  "byteorder",
  "lazy_static",
@@ -285,7 +283,7 @@ dependencies = [
 [[package]]
 name = "num-iter"
 version = "0.1.39"
-source = "git+https://github.com/mesalock-linux/num-iter-sgx?tag=sgx_1.1.3#f19fc44fcad0b82a040e5a24c511e5049cc04b60"
+source = "git+https://github.com/mesalock-linux/num-iter-sgx#f19fc44fcad0b82a040e5a24c511e5049cc04b60"
 dependencies = [
  "num-integer",
  "num-traits",
@@ -390,7 +388,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-sgx"
 version = "0.1.0"
-source = "git+https://github.com/commerceblock/curv.git?branch=sgx#6000316384153462b4dae6a3fd98485c99430534"
+source = "git+https://github.com/commerceblock/rust-secp256k1-sgx.git#07922dc8942a35ce74b18408957f1a6c02c48abd"
 dependencies = [
  "cc",
  "libc",
@@ -609,7 +607,7 @@ dependencies = [
 [[package]]
 name = "smallvec"
 version = "1.1.0"
-source = "git+https://github.com/mesalock-linux/rust-smallvec-sgx?tag=sgx_1.1.3#344d280886e88e1dd923b54d7e36fd46fc0e725e"
+source = "git+https://github.com/mesalock-linux/rust-smallvec-sgx#344d280886e88e1dd923b54d7e36fd46fc0e725e"
 dependencies = [
  "sgx_tstd",
 ]

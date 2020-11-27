@@ -598,7 +598,8 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
     let q_third = FE::q();
     //assert!(sk_bigint < q_third.div_floor(&BigInt::from(3)));
     let base: GE = ECPoint::generator();
-//    let public_share = base.scalar_mul(&secret_share.get_element());
+    let element = secret_share.get_element().clone();
+    let public_share = base.scalar_mul(&element);
     
 //    let d_log_proof = DLogProof::prove(&secret_share);
 

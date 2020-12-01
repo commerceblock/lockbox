@@ -333,6 +333,20 @@ pub struct FirstMessageSealed {
     ec_key_pair: EcKeyPair,
 }
 
+impl TryFrom<(* mut u8, u32)> for FirstMessageSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: (* mut u8, u32)) -> Result<Self, Self::Error> {
+	let opt = from_sealed_log_for_slice::<u8>(item.0, item.1);
+	let sealed_data = match opt {
+            Some(x) => x,
+            None => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
+            },
+	};
+	let unsealed_data = SgxSealable::try_from_sealed(&sealed_data)?;
+	Self::try_from(unsealed_data)
+    }
+}
 
 impl TryFrom<FirstMessageSealed> for SgxSealable {
     type Error = sgx_status_t;
@@ -779,6 +793,18 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 
     
 
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+				key_gen_first_msg: &mut [u8;128]) -> sgx_status_t {
+
+    let data = match FirstMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+	Err(e) => return e
+    };
+    
     sgx_status_t::SGX_SUCCESS
 }
 

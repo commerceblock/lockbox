@@ -55,6 +55,12 @@ enclave {
 				          [out, size=128] uint8_t* plain_out);
 
 	      };
+
+        public sgx_status_t second_message([in, size=1024] uint8_t* sealed_log_in,
+		       	    		  [out, size=2048] uint8_t* sealed_log_out,
+				          [out, size=128] uint8_t* plain_out);
+
+	      };
 };
 
 

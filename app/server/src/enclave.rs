@@ -1,3 +1,4 @@
+
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
@@ -12,7 +13,8 @@ extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 use curv::{BigInt, FE};
-
+use curv::arithmetic::traits::Converter;
+    
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -32,6 +34,12 @@ impl DerefMut for Enclave {
      fn deref_mut(&mut self) -> &mut Self::Target {
      	&mut self.inner
      }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct KeyGenFirstMsg{
+    pk_commitment: BigInt,
+    zk_pok_commitment: BigInt,
 }
 
 impl Enclave {
@@ -180,24 +188,28 @@ impl Enclave {
     {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	let mut sealed_log_out = [0u8; 2048];
-	let mut plain_ret = [0u8; 119];
+	let mut plain_ret = [0u8;128];
 	let mut sz_ret = [0u8;8];
 
 	let _result = unsafe {
 	    first_message(self.geteid(), &mut enclave_ret,
 			  sealed_log_in.as_mut_ptr() as *mut u8,
 			  sealed_log_out.as_mut_ptr() as *mut u8,
-			  plain_ret.as_mut_ptr() as *mut u8,
-			 sz_ret.as_mut_ptr() as *mut u8);	    
+			  plain_ret.as_mut_ptr() as *mut u8);	    
 	};
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
 		let size = usize::from_be_bytes(sz_ret);
-		let kg1m: party_one::KeyGenFirstMsg = match serde_cbor::from_slice(&plain_ret[0..size]) {
-		    Ok(x) => x,
-		    Err(_) => return Err(LockboxError::Generic(format!("Error deserialising KeyGenFirstMsg: {:?}!", plain_ret)).into())
-		};
+		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
+		let pk_commitment = BigInt::from_hex(&pk_comm_str);
+		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
+		let zk_pok_commitment = BigInt::from_hex(&zk_pok_comm_str);
+		let kg1m = party_one::KeyGenFirstMsg{pk_commitment, zk_pok_commitment};
+//		let kg1m: KeyGenFirstMsg = match serde_cbor::from_slice(&plain_ret) {
+//		    Ok(x) => x,
+//		    Err(e) => return Err(LockboxError::Generic(format!("Error deserialising KeyGenFirstMsg: {}", e)).into())
+//		};
 		Ok((kg1m, sealed_log_out))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
@@ -244,8 +256,7 @@ extern {
     fn first_message(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		     sealed_log_in: *mut u8,
 		     sealed_log_out: *mut u8,
-		     key_gen_first_msg: *mut u8,
-		     msg_size: *mut u8);	
+		     key_gen_first_msg: *mut u8);	
 }
 
 #[cfg(test)]

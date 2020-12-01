@@ -2,8 +2,9 @@ pub use super::super::Result;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
+use crate::enclave::Enclave;
 use shared_lib::{
-    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, SignMsg1, SignMsg2},
+    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, SignMsg1, SignMsg2, Protocol},
 };
 
 use curv::{
@@ -72,6 +73,24 @@ impl Ecdsa for Lockbox {
             Err(e) => return Err(e.into()),
         };
 
+	let (key_gen_first_mess, sealed_secrets) =
+	    if key_gen_msg1.protocol == Protocol::Deposit {
+		let enc = Enclave::new().unwrap();
+		let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
+		match enc.first_message(&mut rsd1) {
+		    Ok(x) => x,
+		    Err(e) => return Err(LockboxError::Generic(format!("generating first message: {}", e)))
+		}
+	    } else {
+		return Err(LockboxError::Generic("transfer first message not yet implemented".to_string()))
+	    };
+
+
+	//Store the secrets in the DB
+	self.database.put(user_id, &sealed_secrets)?;
+
+
+	
 	/*
         // Generate shared key
         let (key_gen_first_msg, comm_witness, ec_key_pair) =
@@ -86,11 +105,8 @@ impl Ecdsa for Lockbox {
         db.update_keygen_first_msg(&user_id, &key_gen_first_msg, comm_witness, ec_key_pair)?;
          */
 
-	Ok((Uuid::nil(), party_one::KeyGenFirstMsg {
-	    pk_commitment: BigInt::zero(),
-	    zk_pok_commitment: BigInt::zero(),
-	}))
-    }
+	Ok((key_gen_msg1.shared_key_id, key_gen_first_mess))
+     }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>> {
 	Ok(None)

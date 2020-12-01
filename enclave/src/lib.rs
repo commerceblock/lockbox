@@ -51,7 +51,7 @@ use std::default::Default;
 use curv::{BigInt, FE, GE, PK};
 use curv::elliptic::curves::traits::{ECScalar, ECPoint};
 use curv::elliptic::curves::secp256_k1::{SK, get_context_all};
-use curv::arithmetic_sgx::traits::Samplable;
+use curv::arithmetic_sgx::traits::{Samplable, Converter};
 use curv::cryptographic_primitives_sgx::proofs::sigma_ec_ddh::*;
 use curv::cryptographic_primitives_sgx::proofs::sigma_dlog::*;
 use curv::cryptographic_primitives_sgx::proofs::ProofError;
@@ -669,7 +669,7 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 
 #[no_mangle]
 pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
-				key_gen_first_msg: &mut [u8;119], msg_size: &mut [u8;8] ) -> sgx_status_t {
+				key_gen_first_msg: &mut [u8;128]) -> sgx_status_t {
 
 
     let data = match Bytes32::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
@@ -719,6 +719,14 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
         zk_pok_commitment,
     };
 
+    let pk_commitment_string = key_gen_first_message.pk_commitment.to_hex();
+    let zk_pok_commitment_string = key_gen_first_message.zk_pok_commitment.to_hex();
+
+    let key_gen_first_message_str = format!("{}{}",pk_commitment_string,zk_pok_commitment_string);
+    
+    println!("bignum slice len: {}", pk_commitment_string.len());
+    println!("bignum slice len: {}", zk_pok_commitment_string.len());
+    
     let comm_witness = CommWitness {
         pk_commitment_blind_factor,
         zk_pok_blind_factor,
@@ -746,31 +754,30 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 
     
     
-    let encoded_key_gen_first_message = match serde_cbor::to_vec(&key_gen_first_message){
-	Ok(v) => v,
-	Err(e) => {
-	    println!("error: {:?}",e);
-	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-		
-	}
-    };
+  //  let encoded_key_gen_first_message = match serde_cbor::to_vec(&key_gen_first_message){
+//	Ok(v) => v,
+//	Err(e) => {
+//	    println!("error: {:?}",e);
+//	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+//		
+//	}
+//    };
 
-    *msg_size = encoded_key_gen_first_message.len().to_be_bytes();
-    let kg1m_slice = encoded_key_gen_first_message.as_slice();
+//    *msg_size = encoded_key_gen_first_message.len().to_be_bytes();
+  //  let kg1m_slice = encoded_key_gen_first_message.as_slice();
 
 
-    println!("kg1m slice len: {}", kg1m_slice.len());
+//    println!("kg1m slice len: {}", kg1m_slice.len());
 
+    println!("{:?}", sealed_log_out);
+    println!("keygen msg: {:?}", key_gen_first_message_str.as_str());
     
-    *key_gen_first_msg = match kg1m_slice.try_into(){
+    *key_gen_first_msg = match key_gen_first_message_str.into_bytes().as_slice().try_into(){
 	Ok(x) => x,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-
-
     
-    println!("{:?}", sealed_log_out);
 
     sgx_status_t::SGX_SUCCESS
 }

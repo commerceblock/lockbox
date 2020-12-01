@@ -168,8 +168,8 @@ mod tests {
 	let server = Lockbox::load().unwrap();
 	let shared_key_id = uuid::Uuid::new_v4();
 
-	let expected = 	Uuid::nil();
-	let msg = KeyGenMsg1{shared_key_id: Uuid::new_v4(), protocol: Protocol::Transfer};
+	let expected = 	shared_key_id;
+	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Deposit};
 	assert_eq!(server.first_message(msg).unwrap().0, expected);
     }
 }

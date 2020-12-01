@@ -47,9 +47,14 @@ enclave {
 
         public sgx_status_t sign([in] uint8_t some_message[32], [in, size=1024] uint8_t* sealed_log,[out] uint8_t sig[64]);
 
-        public sgx_status_t get_public_key([in, size=1024] uint8_t* sealed_log,[out] uint8_t public_key[33]);	
+        public sgx_status_t get_public_key([in, size=1024] uint8_t* sealed_log,[out] uint8_t public_key[33]);
 
-	    };
+        public sgx_status_t first_message(
+	        [in, size=1024] uint8_t* sealed_log_in,
+	       	[out, size=2048] uint8_t* sealed_log_out,
+		[out] uint8_t key_gen_first_msg[119],
+		[out] uint8_t msg_size[8]);	
+	      };
 };
 
 

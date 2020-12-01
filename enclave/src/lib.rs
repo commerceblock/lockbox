@@ -31,7 +31,11 @@ extern crate sgx_rand;
 extern crate libsecp256k1 as libsecp256k1;
 extern crate secp256k1_sgx as secp256k1;
 extern crate curv;
+extern crate zeroize;
+extern crate num_integer as integer;
 
+use secp256k1::{Secp256k1, VerifyOnly};
+use secp256k1::key::{SecretKey, PublicKey};
 use sgx_types::*;
 use sgx_tcrypto::*;  
 use std::string::String;
@@ -46,17 +50,24 @@ use std::ops::{Deref, DerefMut};
 use std::default::Default;
 use curv::{BigInt, FE, GE, PK};
 use curv::elliptic::curves::traits::{ECScalar, ECPoint};
-use curv::elliptic::curves::secp256_k1::SK;
+use curv::elliptic::curves::secp256_k1::{SK, get_context_all};
 use curv::arithmetic_sgx::traits::Samplable;
 use curv::cryptographic_primitives_sgx::proofs::sigma_ec_ddh::*;
 use curv::cryptographic_primitives_sgx::proofs::sigma_dlog::*;
 use curv::cryptographic_primitives_sgx::proofs::ProofError;
+use curv::cryptographic_primitives_sgx::commitments::hash_commitment::HashCommitment;
+use curv::cryptographic_primitives_sgx::commitments::traits::Commitment;
+use curv::cryptographic_primitives_sgx::twoparty::dh_key_exchange::EcKeyPair;
 use curv::elliptic::curves::traits::*;
 use curv::arithmetic_sgx::traits::*;
+use zeroize::Zeroize;
+use integer::Integer;
 
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_cbor;
+
+const SECURITY_BITS: usize = 256;
 
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is
@@ -268,6 +279,87 @@ impl TryFrom<SgxSealable> for Bytes32 {
 		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
 	    }
 	}
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct KeyGenFirstMsg{
+    pk_commitment: BigInt,
+    zk_pok_commitment: BigInt,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct CommWitness {
+    pub pk_commitment_blind_factor: BigInt,
+    pub zk_pok_blind_factor: BigInt,
+    pub public_share: GE,
+    pub d_log_proof: DLogProof,
+}
+
+
+impl TryFrom<KeyGenFirstMsg> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: KeyGenFirstMsg) -> Result<Self, Self::Error> {
+        let encoded_vec = match serde_cbor::to_vec(&item){
+            Ok(v) => v,
+            Err(e) => {
+                println!("error: {:?}",e);
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+            }
+        };
+        let res = Self{inner: encoded_vec};
+        Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for KeyGenFirstMsg {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+        match serde_cbor::from_slice(&item){
+            Ok(v) => Ok(v),
+            Err(_e) => {
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+            }
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FirstMessageSealed {
+    comm_witness: CommWitness,
+    ec_key_pair: EcKeyPair,
+}
+
+
+impl TryFrom<FirstMessageSealed> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: FirstMessageSealed) -> Result<Self, Self::Error> {
+        let encoded_vec = match serde_cbor::to_vec(&item){
+            Ok(v) => v,
+            Err(e) => {
+                println!("error: {:?}",e);
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+            }
+        };
+        let res = Self{inner: encoded_vec};
+        Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for FirstMessageSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+        match serde_cbor::from_slice(&item){
+            Ok(v) => Ok(v),
+            Err(_e) => {
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+            }
+        }
     }
 }
 
@@ -565,86 +657,121 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 	Err(e) => return e
     };
 
-    
     let mut sk = match libsecp256k1::SecretKey::parse(&data){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
-    /*
-    let s = secp256k1::Secp256k1::new();
-
-        
-    let csk = SK::from_slice(&s, &*data).unwrap();
-     */
     
-    let bigint1 = BigInt::sample(1024);
+    *public_key = libsecp256k1::PublicKey::from_secret_key(&sk).serialize_compressed();
+    
+    sgx_status_t::SGX_SUCCESS
+}
 
-    //let mut fe : FE = ECScalar::from(&bigint1);
-    let mut fe : FE = ECScalar::zero();
-    let q = FE::q();
-    //FE::zero();
-  //  fe.set_element(csk);
-    let bi = BigInt::from(1);
-
-    let secret_share: FE = curv::elliptic::curves::traits::ECScalar::from(&bi);
-
-    let msg = secp256k1::Message::from_slice(data.deref()).unwrap();
+#[no_mangle]
+pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+				key_gen_first_msg: &mut [u8;119], msg_size: &mut [u8;8] ) -> sgx_status_t {
 
 
+    let data = match Bytes32::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+	Err(e) => return e
+    };
 
-//--------
+    let mut sk = match SK::from_slice(&get_context_all(), data.deref()){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
 
-    let sk_bigint = secret_share.to_big_int();
+    let mut secret_share: FE = ECScalar::<SK>::zero();
+    secret_share.set_element(sk);
+    
+    //let sk_bigint = secret_share.to_big_int();
     let q_third = FE::q();
-    //assert!(sk_bigint < q_third.div_floor(&BigInt::from(3)));
+//    assert!(sk_bigint < q_third.div_floor(&BigInt::from(3)));
     let base: GE = ECPoint::generator();
     let element = secret_share.get_element().clone();
     let public_share = base.scalar_mul(&element);
     
-//    let d_log_proof = DLogProof::prove(&secret_share);
+    let d_log_proof = DLogProof::prove(&secret_share);
 
-//    let pk_commitment_blind_factor = BigInt::sample(SECURITY_BITS);
-//    let pk_commitment = HashCommitment::create_commitment_with_user_defined_randomness(
-//        &public_share.bytes_compressed_to_big_int(),
-//        &pk_commitment_blind_factor,
-//    );
+    let pk_commitment_blind_factor = BigInt::sample(SECURITY_BITS);
+    let pk_commitment = HashCommitment::create_commitment_with_user_defined_randomness(
+        &public_share.bytes_compressed_to_big_int(),
+        &pk_commitment_blind_factor,
+    );
     
-//    let zk_pok_blind_factor = BigInt::sample(SECURITY_BITS);
-//    let zk_pok_commitment = HashCommitment::create_commitment_with_user_defined_randomness(
-//        &d_log_proof
-//            .pk_t_rand_commitment
-//            .bytes_compressed_to_big_int(),
-//        &zk_pok_blind_factor,
-//    );
+    let zk_pok_blind_factor = BigInt::sample(SECURITY_BITS);
+    let zk_pok_commitment = HashCommitment::create_commitment_with_user_defined_randomness(
+        &d_log_proof
+            .pk_t_rand_commitment
+            .bytes_compressed_to_big_int(),
+        &zk_pok_blind_factor,
+    );
 
-//    let ec_key_pair = EcKeyPair {
-//        public_share,
-//        secret_share,
-//    };
-//    secret_share.zeroize();
+    let ec_key_pair = EcKeyPair {
+        public_share,
+        secret_share,
+    };
+    secret_share.zeroize();
 
-/*
-    (
-        KeyGenFirstMsg {
-            pk_commitment,
-            zk_pok_commitment,
-        },
-        CommWitness {
-            pk_commitment_blind_factor,
-            zk_pok_blind_factor,
-            public_share: ec_key_pair.public_share,
-            d_log_proof,
-        },
-        ec_key_pair,
-    )
-*/
+    let key_gen_first_message = KeyGenFirstMsg {
+        pk_commitment,
+        zk_pok_commitment,
+    };
 
-  
-//--------------
-    //*public_key = PK::from_secret_key(&s, &csk).serialize_compressed();
+    let comm_witness = CommWitness {
+        pk_commitment_blind_factor,
+        zk_pok_blind_factor,
+        public_share: ec_key_pair.public_share,
+        d_log_proof,
+    };
+
+    let first_message_sealed = FirstMessageSealed { comm_witness, ec_key_pair };
     
-    *public_key = libsecp256k1::PublicKey::from_secret_key(&sk).serialize_compressed();
+    let sealable = match SgxSealable::try_from(first_message_sealed){
+	Ok(x) => x,
+	Err(ret) => return ret
+    };
+
+    let sealed_data = match sealable.to_sealed(){
+	Ok(x) => x,
+        Err(ret) => return ret
+    };
+
     
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, 2048);
+    if opt.is_none() {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+
+    
+    
+    let encoded_key_gen_first_message = match serde_cbor::to_vec(&key_gen_first_message){
+	Ok(v) => v,
+	Err(e) => {
+	    println!("error: {:?}",e);
+	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		
+	}
+    };
+
+    *msg_size = encoded_key_gen_first_message.len().to_be_bytes();
+    let kg1m_slice = encoded_key_gen_first_message.as_slice();
+
+
+    println!("kg1m slice len: {}", kg1m_slice.len());
+
+    
+    *key_gen_first_msg = match kg1m_slice.try_into(){
+	Ok(x) => x,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+
+
+    
+    println!("{:?}", sealed_log_out);
+
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -659,4 +786,5 @@ fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(sealed_log: * mut u
         SgxSealedData::<[T]>::from_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
     }
 }
+
 

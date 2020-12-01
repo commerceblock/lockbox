@@ -10,6 +10,7 @@ use crate::error::LockboxError;
 //extern crate serde_cbor;
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
+pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 use curv::{BigInt, FE};
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
@@ -174,6 +175,34 @@ impl Enclave {
             _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}
     }
+
+    pub fn first_message(&self, sealed_log_in: &mut [u8; 1024]) -> Result<(party_one::KeyGenFirstMsg, [u8;2048])>
+    {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	let mut sealed_log_out = [0u8; 2048];
+	let mut plain_ret = [0u8; 119];
+	let mut sz_ret = [0u8;8];
+
+	let _result = unsafe {
+	    first_message(self.geteid(), &mut enclave_ret,
+			  sealed_log_in.as_mut_ptr() as *mut u8,
+			  sealed_log_out.as_mut_ptr() as *mut u8,
+			  plain_ret.as_mut_ptr() as *mut u8,
+			 sz_ret.as_mut_ptr() as *mut u8);	    
+	};
+
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => {
+		let size = usize::from_be_bytes(sz_ret);
+		let kg1m: party_one::KeyGenFirstMsg = match serde_cbor::from_slice(&plain_ret[0..size]) {
+		    Ok(x) => x,
+		    Err(_) => return Err(LockboxError::Generic(format!("Error deserialising KeyGenFirstMsg: {:?}!", plain_ret)).into())
+		};
+		Ok((kg1m, sealed_log_out))
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
+	}	
+    }
     
     pub fn destroy(&self) {
      	unsafe {
@@ -210,7 +239,13 @@ extern {
 	    some_message: * const u8,  sk_sealed_log: *mut u8, sig: *mut u8) -> sgx_status_t;
 
     fn get_public_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-		      sk_sealed_log: *mut u8, public_key: *mut u8) -> sgx_status_t;	
+		      sk_sealed_log: *mut u8, public_key: *mut u8) -> sgx_status_t;
+
+    fn first_message(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		     sealed_log_in: *mut u8,
+		     sealed_log_out: *mut u8,
+		     key_gen_first_msg: *mut u8,
+		     msg_size: *mut u8);	
 }
 
 #[cfg(test)]
@@ -298,6 +333,14 @@ mod tests {
 	enc.destroy();
     }
 
+    #[test]
+    fn test_first_message() {
+	let enc = Enclave::new().unwrap();
+	let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
+	enc.verify_sealed_log(rsd1).unwrap();
+	let (kg1m, sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
+    }
+    
 }
 
 

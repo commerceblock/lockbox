@@ -3786,6 +3786,7 @@ dependencies = [
  "rusoto_core 0.45.0",
  "rusoto_dynamodb 0.45.0",
  "serde 1.0.117",
+ "serde_cbor",
  "serde_derive",
  "serde_dynamodb",
  "serde_json",

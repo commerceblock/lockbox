@@ -21,6 +21,7 @@ use crate::Key;
 use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, EncryptedPairs, Proof};
 use paillier::EncryptionKey;
 
+
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
     fn master_key(&self, user_id: Uuid) -> Result<()>;
@@ -47,9 +48,9 @@ impl Ecdsa for Lockbox {
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
 
         // Generate shared key
-        let (key_gen_first_msg, comm_witness, ec_key_pair) =
+  //      let (key_gen_first_msg, comm_witness, ec_key_pair) =
 //            if key_gen_msg1.protocol == Protocol::Deposit {
-                MasterKey1::key_gen_first_message();
+//                MasterKey1::key_gen_first_message();
   //          } else {
     //            let s2: FE = db.get_ecdsa_s2(user_id)?;
       //          let theta: FE = db.get_ecdsa_theta(user_id)?;

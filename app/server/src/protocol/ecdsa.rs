@@ -84,43 +84,43 @@ impl Ecdsa for Lockbox {
      }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>> {
-	let db = &self.database;
+//	let db = &self.database;
 
-        let user_id = &key_gen_msg2.shared_key_id;
-	let user_db_key = &Key::from_uuid(user_id);
+//        let user_id = &key_gen_msg2.shared_key_id;
+//	let user_db_key = &Key::from_uuid(user_id);
 
-        let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
+  //      let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
 
-	let sealed_secrets = match db.get(user_db_key) {
-	    Ok(Some(x)) => x,
-	    Ok(None) => return Err(LockboxError::Generic(format!("second_message: sealed_secrets for DB key {} is None", user_id))),
-	    Err(e) => return Err(e.into())
-	}
+//	let sealed_secrets = match db.get(user_db_key) {
+//	    Ok(Some(x)) => x,
+//	    Ok(None) => return Err(LockboxError::Generic(format!("second_message: sealed_secrets for DB key {} is None", user_id))),
+//	    Err(e) => return Err(e.into())
+//	}
 	
 //        let (comm_witness, ec_key_pair) = db.get_ecdsa_witness_keypair(user_id)?;
 
 
 	
-        let (kg_party_one_second_message, paillier_key_pair, party_one_private): (
-            party1::KeyGenParty1Message2,
-            party_one::PaillierKeyPair,
-            party_one::Party1Private,
-        ) = MasterKey1::key_gen_second_message(
-            comm_witness,
-            &ec_key_pair,
-            &key_gen_msg2.dlog_proof,
-        );
+//        let (kg_party_one_second_message, paillier_key_pair, party_one_private): (
+///            party1::KeyGenParty1Message2,
+ //           party_one::PaillierKeyPair,
+//            party_one::Party1Private,
+//        ) = MasterKey1::key_gen_second_message(
+//            comm_witness,
+//            &ec_key_pair,
+//            &key_gen_msg2.dlog_proof,
+//        );
 
-        db.update_keygen_second_msg(
-            &user_id,
-            party2_public,
-            paillier_key_pair,
-            party_one_private,
-        )?;
+//        db.update_keygen_second_msg(
+//            &user_id,
+//            party2_public,
+////            paillier_key_pair,
+//            party_one_private,
+//        )?;
 
   
 
-        Ok(kg_party_one_second_message)
+//        Ok(kg_party_one_second_message)
 
 	Ok(None)
     }

@@ -6,6 +6,8 @@ extern crate sgx_urts;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
+use crate::shared_lib::structs::KeyGenMsg2;
+
 //#[macro_use]
 //extern crate serde_derive;
 //extern crate serde_cbor;
@@ -215,7 +217,19 @@ impl Enclave {
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}	
     }
+
+    pub fn second_message(&self, sealed_log_in: &mut [u8; 1024], key_gen_msg_2: &KeyGenMsg2) 
+    //    -> Result<party1::KeyGenParty1Message2>{
     
+    {
+
+	let msg_2_str = serde_json::to_string(key_gen_msg_2).unwrap();
+	println!("msg2_str_len: {}", msg_2_str.len());
+
+	
+
+    }
+
     pub fn destroy(&self) {
      	unsafe {
 	    sgx_destroy_enclave(self.geteid());

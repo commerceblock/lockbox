@@ -33,6 +33,9 @@ extern crate secp256k1_sgx as secp256k1;
 extern crate curv;
 extern crate zeroize;
 extern crate num_integer as integer;
+extern crate uuid;
+//extern crate shared_lib;
+//use shared_lib::structs::*;
 
 use secp256k1::{Secp256k1, VerifyOnly};
 use secp256k1::key::{SecretKey, PublicKey};
@@ -62,6 +65,7 @@ use curv::elliptic::curves::traits::*;
 use curv::arithmetic_sgx::traits::*;
 use zeroize::Zeroize;
 use integer::Integer;
+use uuid::Uuid;
 
 #[macro_use]
 extern crate serde_derive;
@@ -80,6 +84,13 @@ struct RandDataSerializable {
     rand: [u8; 16],
     vec: Vec<u8>,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct KeyGenMsg2 {
+    pub shared_key_id: Uuid,
+    pub dlog_proof: DLogProof,
+}
+
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
 struct Bytes32{
@@ -798,12 +809,27 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 
 #[no_mangle]
 pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
-				key_gen_first_msg: &mut [u8;128]) -> sgx_status_t {
+				msg2_str: *const u8, len: usize) -> sgx_status_t {
+
+    let str_slice = unsafe { slice::from_raw_parts(msg2_str, len) };
+    let _ = io::stdout().write(str_slice);
+
+    let msg2: KeyGenMsg2 = serde_json::from_str(std::str::from_utf8(&str_slice).unwrap()).unwrap();
+    
 
     let data = match FirstMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
     };
+
+    let comm_witness = &data.comm_witness;
+    let ec_key_pair = &data.ec_key_pair;
+
+    //pub struct FirstMessageSealed {
+    //    comm_witness: CommWitness,
+    //    ec_key_pair: EcKeyPair,
+    //}
+
     
     sgx_status_t::SGX_SUCCESS
 }

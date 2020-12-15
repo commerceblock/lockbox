@@ -34,6 +34,7 @@ extern crate curv;
 extern crate zeroize;
 extern crate num_integer as integer;
 extern crate uuid;
+extern crate paillier;
 //extern crate shared_lib;
 //use shared_lib::structs::*;
 
@@ -66,7 +67,8 @@ use curv::arithmetic_sgx::traits::*;
 use zeroize::Zeroize;
 use integer::Integer;
 use uuid::Uuid;
-
+use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration, EncryptWithChosenRandomness, DecryptionKey};
+	       
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_cbor;
@@ -91,6 +93,18 @@ pub struct KeyGenMsg2 {
     pub dlog_proof: DLogProof,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommWitness {
+    pub pk_commitment_blind_factor: BigInt,
+    pub zk_pok_blind_factor: BigInt,
+    pub public_share: GE,
+    pub d_log_proof: DLogProof,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyGenSecondMsg {
+    pub comm_witness: CommWitness,
+}
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
 struct Bytes32{
@@ -293,20 +307,18 @@ impl TryFrom<SgxSealable> for Bytes32 {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Party1Private {
+    x1: FE,
+    paillier_priv: DecryptionKey,
+    c_key_randomness: BigInt,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct KeyGenFirstMsg{
     pk_commitment: BigInt,
     zk_pok_commitment: BigInt,
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct CommWitness {
-    pub pk_commitment_blind_factor: BigInt,
-    pub zk_pok_blind_factor: BigInt,
-    pub public_share: GE,
-    pub d_log_proof: DLogProof,
-}
-
 
 impl TryFrom<KeyGenFirstMsg> for SgxSealable {
     type Error = sgx_status_t;
@@ -814,17 +826,86 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     let str_slice = unsafe { slice::from_raw_parts(msg2_str, len) };
     let _ = io::stdout().write(str_slice);
 
-    let msg2: KeyGenMsg2 = serde_json::from_str(std::str::from_utf8(&str_slice).unwrap()).unwrap();
-    
+    let key_gen_msg2: KeyGenMsg2 = match std::str::from_utf8(&str_slice) {
+	Ok(v) => match serde_json::from_str(v){
+	    Ok(v) => v,
+	    Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	},
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
 
+
+    let user_id = key_gen_msg2.shared_key_id;
+
+    let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
+    
     let data = match FirstMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
     };
 
-    let comm_witness = &data.comm_witness;
+    let comm_witness = data.comm_witness;
     let ec_key_pair = &data.ec_key_pair;
 
+
+    let key_gen_second_message = match DLogProof::verify(&key_gen_msg2.dlog_proof){
+	Ok(v) => KeyGenSecondMsg { comm_witness },
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    let (ek, dk) = Paillier::keypair().keys();
+    let randomness = Randomness::sample(&ek);
+
+    let encrypted_share = Paillier::encrypt_with_chosen_randomness(
+        &ek,
+        RawPlaintext::from(ec_key_pair.secret_share.to_big_int()),
+        &randomness,
+    ).0.into_owned();
+    
+    let party_one_private = Party1Private {
+            x1: ec_key_pair.secret_share,
+            paillier_priv: dk.clone(),
+            c_key_randomness: randomness.0.clone(),
+    };
+    
+
+/*
+    
+        let range_proof = party_one::PaillierKeyPair::generate_range_proof(
+            &paillier_key_pair,
+            &party_one_private,
+        );
+        let correct_key_proof =
+            party_one::PaillierKeyPair::generate_ni_proof_correct_key(&paillier_key_pair);
+
+
+    let (kg_party_one_second_message, paillier_key_pair, party_one_private): (
+            party1::KeyGenParty1Message2,
+            party_one::PaillierKeyPair,
+            party_one::Party1Private,
+    ) =(
+            KeyGenParty1Message2 {
+                ecdh_second_message: key_gen_second_message,
+                ek: paillier_key_pair.ek.clone(),
+                c_key: paillier_key_pair.encrypted_share.clone(),
+                correct_key_proof,
+                range_proof,
+            },
+            paillier_key_pair,
+            party_one_private,
+        );
+*/
+
+
+/*
+	MasterKey1::key_gen_second_message(
+            comm_witness,
+            &ec_key_pair,
+            &key_gen_msg2.dlog_proof,
+        );
+*/
+
+    
     //pub struct FirstMessageSealed {
     //    comm_witness: CommWitness,
     //    ec_key_pair: EcKeyPair,

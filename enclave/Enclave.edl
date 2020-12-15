@@ -56,7 +56,7 @@ enclave {
 
         public sgx_status_t second_message([in, size=1024] uint8_t* sealed_log_in,
 		       	    		  [out, size=2048] uint8_t* sealed_log_out,
-				          [in, size=len] uint8_t* msg_2_str, size_t len);
+					  [in, size=len] const uint8_t* msg2_str, size_t len);
 
 	      };
 };

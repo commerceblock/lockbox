@@ -1,4 +1,3 @@
-
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
@@ -14,9 +13,11 @@ use crate::shared_lib::structs::KeyGenMsg2;
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
-use curv::{BigInt, FE};
-use curv::arithmetic::traits::Converter;
-    
+use curv::{BigInt, FE, elliptic::curves::traits::{ECPoint, ECScalar},
+	   arithmetic::traits::Converter,
+	   cryptographic_primitives::proofs::sigma_dlog::{DLogProof,ProveDLog}};
+use uuid::Uuid;
+
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -222,12 +223,41 @@ impl Enclave {
     //    -> Result<party1::KeyGenParty1Message2>{
     
     {
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	let mut sealed_log_out = [0u8; 2048];
+	let mut plain_ret = [0u8;128];
+	let mut sz_ret = [0u8;8];
+
 
 	let msg_2_str = serde_json::to_string(key_gen_msg_2).unwrap();
 	println!("msg2_str_len: {}", msg_2_str.len());
 
-	
 
+
+	
+	let _result = unsafe{
+	    second_message(self.geteid(), &mut enclave_ret,
+			   sealed_log_in.as_mut_ptr() as *mut u8,
+			   sealed_log_out.as_mut_ptr() as *mut u8,
+			   plain_ret.as_mut_ptr() as *mut u8,
+			   msg_2_str.as_ptr() as * const u8,
+			   msg_2_str.len())
+	};
+
+//	match enclave_ret {
+//	    sgx_status_t::SGX_SUCCESS => {
+//		let size = usize::from_be_bytes(sz_ret);
+//		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
+//		let pk_commitment = BigInt::from_hex(&pk_comm_str);
+//		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
+//		let zk_pok_commitment = BigInt::from_hex(&zk_pok_comm_str);
+//		let kg1m = party_one::KeyGenFirstMsg{pk_commitment, zk_pok_commitment};
+//		Ok((kg1m, sealed_log_out))
+//	    },
+//	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
+//	}	
+
+	
     }
 
     pub fn destroy(&self) {
@@ -270,7 +300,14 @@ extern {
     fn first_message(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		     sealed_log_in: *mut u8,
 		     sealed_log_out: *mut u8,
-		     key_gen_first_msg: *mut u8);	
+		     key_gen_first_msg: *mut u8);
+
+    fn second_message(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		      sealed_log_in: *mut u8,
+		      sealed_log_out: *mut u8,
+		      plain_out: *mut u8,
+		      msg2_str: *const u8,
+		      len: usize);
 }
 
 #[cfg(test)]
@@ -364,6 +401,20 @@ mod tests {
 	let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
 	enc.verify_sealed_log(rsd1).unwrap();
 	let (kg1m, sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
+    }
+
+    #[test]
+    fn test_second_message() {
+	let enc = Enclave::new().unwrap();
+	let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
+	enc.verify_sealed_log(rsd1).unwrap();
+        let witness: FE = ECScalar::new_random();
+        let dlog_proof = DLogProof::prove(&witness);
+	let shared_key_id = Uuid::new_v4();
+	
+	let kgm2 = KeyGenMsg2{shared_key_id, dlog_proof};
+	
+	enc.second_message(&mut rsd1, &kgm2);
     }
     
 }

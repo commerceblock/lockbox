@@ -1355,7 +1355,7 @@ dependencies = [
  "centipede",
  "curv 0.2.7",
  "multi-party-ecdsa",
- "paillier",
+ "paillier 0.3.3",
  "rand 0.6.5",
  "rust-gmp 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.118",
@@ -1441,6 +1441,7 @@ dependencies = [
  "curv 0.2.8",
  "libsecp256k1 0.3.5 (git+https://github.com/mesalock-linux/libsecp256k1-rs-sgx.git)",
  "num-integer 0.1.41",
+ "paillier 0.3.5",
  "rand 0.7.3 (git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3)",
  "secp256k1-sgx 0.1.0",
  "serde 1.0.117",
@@ -1629,7 +1630,7 @@ source = "git+https://github.com/commerceblock/multi-party-ecdsa?tag=v0.2.7#6c77
 dependencies = [
  "centipede",
  "curv 0.2.7",
- "paillier",
+ "paillier 0.3.3",
  "serde 1.0.118",
  "subtle 2.3.0",
  "zeroize",
@@ -1906,6 +1907,18 @@ dependencies = [
  "curv 0.2.2",
  "rayon",
  "serde 1.0.118",
+]
+
+[[package]]
+name = "paillier"
+version = "0.3.5"
+dependencies = [
+ "curv 0.2.8",
+ "num-integer 0.1.41",
+ "num-traits 0.2.10",
+ "serde 1.0.117",
+ "sgx_rand",
+ "sgx_tstd",
 ]
 
 [[package]]
@@ -3751,7 +3764,7 @@ dependencies = [
  "bit-vec",
  "curv 0.2.2",
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "paillier",
+ "paillier 0.3.3",
  "rand 0.6.5",
  "rayon",
  "serde 1.0.118",

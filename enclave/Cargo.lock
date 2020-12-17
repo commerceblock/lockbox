@@ -149,8 +149,9 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 [[package]]
 name = "bitvec"
 version = "0.17.4"
+source = "git+https://github.com/commerceblock/bitvec-sgx.git?branch=sgx#06423a0f10e5a3dd4528f4d681b5c2c5d21f4124"
 dependencies = [
- "either 1.6.1",
+ "either 1.6.1 (git+https://github.com/commerceblock/either.git?branch=sgx)",
  "radium",
  "sgx_tstd",
 ]
@@ -532,7 +533,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
 dependencies = [
  "generic-array 0.14.4",
- "subtle 2.3.0",
+ "subtle 2.4.0",
 ]
 
 [[package]]
@@ -551,7 +552,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4857fd85a0c34b3c3297875b747c1e02e06b6a0ea32dd892d8192b9ce0813ea6"
 dependencies = [
  "generic-array 0.14.4",
- "subtle 2.3.0",
+ "subtle 2.4.0",
 ]
 
 [[package]]
@@ -617,6 +618,7 @@ dependencies = [
 [[package]]
 name = "curv"
 version = "0.2.8"
+source = "git+https://github.com/commerceblock/curv.git?branch=sgx#73d9123685c75c7a9d7cf3859c76f236658b17c0"
 dependencies = [
  "digest 0.8.1 (git+https://github.com/mesalock-linux/rustcrypto-traits-sgx?tag=sgx_1.1.3)",
  "hmac 0.7.1 (git+https://github.com/mesalock-linux/rustcrypto-MACs-sgx?tag=sgx_1.1.3)",
@@ -624,7 +626,7 @@ dependencies = [
  "num-integer 0.1.41",
  "num-traits 0.2.10",
  "rand 0.7.3 (git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3)",
- "secp256k1-sgx 0.1.0 (git+https://github.com/commerceblock/rust-secp256k1-sgx.git)",
+ "secp256k1-sgx",
  "serde 1.0.117",
  "serde_cbor 0.11.1 (git+https://github.com/mesalock-linux/cbor-sgx)",
  "serde_derive 1.0.117",
@@ -720,15 +722,16 @@ dependencies = [
 [[package]]
 name = "either"
 version = "1.6.1"
-dependencies = [
- "serde 1.0.117",
-]
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
 name = "either"
 version = "1.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+source = "git+https://github.com/commerceblock/either.git?branch=sgx#8531ebd7d462db9109448233b72670f2d674a92b"
+dependencies = [
+ "serde 1.0.117",
+]
 
 [[package]]
 name = "electrumx_client"
@@ -1420,7 +1423,7 @@ dependencies = [
  "hmac-drbg 0.2.0",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.2",
- "subtle 2.3.0",
+ "subtle 2.4.0",
  "typenum",
 ]
 
@@ -1450,7 +1453,7 @@ dependencies = [
  "num-integer 0.1.41",
  "paillier 0.3.5",
  "rand 0.7.3 (git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3)",
- "secp256k1-sgx 0.1.0",
+ "secp256k1-sgx",
  "serde 1.0.117",
  "serde_cbor 0.11.1 (git+https://github.com/mesalock-linux/cbor-sgx)",
  "serde_derive 1.0.117",
@@ -1640,7 +1643,7 @@ dependencies = [
  "curv 0.2.7",
  "paillier 0.3.3",
  "serde 1.0.118",
- "subtle 2.3.0",
+ "subtle 2.4.0",
  "zeroize",
  "zk-paillier 0.2.4",
 ]
@@ -1920,6 +1923,7 @@ dependencies = [
 [[package]]
 name = "paillier"
 version = "0.3.5"
+source = "git+https://github.com/commerceblock/rust-paillier.git?branch=sgx#b348616955d3d1bda1f67868b575d6a79414dbc5"
 dependencies = [
  "curv 0.2.8",
  "num-integer 0.1.41",
@@ -2645,16 +2649,6 @@ dependencies = [
 [[package]]
 name = "secp256k1-sgx"
 version = "0.1.0"
-dependencies = [
- "cc",
- "libc",
- "sgx_rand",
- "sgx_tstd",
-]
-
-[[package]]
-name = "secp256k1-sgx"
-version = "0.1.0"
 source = "git+https://github.com/commerceblock/rust-secp256k1-sgx.git#07922dc8942a35ce74b18408957f1a6c02c48abd"
 dependencies = [
  "cc",
@@ -3130,9 +3124,9 @@ dependencies = [
 
 [[package]]
 name = "subtle"
-version = "2.3.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "343f3f510c2915908f155e94f17220b19ccfacf2a64a2a5d8004f2c3e311e7fd"
+checksum = "1e81da0851ada1f3e9d4312c704aa4f8806f0f9d69faaf8df2f3464b4a9437c2"
 
 [[package]]
 name = "syn"
@@ -3756,6 +3750,7 @@ dependencies = [
 [[package]]
 name = "zk-paillier"
 version = "0.2.8"
+source = "git+https://github.com/commerceblock/zk-paillier.git?branch=sgx#be7b8069e5624d38951b767179af63a353494609"
 dependencies = [
  "bitvec",
  "curv 0.2.8",

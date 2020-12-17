@@ -35,7 +35,7 @@ extern crate zeroize;
 extern crate num_integer as integer;
 extern crate uuid;
 extern crate paillier;
-//extern crate zk_paillier;
+extern crate zk_paillier;
 //extern crate shared_lib;
 //use shared_lib::structs::*;
 
@@ -68,8 +68,10 @@ use curv::arithmetic_sgx::traits::*;
 use zeroize::Zeroize;
 use integer::Integer;
 use uuid::Uuid;
-use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration, EncryptWithChosenRandomness, DecryptionKey};
-	       
+use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
+	       EncryptWithChosenRandomness, DecryptionKey, EncryptionKey};
+use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi};
+
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_cbor;
@@ -400,6 +402,65 @@ impl TryFrom<SgxSealable> for FirstMessageSealed {
         }
     }
 }
+
+#[derive(Serialize, Deserialize)]
+pub struct SecondMessageSealed {
+    paillier_key_pair: PaillierKeyPair,
+    party_one_private: Party1Private,
+}
+
+impl TryFrom<(* mut u8, u32)> for SecondMessageSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: (* mut u8, u32)) -> Result<Self, Self::Error> {
+	let opt = from_sealed_log_for_slice::<u8>(item.0, item.1);
+	let sealed_data = match opt {
+            Some(x) => x,
+            None => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
+            },
+	};
+	let unsealed_data = SgxSealable::try_from_sealed(&sealed_data)?;
+	Self::try_from(unsealed_data)
+    }
+}
+
+impl TryFrom<SecondMessageSealed> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: SecondMessageSealed) -> Result<Self, Self::Error> {
+        let encoded_vec = match serde_cbor::to_vec(&item){
+            Ok(v) => v,
+            Err(e) => {
+                println!("error: {:?}",e);
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+            }
+        };
+        let res = Self{inner: encoded_vec};
+        Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for SecondMessageSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+        match serde_cbor::from_slice(&item){
+            Ok(v) => Ok(v),
+            Err(_e) => {
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PaillierKeyPair {
+    pub ek: EncryptionKey,
+    dk: DecryptionKey,
+    pub encrypted_share: BigInt,
+    randomness: BigInt,
+}
+
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {
@@ -822,7 +883,9 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 
 #[no_mangle]
 pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
-				msg2_str: *const u8, len: usize) -> sgx_status_t {
+				 msg2_str: *const u8, len: usize,
+//				 kg_party_one_second_message: &mut [u8;128]
+) -> sgx_status_t {
 
     let str_slice = unsafe { slice::from_raw_parts(msg2_str, len) };
     let _ = io::stdout().write(str_slice);
@@ -869,57 +932,24 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
             c_key_randomness: randomness.0.clone(),
     };
 
-    /*
-    let range_proof = {
+    let paillier_context = PaillierKeyPair{ ek, dk, encrypted_share, randomness: randomness.0};
 
-	let (n_tilde, h1, h2, xhi) = generate_h1_h2_n_tilde();
-        let dlog_statement = DLogStatement {
-            N: n_tilde,
-            g: h1,
-            ni: h2,
-        };
-        let composite_dlog_proof = CompositeDLogProof::prove(&dlog_statement, &xhi);
-
-        // Generate PDL with slack statement, witness and proof                                                                                                                                           
-        let pdl_w_slack_statement = PDLwSlackStatement {
-            ciphertext: encrypted_share.clone(),
-            ek: ek.clone(),
-            Q: GE::generator() * &party_one_private.x1,
-            G: GE::generator(),
-            h1: dlog_statement.g.clone(),
-            h2: dlog_statement.ni.clone(),
-            N_tilde: dlog_statement.N.clone(),
-        };
-
-        let pdl_w_slack_witness = PDLwSlackWitness {
-            x: party_one_private.x1.clone(),
-            r: party_one_private.c_key_randomness.clone(),
-            dk: party_one_private.paillier_priv.clone(),
-        };
-
-
-	let pdl_w_slack_proof = PDLwSlackProof::prove(&pdl_w_slack_witness, &pdl_w_slack_statement);
-        (
-            pdl_w_slack_statement,
-            pdl_w_slack_proof,
-            composite_dlog_proof,
-        )
-    }
-
-    pub fn generate_ni_proof_correct_key(paillier_context: &PaillierKeyPair) -> NICorrectKeyProof {
-        NICorrectKeyProof::proof(&paillier_context.dk)
-    }
-
+    let range_proof = RangeProofNi::prove(
+            &paillier_context.ek,
+            &FE::q(),
+            &paillier_context.encrypted_share.clone(),
+            &party_one_private.x1.to_big_int(),
+            &paillier_context.randomness,
+	    );
+	
   
-    
-        let correct_key_proof =
-            party_one::PaillierKeyPair::generate_ni_proof_correct_key(&paillier_key_pair);
-*/
+    let correct_key_proof = NICorrectKeyProof::proof(&paillier_context.dk);
+
 /*
     let (kg_party_one_second_message, paillier_key_pair, party_one_private): (
-            party1::KeyGenParty1Message2,
-            party_one::PaillierKeyPair,
-            party_one::Party1Private,
+            party1::KeyGenParty1Message2, //public
+            party_one::PaillierKeyPair,   //private
+            party_one::Party1Private,     //private
     ) =(
             KeyGenParty1Message2 {
                 ecdh_second_message: key_gen_second_message,
@@ -943,10 +973,45 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 */
 
     
-    //pub struct FirstMessageSealed {
-    //    comm_witness: CommWitness,
-    //    ec_key_pair: EcKeyPair,
-    //}
+    let second_message_sealed =  SecondMessageSealed {
+        paillier_key_pair: paillier_context,
+        party_one_private,
+    };
+
+    let sealable = match SgxSealable::try_from(second_message_sealed){
+	Ok(x) => x,
+	Err(ret) => return ret
+    };
+
+    let sealed_data = match sealable.to_sealed(){
+	Ok(x) => x,
+        Err(ret) => return ret
+    };
+    
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, 2048);
+    if opt.is_none() {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+
+
+//key_gen_second_message
+
+    //let comm_witness_string = key_gen_second_message.comm_witness.to_hex();
+//    let kg_second_message_str = format!("{}",comm_witness_string);
+
+   // println!("{:?}", sealed_log_out);
+//    println!("keygen 2nd msg: {}", kg_second_message_str.as_str());
+//    println!("keygen 2nd msg len: {}", kg_second_message_str.len());
+
+  //  let kg2m_vec = match serde_cbor::to_vec(&key_gen_second_message){
+//	Ok(v) => v,
+//	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED
+  //  };
+    
+//    *kg_party_one_second_msg = match kg_second_message_str.into_bytes().as_slice().try_into(){
+//	Ok(x) => x,
+//	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+//    };
 
     
     sgx_status_t::SGX_SUCCESS

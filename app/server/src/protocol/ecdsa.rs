@@ -2,8 +2,9 @@ pub use super::super::Result;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
+use crate::enclave::Enclave;
 use shared_lib::{
-    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, SignMsg1, SignMsg2},
+    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, SignMsg1, SignMsg2, Protocol},
 };
 
 use curv::{
@@ -20,6 +21,7 @@ use curv::cryptographic_primitives::proofs::sigma_dlog::*;
 use crate::Key;
 use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, EncryptedPairs, Proof};
 use paillier::EncryptionKey;
+
 
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
@@ -46,21 +48,12 @@ impl Ecdsa for Lockbox {
 
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
 
-        // Generate shared key
-        let (key_gen_first_msg, comm_witness, ec_key_pair) =
-//            if key_gen_msg1.protocol == Protocol::Deposit {
-                MasterKey1::key_gen_first_message();
-  //          } else {
-    //            let s2: FE = db.get_ecdsa_s2(user_id)?;
-      //          let theta: FE = db.get_ecdsa_theta(user_id)?;
-        //        MasterKey1::key_gen_first_message_predefined(s2 * theta)
-          //  };
-
 	
-	let user_id = &Key::from_uuid(&key_gen_msg1.shared_key_id);
+	let user_id = &key_gen_msg1.shared_key_id;
+	let user_db_key = &Key::from_uuid(user_id);
 
         // Create new entry in ecdsa table if key not already in table.
-        match self.database.get(user_id) {
+        match self.database.get(user_db_key) {
             Ok(Some(_)) =>  {
                 return Err(LockboxError::Generic(format!(
                     "Key Generation already completed for ID {}",
@@ -71,27 +64,64 @@ impl Ecdsa for Lockbox {
             Err(e) => return Err(e.into()),
         };
 
-	/*
-        // Generate shared key
-        let (key_gen_first_msg, comm_witness, ec_key_pair) =
-            if key_gen_msg1.protocol == Protocol::Deposit {
-                MasterKey1::key_gen_first_message()
-            } else {
-                let s2: FE = db.get_ecdsa_s2(user_id)?;
-                let theta: FE = db.get_ecdsa_theta(user_id)?;
-                MasterKey1::key_gen_first_message_predefined(s2 * theta)
-            };
+	let (key_gen_first_mess, sealed_secrets) =
+	    if key_gen_msg1.protocol == Protocol::Deposit {
+		let enc = Enclave::new().unwrap();
+		let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
+		match enc.first_message(&mut rsd1) {
+		    Ok(x) => x,
+		    Err(e) => return Err(LockboxError::Generic(format!("generating first message: {}", e)))
+		}
+	    } else {
+		return Err(LockboxError::Generic("transfer first message not yet implemented".to_string()))
+	    };
 
-        db.update_keygen_first_msg(&user_id, &key_gen_first_msg, comm_witness, ec_key_pair)?;
-         */
 
-	Ok((Uuid::nil(), party_one::KeyGenFirstMsg {
-	    pk_commitment: BigInt::zero(),
-	    zk_pok_commitment: BigInt::zero(),
-	}))
-    }
+	//Store the secrets in the DB
+	self.database.put(user_db_key, &sealed_secrets)?;
+
+	Ok((key_gen_msg1.shared_key_id, key_gen_first_mess))
+     }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>> {
+//	let db = &self.database;
+
+//        let user_id = &key_gen_msg2.shared_key_id;
+//	let user_db_key = &Key::from_uuid(user_id);
+
+  //      let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
+
+//	let sealed_secrets = match db.get(user_db_key) {
+//	    Ok(Some(x)) => x,
+//	    Ok(None) => return Err(LockboxError::Generic(format!("second_message: sealed_secrets for DB key {} is None", user_id))),
+//	    Err(e) => return Err(e.into())
+//	}
+	
+//        let (comm_witness, ec_key_pair) = db.get_ecdsa_witness_keypair(user_id)?;
+
+
+	
+//        let (kg_party_one_second_message, paillier_key_pair, party_one_private): (
+///            party1::KeyGenParty1Message2,
+ //           party_one::PaillierKeyPair,
+//            party_one::Party1Private,
+//        ) = MasterKey1::key_gen_second_message(
+//            comm_witness,
+//            &ec_key_pair,
+//            &key_gen_msg2.dlog_proof,
+//        );
+
+//        db.update_keygen_second_msg(
+//            &user_id,
+//            party2_public,
+////            paillier_key_pair,
+//            party_one_private,
+//        )?;
+
+  
+
+//        Ok(kg_party_one_second_message)
+
 	Ok(None)
     }
 

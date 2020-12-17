@@ -56,3 +56,6 @@ impl Verifiable for Signature {
         Ok(secp.verify(message, &self, key)?)
     }
 }
+
+pub use kms::ecdsa::two_party::*;
+pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;

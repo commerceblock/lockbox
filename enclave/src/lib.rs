@@ -35,6 +35,7 @@ extern crate zeroize;
 extern crate num_integer as integer;
 extern crate uuid;
 extern crate paillier;
+//extern crate zk_paillier;
 //extern crate shared_lib;
 //use shared_lib::structs::*;
 
@@ -867,18 +868,54 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
             paillier_priv: dk.clone(),
             c_key_randomness: randomness.0.clone(),
     };
-    
 
-/*
+    /*
+    let range_proof = {
+
+	let (n_tilde, h1, h2, xhi) = generate_h1_h2_n_tilde();
+        let dlog_statement = DLogStatement {
+            N: n_tilde,
+            g: h1,
+            ni: h2,
+        };
+        let composite_dlog_proof = CompositeDLogProof::prove(&dlog_statement, &xhi);
+
+        // Generate PDL with slack statement, witness and proof                                                                                                                                           
+        let pdl_w_slack_statement = PDLwSlackStatement {
+            ciphertext: encrypted_share.clone(),
+            ek: ek.clone(),
+            Q: GE::generator() * &party_one_private.x1,
+            G: GE::generator(),
+            h1: dlog_statement.g.clone(),
+            h2: dlog_statement.ni.clone(),
+            N_tilde: dlog_statement.N.clone(),
+        };
+
+        let pdl_w_slack_witness = PDLwSlackWitness {
+            x: party_one_private.x1.clone(),
+            r: party_one_private.c_key_randomness.clone(),
+            dk: party_one_private.paillier_priv.clone(),
+        };
+
+
+	let pdl_w_slack_proof = PDLwSlackProof::prove(&pdl_w_slack_witness, &pdl_w_slack_statement);
+        (
+            pdl_w_slack_statement,
+            pdl_w_slack_proof,
+            composite_dlog_proof,
+        )
+    }
+
+    pub fn generate_ni_proof_correct_key(paillier_context: &PaillierKeyPair) -> NICorrectKeyProof {
+        NICorrectKeyProof::proof(&paillier_context.dk)
+    }
+
+  
     
-        let range_proof = party_one::PaillierKeyPair::generate_range_proof(
-            &paillier_key_pair,
-            &party_one_private,
-        );
         let correct_key_proof =
             party_one::PaillierKeyPair::generate_ni_proof_correct_key(&paillier_key_pair);
-
-
+*/
+/*
     let (kg_party_one_second_message, paillier_key_pair, party_one_private): (
             party1::KeyGenParty1Message2,
             party_one::PaillierKeyPair,

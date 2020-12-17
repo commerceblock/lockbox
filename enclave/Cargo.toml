@@ -24,6 +24,11 @@ rand = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.
 zeroize = "0.10"
 uuid = { git = "https://github.com/mesalock-linux/uuid-sgx", features = ["v4", "serde"] }
 paillier = { path = "/root/deps/rust-paillier" }
+zk-paillier = { path = "/root/deps/zk-paillier" }
+
+[dependencies.either]
+default-features = false
+version = "1.5"
 
 [dependencies.curv]
 #git = "https://github.com/commerceblock/curv.git"

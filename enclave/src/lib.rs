@@ -461,6 +461,14 @@ pub struct PaillierKeyPair {
     randomness: BigInt,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyGenParty1Message2 {
+    pub ecdh_second_message: KeyGenSecondMsg,
+    pub ek: EncryptionKey,
+    pub c_key: BigInt,
+    pub correct_key_proof: NICorrectKeyProof,
+    pub range_proof: RangeProofNi,
+}
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {
@@ -981,6 +989,13 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
         );
 */
 
+    let kg_party_one_second_message =  KeyGenParty1Message2 {
+        ecdh_second_message: key_gen_second_message,
+        ek: paillier_context.ek.clone(),
+        c_key: paillier_context.encrypted_share.clone(),
+        correct_key_proof,
+	range_proof,
+	};     
 
 /*
 	MasterKey1::key_gen_second_message(

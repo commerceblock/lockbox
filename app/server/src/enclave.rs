@@ -230,12 +230,8 @@ impl Enclave {
 	let mut plain_ret = [0u8;128];
 	let mut sz_ret = [0u8;8];
 
-
 	let msg_2_str = serde_json::to_string(key_gen_msg_2).unwrap();
 	println!("msg2_str_len: {}", msg_2_str.len());
-
-
-
 	
 	let _result = unsafe{
 	    second_message(self.geteid(), &mut enclave_ret,

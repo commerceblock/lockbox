@@ -17,6 +17,7 @@ use curv::{BigInt, FE, elliptic::curves::traits::{ECPoint, ECScalar},
 	   arithmetic::traits::Converter,
 	   cryptographic_primitives::proofs::sigma_dlog::{DLogProof,ProveDLog}};
 use uuid::Uuid;
+use kms::ecdsa::two_party::*;
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -81,12 +82,12 @@ impl Enclave {
 	
     }
     
-    pub fn get_random_sealed_log(&self, rand_size: u32) -> Result<[u8; 1024]> {
-     	let sealed_log = [0; 1024];
+    pub fn get_random_sealed_log(&self, rand_size: u32) -> Result<[u8; 4096]> {
+     	let sealed_log = [0; 4096];
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
-	    create_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	    create_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 4096);
 	};
 	
 	match enclave_ret {
@@ -95,11 +96,11 @@ impl Enclave {
 	}
     }
 
-    pub fn verify_sealed_log(&self, sealed_log: [u8; 1024]) -> Result<()> {
+    pub fn verify_sealed_log(&self, sealed_log: [u8; 4096]) -> Result<()> {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
-	    verify_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 1024);
+	    verify_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 4096);
 	};
 	
 	match enclave_ret {
@@ -120,11 +121,11 @@ impl Enclave {
 	}
     }
 
-    pub fn sk_tweak_mul_assign(&self, sealed_log1: [u8; 1024], sealed_log2: [u8; 1024]) -> Result<[u8; 1024]> {
+    pub fn sk_tweak_mul_assign(&self, sealed_log1: [u8; 4096], sealed_log2: [u8; 4096]) -> Result<[u8; 4096]> {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
-	    sk_tweak_add_assign(self.geteid(), &mut enclave_ret, sealed_log1.as_ptr() as * mut u8, 1024, sealed_log2.as_ptr() as * mut u8, 1024);
+	    sk_tweak_add_assign(self.geteid(), &mut enclave_ret, sealed_log1.as_ptr() as * mut u8, 4096, sealed_log2.as_ptr() as * mut u8, 4096);
 	};
 	
 	match enclave_ret {
@@ -133,11 +134,11 @@ impl Enclave {
 	}
     }
 
-    pub fn sk_tweak_add_assign(&self, sealed_log1: [u8; 1024], sealed_log2: [u8; 1024]) -> Result<[u8; 1024]> {
+    pub fn sk_tweak_add_assign(&self, sealed_log1: [u8; 4096], sealed_log2: [u8; 4096]) -> Result<[u8; 4096]> {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
-	    sk_tweak_mul_assign(self.geteid(), &mut enclave_ret, sealed_log1.as_ptr() as * mut u8, 1024, sealed_log2.as_ptr() as * mut u8, 1024);
+	    sk_tweak_mul_assign(self.geteid(), &mut enclave_ret, sealed_log1.as_ptr() as * mut u8, 4096, sealed_log2.as_ptr() as * mut u8, 4096);
 	};
 	
 	match enclave_ret {
@@ -146,7 +147,7 @@ impl Enclave {
 	}
     }
 
-    pub fn sign(&self, message: &Message, sealed_log: &[u8; 1024]) -> Result<Signature> {
+    pub fn sign(&self, message: &Message, sealed_log: &[u8; 4096]) -> Result<Signature> {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
 
@@ -166,7 +167,7 @@ impl Enclave {
 	}
     }
 
-    pub fn get_public_key(&self, sealed_log: &[u8; 1024]) -> Result<PublicKey> {
+    pub fn get_public_key(&self, sealed_log: &[u8; 4096]) -> Result<PublicKey> {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 
 	let mut public_key = [0u8;33];
@@ -187,12 +188,11 @@ impl Enclave {
 	}
     }
 
-    pub fn first_message(&self, sealed_log_in: &mut [u8; 1024]) -> Result<(party_one::KeyGenFirstMsg, [u8;2048])>
+    pub fn first_message(&self, sealed_log_in: &mut [u8; 4096]) -> Result<(party_one::KeyGenFirstMsg, [u8;4096])>
     {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-	let mut sealed_log_out = [0u8; 2048];
+	let mut sealed_log_out = [0u8; 4096];
 	let mut plain_ret = [0u8;128];
-	let mut sz_ret = [0u8;8];
 
 	let _result = unsafe {
 	    first_message(self.geteid(), &mut enclave_ret,
@@ -203,7 +203,6 @@ impl Enclave {
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
-		let size = usize::from_be_bytes(sz_ret);
 		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
 		let pk_commitment = BigInt::from_hex(&pk_comm_str);
 		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
@@ -219,43 +218,45 @@ impl Enclave {
 	}	
     }
 
-    pub fn second_message(&self, sealed_log_in: &mut [u8; 1024], key_gen_msg_2: &KeyGenMsg2) 
+    pub fn second_message(&self, sealed_log_in: &mut [u8; 4096], key_gen_msg_2: &KeyGenMsg2)
+	-> Result<()>
     //    -> Result<party1::KeyGenParty1Message2>{
     
     {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-	let mut sealed_log_out = [0u8; 2048];
-	let mut plain_ret = [0u8;128];
-	let mut sz_ret = [0u8;8];
-
+	let mut sealed_log_out = [0u8; 4096];
+	let mut plain_ret = [0u8;480000];
 
 	let msg_2_str = serde_json::to_string(key_gen_msg_2).unwrap();
 	println!("msg2_str_len: {}", msg_2_str.len());
-
-
-
 	
 	let _result = unsafe{
 	    second_message(self.geteid(), &mut enclave_ret,
 			   sealed_log_in.as_mut_ptr() as *mut u8,
 			   sealed_log_out.as_mut_ptr() as *mut u8,
-			   plain_ret.as_mut_ptr() as *mut u8,
 			   msg_2_str.as_ptr() as * const u8,
-			   msg_2_str.len())
+			   msg_2_str.len(),
+			   plain_ret.as_mut_ptr() as *mut u8)
 	};
 
-//	match enclave_ret {
-//	    sgx_status_t::SGX_SUCCESS => {
-//		let size = usize::from_be_bytes(sz_ret);
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => {
+		let size_str = std::str::from_utf8(&plain_ret[0..6]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let msg_str = std::str::from_utf8(&plain_ret[6..]).unwrap();
+		println!("msg size; {}",&size);
+		println!("{}",&msg_str);
+		let kgm_2 : party1::KeyGenParty1Message2  = serde_json::from_str(&msg_str).unwrap();
 //		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
 //		let pk_commitment = BigInt::from_hex(&pk_comm_str);
 //		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
 //		let zk_pok_commitment = BigInt::from_hex(&zk_pok_comm_str);
 //		let kg1m = party_one::KeyGenFirstMsg{pk_commitment, zk_pok_commitment};
-//		Ok((kg1m, sealed_log_out))
-//	    },
-//	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
-//	}	
+		//		Ok((kg1m, sealed_log_out))
+		Ok(())
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
+	}	
 
 	
     }
@@ -305,9 +306,9 @@ extern {
     fn second_message(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		      sealed_log_in: *mut u8,
 		      sealed_log_out: *mut u8,
-		      plain_out: *mut u8,
 		      msg2_str: *const u8,
-		      len: usize);
+		      len: usize,
+    		      plain_out: *mut u8);
 }
 
 #[cfg(test)]
@@ -408,13 +409,31 @@ mod tests {
 	let enc = Enclave::new().unwrap();
 	let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
 	enc.verify_sealed_log(rsd1).unwrap();
-        let witness: FE = ECScalar::new_random();
-        let dlog_proof = DLogProof::prove(&witness);
-	let shared_key_id = Uuid::new_v4();
+	let (kg1m, mut sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
+
+	let wallet_secret_key: FE = ECScalar::new_random();
+
+	let pk_commitment = &kg1m.pk_commitment;
+	let zk_pok_commitment = &kg1m.zk_pok_commitment;
 	
-	let kgm2 = KeyGenMsg2{shared_key_id, dlog_proof};
+	let (kg_party_two_first_message, kg_ec_key_pair_party2) =
+	    MasterKey2::key_gen_first_message_predefined(&wallet_secret_key);
+
+	let shared_key_id = &Uuid::new_v4();
 	
-	enc.second_message(&mut rsd1, &kgm2);
+	let key_gen_msg2 = KeyGenMsg2 {
+            shared_key_id: *shared_key_id,
+            dlog_proof: kg_party_two_first_message.d_log_proof,
+	};
+		
+	let kgm2str = serde_json::to_string(&key_gen_msg2).unwrap();
+	let kgm_2 : KeyGenMsg2 = serde_json::from_str(&kgm2str).unwrap();
+
+	println!("test kgm2str: {}", kgm2str);
+	
+//let kgm2_2 : KeyGenMsg2 =  serde_json::from_str("{\"shared_key_id\":\"c53163a5-26dc-4a60-8079-a9637aa5e27e\",\"dlog_proof\":{\"pk\":{\"x\":\"eafd0728e0657f4db33af34f495c5d0d6e1da309818e1484a2730309b784303c\",\"y\":\"9272cb27d0ddbe35a5f0453b4ed2157922294f99ca90bfd941adbe81e35053ee\"},\"pk_t_rand_commitment\":{\"x\":\"9466739b7e7d2f9b469eb59043c03814945fd7b781d90e98c6f5412de443f96a\",\"y\":\"83b8cb42b2b55597901a2f64fde59dd3b2bc50e702df64cf6c92c0df442325c1\"},\"challenge_response\":\"8c85a25c0da3a35bcbdf544a4928fe63a0fb7be631b2eeb8587008d4ffb0a88c\"yyyyy}}").unwrap();
+	
+	enc.second_message(&mut sealed_log_out, &kgm_2).unwrap();
     }
     
 }

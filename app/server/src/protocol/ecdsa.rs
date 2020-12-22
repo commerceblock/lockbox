@@ -84,20 +84,24 @@ impl Ecdsa for Lockbox {
      }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>> {
-//	let db = &self.database;
+	let db = &self.database;
 
-//        let user_id = &key_gen_msg2.shared_key_id;
-//	let user_db_key = &Key::from_uuid(user_id);
+        let user_id = &key_gen_msg2.shared_key_id;
+	let user_db_key = &Key::from_uuid(user_id);
 
-  //      let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
+        let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
 
-//	let sealed_secrets = match db.get(user_db_key) {
-//	    Ok(Some(x)) => x,
-//	    Ok(None) => return Err(LockboxError::Generic(format!("second_message: sealed_secrets for DB key {} is None", user_id))),
-//	    Err(e) => return Err(e.into())
-//	}
+	let sealed_secrets = match db.get(user_db_key) {
+	    Ok(Some(x)) => x,
+	    Ok(None) => return Err(LockboxError::Generic(format!("second_message: sealed_secrets for DB key {} is None", user_id))),
+	    Err(e) => return Err(e.into())
+	};
+
+	let mut sealed_log_out = [0u8;4096];
+	let enc = Enclave::new().unwrap();
+	enc.second_message(&mut sealed_log_out, &key_gen_msg2).unwrap();
 	
-//        let (comm_witness, ec_key_pair) = db.get_ecdsa_witness_keypair(user_id)?;
+        //let (comm_witness, ec_key_pair) = db.get_ecdsa_witness_keypair(user_id)?;
 
 
 	

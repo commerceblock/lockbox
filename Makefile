@@ -159,4 +159,4 @@ clean:
 
 .PHONY: test
 test:
-	@cd app && SGX_SDK=$(SGX_SDK) cargo test $(App_Rust_Flags) 
+	@cd app && SGX_SDK=$(SGX_SDK) cargo test $(App_Rust_Flags) -- --nocapture

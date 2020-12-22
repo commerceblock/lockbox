@@ -43,7 +43,8 @@ paillier = { git = "https://github.com/KZen-networks/rust-paillier", tag = "v0.3
 rocksdb= "0.15.0"
 tempdir = "0.3.7"
 serde_cbor = "0.11.1"
-
+num-bigint = { version = "0.2.0", features = ["serde", "rand"] }
+rand = "0.5.4"
 
 [dev-dependencies]
 mockito = "0.27.0"

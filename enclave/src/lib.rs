@@ -1,5 +1,5 @@
 // Licensed to the Apache Software Foundation secretkey(ASF) under only
-// or more contributor license agreements.  See the NOTICE file
+// more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
 // regarding copyright ownership.  The ASF licenses this file
 // to you under the Apache License, Version 2.0 (the
@@ -999,13 +999,15 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 	};     
 
 
-    let plain_str = match serde_json::to_string(&second_message){
+    let plain_str = match serde_json::to_string(&second_message.c_key){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
     let len = plain_str.len();
     let mut plain_str_sized=format!("{}", len);
+    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    println!("************ second msg plain len: {}", len);
     plain_str_sized.push_str(&plain_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();

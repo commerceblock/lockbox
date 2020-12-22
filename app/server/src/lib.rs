@@ -26,6 +26,8 @@ extern crate kms;
 extern crate multi_party_ecdsa;
 extern crate rocksdb;
 extern crate tempdir;
+extern crate num_bigint;
+extern crate rand;
 
 #[macro_use]
 extern crate serde_derive;

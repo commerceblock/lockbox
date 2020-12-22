@@ -18,6 +18,8 @@ use curv::{BigInt, FE, elliptic::curves::traits::{ECPoint, ECScalar},
 	   cryptographic_primitives::proofs::sigma_dlog::{DLogProof,ProveDLog}};
 use uuid::Uuid;
 use kms::ecdsa::two_party::*;
+use num_bigint::{RandomBits};
+use rand::Rng;
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -239,14 +241,32 @@ impl Enclave {
 			   plain_ret.as_mut_ptr() as *mut u8)
 	};
 
+	let mut rng = rand::thread_rng();
+	let bi: num_bigint::BigInt = rng.sample(RandomBits::new(256));
+//	let bi = num_bigint::BigInt::new_random();
+	let bi_str = serde_json::to_string(&bi).unwrap();
+	println!("big int example serialized: {}", bi_str);
+	let bi_2 = serde_json::from_str(&bi_str).unwrap();
+	assert_eq!(bi, bi_2);
+	
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
-		let size_str = std::str::from_utf8(&plain_ret[0..6]).unwrap();
+		let c = plain_ret[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		println!("num chars {}",nc_str);
+		let nc = nc_str.parse::<usize>().unwrap();
+		println!("num chars {}",nc);
+		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
 		let size = size_str.parse::<usize>().unwrap();
-		let msg_str = std::str::from_utf8(&plain_ret[6..]).unwrap();
-		println!("msg size; {}",&size);
+		println!("len: {}",&size);
+		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
+//		let nl_pos = msg_str.find(" ").unwrap();
+//		msg_str.truncate(nl_pos-1);
+//		println!("msg size; {}",&size);
 		println!("{}",&msg_str);
-		let kgm_2 : party1::KeyGenParty1Message2  = serde_json::from_str(&msg_str).unwrap();
+		let c_key: num_bigint::BigInt = serde_json::from_str(&msg_str).unwrap(); 
+//		let kgm_2 : party1::KeyGenParty1Message2  = serde_json::from_str(&msg_str).unwrap();
 //		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
 //		let pk_commitment = BigInt::from_hex(&pk_comm_str);
 //		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();

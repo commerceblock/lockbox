@@ -193,7 +193,6 @@ impl Enclave {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	let mut sealed_log_out = [0u8; 4096];
 	let mut plain_ret = [0u8;128];
-	let mut sz_ret = [0u8;8];
 
 	let _result = unsafe {
 	    first_message(self.geteid(), &mut enclave_ret,
@@ -204,7 +203,6 @@ impl Enclave {
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
-		let size = usize::from_be_bytes(sz_ret);
 		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
 		let pk_commitment = BigInt::from_hex(&pk_comm_str);
 		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
@@ -227,8 +225,7 @@ impl Enclave {
     {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	let mut sealed_log_out = [0u8; 4096];
-	let mut plain_ret = [0u8;128];
-	let mut sz_ret = [0u8;8];
+	let mut plain_ret = [0u8;480000];
 
 	let msg_2_str = serde_json::to_string(key_gen_msg_2).unwrap();
 	println!("msg2_str_len: {}", msg_2_str.len());
@@ -237,14 +234,19 @@ impl Enclave {
 	    second_message(self.geteid(), &mut enclave_ret,
 			   sealed_log_in.as_mut_ptr() as *mut u8,
 			   sealed_log_out.as_mut_ptr() as *mut u8,
-		//	   plain_ret.as_mut_ptr() as *mut u8,
 			   msg_2_str.as_ptr() as * const u8,
-			   msg_2_str.len())
+			   msg_2_str.len(),
+			   plain_ret.as_mut_ptr() as *mut u8)
 	};
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
-//		let size = usize::from_be_bytes(sz_ret);
+		let size_str = std::str::from_utf8(&plain_ret[0..6]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let msg_str = std::str::from_utf8(&plain_ret[6..]).unwrap();
+		println!("msg size; {}",&size);
+		println!("{}",&msg_str);
+		let kgm_2 : party1::KeyGenParty1Message2  = serde_json::from_str(&msg_str).unwrap();
 //		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
 //		let pk_commitment = BigInt::from_hex(&pk_comm_str);
 //		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
@@ -304,9 +306,9 @@ extern {
     fn second_message(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		      sealed_log_in: *mut u8,
 		      sealed_log_out: *mut u8,
-	//	      plain_out: *mut u8,
 		      msg2_str: *const u8,
-		      len: usize);
+		      len: usize,
+    		      plain_out: *mut u8);
 }
 
 #[cfg(test)]

@@ -893,6 +893,7 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 #[no_mangle]
 pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 				 msg2_str: *const u8, len: usize,
+				 kg_party_one_second_message: &mut [u8;480000] 
 //				 kg_party_one_second_message: &mut [u8;128]
 ) -> sgx_status_t {
 
@@ -989,7 +990,7 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
         );
 */
 
-    let kg_party_one_second_message =  KeyGenParty1Message2 {
+    let second_message =  KeyGenParty1Message2 {
         ecdh_second_message: key_gen_second_message,
         ek: paillier_context.ek.clone(),
         c_key: paillier_context.encrypted_share.clone(),
@@ -997,6 +998,29 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 	range_proof,
 	};     
 
+
+    let plain_str = match serde_json::to_string(&second_message){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    let len = plain_str.len();
+    let mut plain_str_sized=format!("{}", len);
+    plain_str_sized.push_str(&plain_str);
+
+    let mut plain_bytes=plain_str_sized.into_bytes();
+    plain_bytes.resize(480000,0);
+    
+    *kg_party_one_second_message  = match plain_bytes.as_slice().try_into(){
+	Ok(x) => x,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+    
+    //    *kg_party_one_second_message =
+    //match plain_str_slice.as_mut_ptr();
+    
+//    println!("second message plain slice: {}", len_out);
+    
 /*
 	MasterKey1::key_gen_second_message(
             comm_witness,

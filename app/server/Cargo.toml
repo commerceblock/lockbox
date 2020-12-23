@@ -53,6 +53,10 @@ mockito = "0.27.0"
 git = "https://github.com/KZen-networks/zk-paillier"
 tag = "v0.2.4"
 
+[dependencies.zk-paillier-client]
+git = "https://github.com/KZen-networks/zk-paillier"
+branch = "client_version"
+
 [dependencies.kms]
 git = "https://github.com/commerceblock/kms-secp256k1"
 tag = "v0.1.2"
@@ -62,6 +66,11 @@ default-features = false
 git = "https://github.com/commerceblock/multi-party-ecdsa"
 tag = "v0.2.7"
 
+[dependencies.multi-party-ecdsa-client]
+git = "https://github.com/commerceblock/multi-party-ecdsa"
+branch = "client_version"
+package = "multi-party-ecdsa"
+
 [dependencies.multi-party-schnorr]
 git = "https://github.com/commerceblock/multi-party-schnorr"
 tag = "v0.3.4"
@@ -69,6 +78,12 @@ tag = "v0.3.4"
 [dependencies.curv]
 git = "https://github.com/commerceblock/curv"
 tag = "v0.2.7"
+features =  ["ec_secp256k1"]
+
+[dependencies.curv-client]
+git = "https://github.com/commerceblock/curv"
+branch = "client_version"
+package = "curv"
 features =  ["ec_secp256k1"]
 
 [dependencies.monotree]
@@ -85,4 +100,3 @@ mockdb = []
 
 [dependencies.shared]
 path = "../shared"
-

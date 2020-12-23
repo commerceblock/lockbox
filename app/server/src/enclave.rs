@@ -13,13 +13,62 @@ use crate::shared_lib::structs::KeyGenMsg2;
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
-use curv::{BigInt, FE, elliptic::curves::traits::{ECPoint, ECScalar},
+pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::KeyGenParty1Message2 as KeyGenParty1Message2_sgx;
+use curv::{BigInt, FE, GE, elliptic::curves::traits::{ECPoint, ECScalar},
 	   arithmetic::traits::Converter,
 	   cryptographic_primitives::proofs::sigma_dlog::{DLogProof,ProveDLog}};
 use uuid::Uuid;
 use kms::ecdsa::two_party::*;
 use num_bigint::{RandomBits};
 use rand::Rng;
+use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
+	       EncryptWithChosenRandomness, DecryptionKey, EncryptionKey};
+use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CommWitness_sgx {
+    pub pk_commitment_blind_factor: num_bigint::BigInt,
+    pub zk_pok_blind_factor: num_bigint::BigInt,
+    pub public_share: GE,
+    pub d_log_proof: DLogProof,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyGenSecondMsg_sgx {
+    pub comm_witness: CommWitness_sgx,
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
+pub struct EncryptedPairs {
+    #[serde(with = "zk_paillier::serialize::vecbigint")]
+    pub c1: Vec<BigInt>, // TODO[Morten] should not need to be public                                                                                                                                                                                            
+
+    #[serde(with = "zk_paillier::serialize::vecbigint")]
+    pub c2: Vec<BigInt>, // TODO[Morten] should not need to be public
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Proof(Vec<Response>);
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RangeProofNi_sgx {
+    ek: EncryptionKey,
+    range: num_bigint::BigInt,
+    ciphertext: num_bigint::BigInt,
+    encrypted_pairs: EncryptedPairs,
+    proof: Proof,
+    error_factor: usize,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyGenParty1Message2_sgx {
+    pub ecdh_second_message: KeyGenSecondMsg_sgx,
+    pub ek: EncryptionKey,
+    pub c_key: num_bigint::BigInt,
+    pub correct_key_proof: NICorrectKeyProof,
+    pub range_proof: RangeProofNi_sgx,
+}
+
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -265,8 +314,13 @@ impl Enclave {
 //		msg_str.truncate(nl_pos-1);
 //		println!("msg size; {}",&size);
 		println!("{}",&msg_str);
-		let c_key: num_bigint::BigInt = serde_json::from_str(&msg_str).unwrap(); 
-//		let kgm_2 : party1::KeyGenParty1Message2  = serde_json::from_str(&msg_str).unwrap();
+//		let c_key: num_bigint::BigInt = serde_json::from_str(&msg_str).unwrap(); 
+		//		let kgm_2 : party1::KeyGenParty1Message2  = serde_json::from_str(&msg_str).unwrap();
+		let kgm_2 : KeyGenParty1Message2_sgx  = serde_json::from_str(&msg_str).unwrap();
+//		let ek : EncryptionKey  = serde_json::from_str(&msg_str).unwrap();
+//		let kp: NICorrectKeyProof = serde_json::from_str(&msg_str).unwrap(); 
+//		let rp: RangeProofNi = serde_json::from_str(&msg_str).unwrap();
+//		let ecdh : KeyGenSecondMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
 //		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
 //		let pk_commitment = BigInt::from_hex(&pk_comm_str);
 //		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();

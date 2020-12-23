@@ -999,7 +999,7 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 	};     
 
 
-    let plain_str = match serde_json::to_string(&second_message.c_key){
+    let plain_str = match serde_json::to_string(&second_message.range_proof){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };

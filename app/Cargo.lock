@@ -360,7 +360,18 @@ name = "bulletproof"
 version = "1.1.0"
 source = "git+https://github.com/commerceblock/bulletproofs?tag=v1.1.1#a468dabc82b6d972084d5c2d54c69a549da4be39"
 dependencies = [
- "curv 0.2.7",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?tag=v0.2.7)",
+ "itertools",
+ "serde 1.0.118",
+ "serde_derive",
+]
+
+[[package]]
+name = "bulletproof"
+version = "1.1.1"
+source = "git+https://github.com/commerceblock/bulletproofs?branch=client_version#0b8957b1b17a01a1588ee0c4ac7a2a915b109aa7"
+dependencies = [
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?branch=client_version)",
  "itertools",
  "serde 1.0.118",
  "serde_derive",
@@ -436,8 +447,20 @@ name = "centipede"
 version = "0.2.7"
 source = "git+https://github.com/commerceblock/centipede?tag=v0.2.7#d9f83d4048b8cd0e496f63c2624c1afc9566e210"
 dependencies = [
- "bulletproof",
- "curv 0.2.7",
+ "bulletproof 1.1.0",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?tag=v0.2.7)",
+ "rayon",
+ "serde 1.0.118",
+ "serde_derive",
+]
+
+[[package]]
+name = "centipede"
+version = "0.2.7"
+source = "git+https://github.com/commerceblock/centipede?branch=client_version#884a79990524be3eca4d7d9159a016c954e307bc"
+dependencies = [
+ "bulletproof 1.1.1",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?branch=client_version)",
  "rayon",
  "serde 1.0.118",
  "serde_derive",
@@ -511,10 +534,10 @@ version = "0.1.0"
 dependencies = [
  "base64 0.12.3",
  "bitcoin",
- "centipede",
+ "centipede 0.2.7 (git+https://github.com/commerceblock/centipede?tag=v0.2.7)",
  "clap",
  "config",
- "curv 0.2.7",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?tag=v0.2.7)",
  "daemon-engine",
  "electrumx_client",
  "env_logger",
@@ -522,11 +545,11 @@ dependencies = [
  "floating-duration",
  "hex 0.4.2",
  "itertools",
- "kms",
+ "kms 0.2.0",
  "log 0.4.11",
  "mockito",
  "monotree",
- "multi-party-ecdsa",
+ "multi-party-ecdsa 0.2.7 (git+https://github.com/commerceblock/multi-party-ecdsa?tag=v0.2.7)",
  "multi-party-schnorr",
  "rand 0.6.5",
  "reqwest",
@@ -537,7 +560,7 @@ dependencies = [
  "shared",
  "tokio 0.1.22",
  "uuid 0.8.1",
- "zk-paillier",
+ "zk-paillier 0.2.4 (git+https://github.com/KZen-networks/zk-paillier?tag=v0.2.4)",
 ]
 
 [[package]]
@@ -865,6 +888,27 @@ dependencies = [
  "rand 0.6.5",
  "rust-crypto",
  "rust-gmp 0.5.0 (git+https://github.com/KZen-networks/rust-gmp)",
+ "secp256k1 0.19.0",
+ "serde 1.0.118",
+ "serde_derive",
+ "sha2 0.8.2",
+ "sha3",
+ "zeroize 0.10.1",
+]
+
+[[package]]
+name = "curv"
+version = "0.2.7"
+source = "git+https://github.com/commerceblock/curv?branch=client_version#97d7fd092474c09c3758e1fcf45df292fead0b25"
+dependencies = [
+ "blake2b_simd",
+ "digest 0.8.1",
+ "hex 0.3.2",
+ "hmac 0.7.1",
+ "num-bigint-dig",
+ "num-integer",
+ "num-traits 0.2.14",
+ "rand 0.6.5",
  "secp256k1 0.19.0",
  "serde 1.0.118",
  "serde_derive",
@@ -1877,18 +1921,33 @@ dependencies = [
 
 [[package]]
 name = "kms"
+version = "0.1.2"
+source = "git+https://github.com/commerceblock/kms-secp256k1?branch=client_version#e74d2c8dda17e272e559b9ac276bba6e60071d68"
+dependencies = [
+ "centipede 0.2.7 (git+https://github.com/commerceblock/centipede?branch=client_version)",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?branch=client_version)",
+ "multi-party-ecdsa 0.2.7 (git+https://github.com/commerceblock/multi-party-ecdsa?branch=client_version)",
+ "paillier 0.3.5",
+ "rand 0.6.5",
+ "serde 1.0.118",
+ "serde_derive",
+ "zk-paillier 0.3.7",
+]
+
+[[package]]
+name = "kms"
 version = "0.2.0"
 source = "git+https://github.com/commerceblock/kms-secp256k1?tag=v0.1.2#1dc0143be628d2a19de5f7800b1bd7ced20fa03c"
 dependencies = [
- "centipede",
- "curv 0.2.7",
- "multi-party-ecdsa",
- "paillier",
+ "centipede 0.2.7 (git+https://github.com/commerceblock/centipede?tag=v0.2.7)",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?tag=v0.2.7)",
+ "multi-party-ecdsa 0.2.7 (git+https://github.com/commerceblock/multi-party-ecdsa?tag=v0.2.7)",
+ "paillier 0.3.3",
  "rand 0.6.5",
  "rust-gmp 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.118",
  "serde_derive",
- "zk-paillier",
+ "zk-paillier 0.2.4 (git+https://github.com/KZen-networks/zk-paillier?tag=v0.2.4)",
 ]
 
 [[package]]
@@ -1902,6 +1961,9 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
+dependencies = [
+ "spin",
+]
 
 [[package]]
 name = "lazycell"
@@ -1937,6 +1999,12 @@ dependencies = [
  "cc",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "libm"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7d73b3f436185384286bd8098d17ec07c9a7d2388a6599f824d8502b529702a"
 
 [[package]]
 name = "librocksdb-sys"
@@ -2313,13 +2381,27 @@ name = "multi-party-ecdsa"
 version = "0.2.7"
 source = "git+https://github.com/commerceblock/multi-party-ecdsa?tag=v0.2.7#6c778246638453bb4dd0ddb55922d6481186dd9b"
 dependencies = [
- "centipede",
- "curv 0.2.7",
- "paillier",
+ "centipede 0.2.7 (git+https://github.com/commerceblock/centipede?tag=v0.2.7)",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?tag=v0.2.7)",
+ "paillier 0.3.3",
  "serde 1.0.118",
  "subtle 2.4.0",
  "zeroize 0.10.1",
- "zk-paillier",
+ "zk-paillier 0.2.4 (git+https://github.com/KZen-networks/zk-paillier?tag=v0.2.4)",
+]
+
+[[package]]
+name = "multi-party-ecdsa"
+version = "0.2.7"
+source = "git+https://github.com/commerceblock/multi-party-ecdsa?branch=client_version#8ddc1d87bbc878fe162eb3cd5846a18198943aa9"
+dependencies = [
+ "centipede 0.2.7 (git+https://github.com/commerceblock/centipede?branch=client_version)",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?branch=client_version)",
+ "paillier 0.3.5",
+ "serde 1.0.118",
+ "subtle 2.4.0",
+ "zeroize 0.10.1",
+ "zk-paillier 0.3.7",
 ]
 
 [[package]]
@@ -2327,8 +2409,8 @@ name = "multi-party-schnorr"
 version = "0.3.3"
 source = "git+https://github.com/commerceblock/multi-party-schnorr?tag=v0.3.4#1f98cf8f96341db9a591f6e6628c63c741e81a1c"
 dependencies = [
- "centipede",
- "curv 0.2.7",
+ "centipede 0.2.7 (git+https://github.com/commerceblock/centipede?tag=v0.2.7)",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?tag=v0.2.7)",
  "serde 1.0.118",
  "serde_derive",
 ]
@@ -2422,6 +2504,24 @@ dependencies = [
  "num-traits 0.2.14",
  "rand 0.5.6",
  "serde 1.0.118",
+]
+
+[[package]]
+name = "num-bigint-dig"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d51546d704f52ef14b3c962b5776e53d5b862e5790e40a350d366c209bd7f7a"
+dependencies = [
+ "autocfg 0.1.7",
+ "byteorder 1.3.4",
+ "lazy_static",
+ "libm",
+ "num-integer",
+ "num-iter",
+ "num-traits 0.2.14",
+ "rand 0.7.3",
+ "serde 1.0.118",
+ "smallvec 1.5.1",
 ]
 
 [[package]]
@@ -2573,6 +2673,16 @@ version = "0.3.3"
 source = "git+https://github.com/KZen-networks/rust-paillier?tag=v0.3.3#e907e7a8ca1e2c0bf1c5091b0dc43e58c914d10f"
 dependencies = [
  "curv 0.2.2",
+ "rayon",
+ "serde 1.0.118",
+]
+
+[[package]]
+name = "paillier"
+version = "0.3.5"
+source = "git+https://github.com/commerceblock/rust-paillier?branch=client_version#32e7bb947b1f7f099b3140dbd559360f1468cc2d"
+dependencies = [
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?branch=client_version)",
  "rayon",
  "serde 1.0.118",
 ]
@@ -3059,6 +3169,7 @@ dependencies = [
  "libc",
  "rand_core 0.4.2",
  "rdrand",
+ "wasm-bindgen",
  "winapi 0.3.9",
 ]
 
@@ -3808,22 +3919,25 @@ dependencies = [
  "cfg-if 0.1.10",
  "chrono",
  "config",
- "curv 0.2.7",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?tag=v0.2.7)",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?branch=client_version)",
  "env_logger",
  "error-chain",
  "failure",
  "hex 0.4.2",
  "jsonwebtoken",
- "kms",
+ "kms 0.1.2",
+ "kms 0.2.0",
  "log 0.4.11",
  "log4rs",
  "mockall",
  "mockito",
  "monotree",
- "multi-party-ecdsa",
+ "multi-party-ecdsa 0.2.7 (git+https://github.com/commerceblock/multi-party-ecdsa?tag=v0.2.7)",
+ "multi-party-ecdsa 0.2.7 (git+https://github.com/commerceblock/multi-party-ecdsa?branch=client_version)",
  "multi-party-schnorr",
  "num-bigint",
- "paillier",
+ "paillier 0.3.3",
  "rand 0.5.6",
  "rocket",
  "rocket_contrib",
@@ -3842,7 +3956,8 @@ dependencies = [
  "tempdir",
  "time-test",
  "uuid 0.8.1",
- "zk-paillier",
+ "zk-paillier 0.2.4 (git+https://github.com/commerceblock/zk-paillier?tag=v0.2.4)",
+ "zk-paillier 0.3.7",
 ]
 
 [[package]]
@@ -3924,19 +4039,19 @@ dependencies = [
  "bitcoin",
  "bitcoin_hashes",
  "chrono",
- "curv 0.2.7",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?tag=v0.2.7)",
  "ecies",
  "electrumx_client",
  "error-chain",
  "hex 0.4.2",
  "itertools",
- "kms",
+ "kms 0.2.0",
  "libsecp256k1",
  "log 0.4.11",
  "merkletree",
  "mockito",
  "monotree",
- "multi-party-ecdsa",
+ "multi-party-ecdsa 0.2.7 (git+https://github.com/commerceblock/multi-party-ecdsa?tag=v0.2.7)",
  "rand 0.6.5",
  "reqwest",
  "rocket",
@@ -4006,6 +4121,12 @@ dependencies = [
  "winapi 0.2.8",
  "ws2_32-sys",
 ]
+
+[[package]]
+name = "spin"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "standback"
@@ -5143,12 +5264,42 @@ checksum = "81a974bcdd357f0dca4d41677db03436324d45a4c9ed2d0b873a5a360ce41c36"
 [[package]]
 name = "zk-paillier"
 version = "0.2.4"
+source = "git+https://github.com/commerceblock/zk-paillier?tag=v0.2.4#58444e0adbab7393c1555f5b2c47ee9aaa1f6538"
+dependencies = [
+ "bit-vec",
+ "curv 0.2.2",
+ "digest 0.8.1",
+ "paillier 0.3.3",
+ "rand 0.6.5",
+ "rayon",
+ "serde 1.0.118",
+ "sha2 0.8.2",
+]
+
+[[package]]
+name = "zk-paillier"
+version = "0.2.4"
 source = "git+https://github.com/KZen-networks/zk-paillier?tag=v0.2.4#58444e0adbab7393c1555f5b2c47ee9aaa1f6538"
 dependencies = [
  "bit-vec",
  "curv 0.2.2",
  "digest 0.8.1",
- "paillier",
+ "paillier 0.3.3",
+ "rand 0.6.5",
+ "rayon",
+ "serde 1.0.118",
+ "sha2 0.8.2",
+]
+
+[[package]]
+name = "zk-paillier"
+version = "0.3.7"
+source = "git+https://github.com/commerceblock/zk-paillier?branch=client_version#a9b37b49ac80db7c15100b931a4f63dd5664b17f"
+dependencies = [
+ "bit-vec",
+ "curv 0.2.7 (git+https://github.com/commerceblock/curv?branch=client_version)",
+ "digest 0.8.1",
+ "paillier 0.3.5",
  "rand 0.6.5",
  "rayon",
  "serde 1.0.118",

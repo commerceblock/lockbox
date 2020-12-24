@@ -50,16 +50,23 @@ rand = "0.5.4"
 mockito = "0.27.0"
 
 [dependencies.zk-paillier]
-git = "https://github.com/KZen-networks/zk-paillier"
+git = "https://github.com/commerceblock/zk-paillier"
 tag = "v0.2.4"
 
 [dependencies.zk-paillier-client]
-git = "https://github.com/KZen-networks/zk-paillier"
+git = "https://github.com/commerceblock/zk-paillier"
 branch = "client_version"
+package = "zk-paillier"
 
 [dependencies.kms]
 git = "https://github.com/commerceblock/kms-secp256k1"
 tag = "v0.1.2"
+default-features = false
+
+[dependencies.kms-sgx]
+git = "https://github.com/commerceblock/kms-secp256k1"
+branch = "client_version"
+package = "kms"
 default-features = false
 
 [dependencies.multi-party-ecdsa]

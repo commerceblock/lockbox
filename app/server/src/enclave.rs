@@ -13,7 +13,7 @@ use crate::shared_lib::structs::KeyGenMsg2;
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
-pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::KeyGenParty1Message2 as KeyGenParty1Message2_sgx;
+pub use kms_sgx::ecdsa::two_party::party1::KeyGenParty1Message2 as KeyGenParty1Message2_sgx;
 use curv::{BigInt, FE, GE, elliptic::curves::traits::{ECPoint, ECScalar},
 	   arithmetic::traits::Converter,
 	   cryptographic_primitives::proofs::sigma_dlog::{DLogProof,ProveDLog}};
@@ -24,51 +24,6 @@ use rand::Rng;
 use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
 	       EncryptWithChosenRandomness, DecryptionKey, EncryptionKey};
 use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CommWitness_sgx {
-    pub pk_commitment_blind_factor: num_bigint::BigInt,
-    pub zk_pok_blind_factor: num_bigint::BigInt,
-    pub public_share: GE,
-    pub d_log_proof: DLogProof,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct KeyGenSecondMsg_sgx {
-    pub comm_witness: CommWitness_sgx,
-}
-
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct EncryptedPairs {
-    #[serde(with = "zk_paillier::serialize::vecbigint")]
-    pub c1: Vec<BigInt>, // TODO[Morten] should not need to be public                                                                                                                                                                                            
-
-    #[serde(with = "zk_paillier::serialize::vecbigint")]
-    pub c2: Vec<BigInt>, // TODO[Morten] should not need to be public
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Proof(Vec<Response>);
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RangeProofNi_sgx {
-    ek: EncryptionKey,
-    range: num_bigint::BigInt,
-    ciphertext: num_bigint::BigInt,
-    encrypted_pairs: EncryptedPairs,
-    proof: Proof,
-    error_factor: usize,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct KeyGenParty1Message2_sgx {
-    pub ecdh_second_message: KeyGenSecondMsg_sgx,
-    pub ek: EncryptionKey,
-    pub c_key: num_bigint::BigInt,
-    pub correct_key_proof: NICorrectKeyProof,
-    pub range_proof: RangeProofNi_sgx,
-}
-
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 

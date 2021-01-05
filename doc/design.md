@@ -71,8 +71,6 @@ Lockbox server will be called to perform operations in:
 	master_key
 	first_message
 	second_message
-	third_message
-   	fourth_message
     sign_first [and verification of pre-image nLocktime decrement]
     sign_second [and verification of pre-image nLocktime decrement]
 	transfer_receiver [with attestation of key share deletion]

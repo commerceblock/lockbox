@@ -13,7 +13,7 @@ SGX enclaves can achieve both of these properties by generating, updating and us
 
 The lockbox is a separate application to the main Mercury server that performs all server private key share generation and operations, and stores the server private key shares in a secured way (sealed). The main server application handles all communication with user wallets, all the statechain (proof and commitment) operations and backup system (watching). The main server (which can be replicated) calls the Lockbox server whenever a private key share operation is required: these operations are:
 
-1. Server key share generation, verification and pubkey derivation upon user deposit (`master_key`, `first_message`, `second_message`, `third_message`, `fourth_message`). 
+1. Server key share generation, verification and pubkey derivation upon user deposit (`master_key`, `first_message`, `second_message`). 
 2. Backup transaction co-signing on both deposit and transfer (`sign_first` and `sign_second`). 
 3. Key share transfer, update and deletion. (generation of `x1` in `transfer_init` and `s2` share update and deletion in `transfer_receiver`). 
 

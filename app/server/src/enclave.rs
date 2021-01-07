@@ -1,3 +1,4 @@
+
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
@@ -17,7 +18,7 @@ pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::part
 pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::CommWitness as CommWitness_sgx;
 pub use multi_party_ecdsa_client::utilities::zk_pdl_with_slack::PDLwSlackProof as PDLwSlackProof_sgx;
 pub use multi_party_ecdsa_client::utilities::zk_pdl_with_slack::PDLwSlackStatement as PDLwSlackStatement_sgx;
-pub use multi_party_ecdsa_client::utilities::zk_pdl_with_slack::CompositeDLogProof as CompositeDLogProof_sgx;
+pub use multi_party_ecdsa::utilities::zk_pdl_with_slack::{PDLwSlackStatement, PDLwSlackProof};
 pub use kms_sgx::ecdsa::two_party::party1::KeyGenParty1Message2 as KeyGenParty1Message2_sgx;
 use curv::{BigInt, FE, GE, elliptic::curves::traits::{ECPoint, ECScalar},
 	   arithmetic::traits::Converter,
@@ -32,12 +33,15 @@ use rand::Rng;
 use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
 	       EncryptWithChosenRandomness, DecryptionKey, EncryptionKey};
 use paillier_client::EncryptionKey as EncryptionKey_sgx;
-use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, Response, EncryptedPairs, Proof};
+use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, Response, EncryptedPairs, Proof, CompositeDLogProof};
 use zk_paillier_client::zkproofs::NICorrectKeyProof as NICorrectKeyProof_sgx;
 use zk_paillier_client::zkproofs::RangeProofNi as RangeProofNi_sgx;
 use zk_paillier_client::zkproofs::EncryptedPairs as EncryptedPairs_sgx;
 use zk_paillier_client::zkproofs::Proof as Proof_sgx;
 use zk_paillier_client::zkproofs::range_proof::Response as Response_sgx;
+pub use zk_paillier_client::zkproofs::CompositeDLogProof as CompositeDLogProof_sgx;
+//DLogStatement
+
 use num_traits::{Zero, One, Num};
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
@@ -94,25 +98,27 @@ pub range_proof: Option<RangeProofNi>,
 impl From<&KeyGenParty1Message2_sgx> for KeyGenParty1Message2_w {
     fn from(item: &KeyGenParty1Message2_sgx) -> Self {
 
-	let correct_key_proof = *NICorrectKeyProof_w::from(&item.correct_key_proof.unwrap()).deref(); 
+	let correct_key_proof = NICorrectKeyProof_w::from(&item.correct_key_proof).deref().to_owned(); 
 
-	let range_proof = match item.range_proof {
-	    Some(x) => Some(*RangeProofNi_w::from(&x).deref()),
-	    None => None
-	};
+//	let range_proof = match item.range_proof {
+//	    Some(x) => Some(*RangeProofNi_w::from(&x).deref()),
+//	    None => None
+//	};
 
-	let composite_dlog_proof = *CompositeDLogProof_w::from(&item.composite_dlog_proof.unwrap()).deref();
+	let composite_dlog_proof = CompositeDLogProof_w::from(&item.composite_dlog_proof).deref().to_owned();
 
-	let pdl_proof = *PDLwSlackProof_w::from(&item.pdl_proof.unwrap()).deref();
+	let pdl_proof = PDLwSlackProof_w::from(&item.pdl_proof).deref().to_owned();
 
-	let pdl_statement = *PDLwSlackStatement_w::from(&item.pdl_statement.unwrap()).deref();
+	let pdl_statement = PDLwSlackStatement_w::from(&item.pdl_statement).deref().to_owned();
 	
 	let inner = party1::KeyGenParty1Message2 {
 	    ecdh_second_message: KeyGenSecondMsg_w::from(&item.ecdh_second_message).inner,
 	    ek: EncryptionKey_w::from(&item.ek).inner,
 	    c_key: BigInt_w::from(&item.c_key).inner,
 	    correct_key_proof,
-//	    range_proof,
+	    composite_dlog_proof,
+	    pdl_proof,
+	    pdl_statement,
 	};
 	Self { inner }
     }
@@ -144,6 +150,96 @@ impl From<&NICorrectKeyProof_sgx> for NICorrectKeyProof_w {
 	    biv.push(biw.inner);
 	}
 	Self { inner: NICorrectKeyProof { sigma_vec: biv } }
+    }
+}
+
+pub struct CompositeDLogProof_w {
+    inner: CompositeDLogProof
+}
+
+impl Deref for CompositeDLogProof_w {
+     type Target = CompositeDLogProof;
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for CompositeDLogProof_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
+
+impl From<&CompositeDLogProof_sgx> for CompositeDLogProof_w {
+    fn from(item: &CompositeDLogProof_sgx) -> Self {
+	let x = BigInt_w::from(&item.x).inner;
+	let y = BigInt_w::from(&item.y).inner;
+
+	Self { inner: CompositeDLogProof { x, y } }
+    }
+}
+
+pub struct PDLwSlackProof_w {
+    inner: PDLwSlackProof
+}
+
+impl Deref for PDLwSlackProof_w {
+     type Target = PDLwSlackProof;
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for PDLwSlackProof_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
+
+impl From<&PDLwSlackProof_sgx> for PDLwSlackProof_w {
+    fn from(item: &PDLwSlackProof_sgx) -> Self {
+
+	let z = BigInt_w::from(&item.z).inner;
+	let u1 = GE_w::from(&item.u1).inner;
+	let u2 = BigInt_w::from(&item.u2).inner;
+	let u3 = BigInt_w::from(&item.u3).inner;
+	let s1 = BigInt_w::from(&item.s1).inner;
+	let s2 = BigInt_w::from(&item.s2).inner;
+	let s3 = BigInt_w::from(&item.s3).inner;
+
+	Self { inner: PDLwSlackProof { z, u1, u2, u3, s1, s2, s3 } }
+    }
+}
+
+pub struct PDLwSlackStatement_w {
+    inner: PDLwSlackStatement
+}
+
+impl Deref for PDLwSlackStatement_w {
+     type Target = PDLwSlackStatement;
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for PDLwSlackStatement_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
+
+impl From<&PDLwSlackStatement_sgx> for PDLwSlackStatement_w {
+    fn from(item: &PDLwSlackStatement_sgx) -> Self {
+
+	let ciphertext = BigInt_w::from(&item.ciphertext).inner;
+	let ek = EncryptionKey_w::from(&item.ek).inner;
+	let Q = GE_w::from(&item.Q).inner;
+	let G = GE_w::from(&item.G).inner;
+	let h1 = BigInt_w::from(&item.h1).inner;
+	let h2 = BigInt_w::from(&item.h2).inner;
+	let N_tilde = BigInt_w::from(&item.N_tilde).inner;
+
+	Self { inner: PDLwSlackStatement { ciphertext, ek, Q, G, h1, h2, N_tilde } }
     }
 }
 

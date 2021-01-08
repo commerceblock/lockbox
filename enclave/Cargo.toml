@@ -38,6 +38,9 @@ features =  ["ec_secp256k1"]
 [dependencies.num-integer]
 git = "https://github.com/mesalock-linux/num-integer-sgx"
 
+[dependencies.num-traits]
+git = "https://github.com/mesalock-linux/num-traits-sgx"
+
 [dependencies.shared]
 path = "../app/shared"
 

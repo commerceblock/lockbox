@@ -1,5 +1,5 @@
-// Licensed to the Apache Software Foundation secretkey(ASF) under one
-// or more contributor license agreements.  See the NOTICE file
+// Licensed to the Apache Software Foundation secretkey(ASF) under only
+// more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
 // regarding copyright ownership.  The ASF licenses this file
 // to you under the Apache License, Version 2.0 (the
@@ -33,6 +33,7 @@ extern crate secp256k1_sgx as secp256k1;
 extern crate curv;
 extern crate zeroize;
 extern crate num_integer as integer;
+extern crate num_traits;
 extern crate uuid;
 extern crate paillier;
 extern crate zk_paillier;
@@ -60,6 +61,7 @@ use curv::arithmetic_sgx::traits::{Samplable, Converter};
 use curv::cryptographic_primitives_sgx::proofs::sigma_ec_ddh::*;
 use curv::cryptographic_primitives_sgx::proofs::sigma_dlog::*;
 use curv::cryptographic_primitives_sgx::proofs::ProofError;
+use curv::cryptographic_primitives_sgx::hashing::{hash_sha256::HSha256, traits::Hash};
 use curv::cryptographic_primitives_sgx::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives_sgx::commitments::traits::Commitment;
 use curv::cryptographic_primitives_sgx::twoparty::dh_key_exchange::EcKeyPair;
@@ -70,7 +72,8 @@ use integer::Integer;
 use uuid::Uuid;
 use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
 	       EncryptWithChosenRandomness, DecryptionKey, EncryptionKey};
-use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi};
+use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, CompositeDLogProof, DLogStatement};
+use num_traits::{One, Pow};
 
 #[macro_use]
 extern crate serde_derive;
@@ -183,7 +186,7 @@ impl SgxSealable {
 
     #[inline]
     pub const fn size() -> usize {
-	1024
+	4096
     }
 }
 
@@ -208,7 +211,7 @@ pub struct SgxSealedLog {
 impl SgxSealedLog{
     #[inline]
     pub const fn size() -> usize {
-	1024
+	4096
     }
 }
 
@@ -461,6 +464,182 @@ pub struct PaillierKeyPair {
     randomness: BigInt,
 }
 
+impl PaillierKeyPair {
+    pub fn pdl_proof(
+        party1_private: &Party1Private,
+	paillier_key_pair: &PaillierKeyPair,
+    ) -> (PDLwSlackStatement, PDLwSlackProof, CompositeDLogProof) {
+        let (n_tilde, h1, h2, xhi) = generate_h1_h2_n_tilde();
+        let dlog_statement = DLogStatement {
+            N: n_tilde,
+            g: h1,
+            ni: h2,
+        };
+        let composite_dlog_proof = CompositeDLogProof::prove(&dlog_statement, &xhi);
+	
+        // Generate PDL with slack statement, witness and proof                                                                                                                                                                                                                          
+	let pdl_w_slack_statement = PDLwSlackStatement {
+            ciphertext: paillier_key_pair.encrypted_share.clone(),
+            ek: paillier_key_pair.ek.clone(),
+	    Q: GE::generator() * &party1_private.x1,
+	    G: GE::generator(),
+            h1: dlog_statement.g.clone(),
+            h2: dlog_statement.ni.clone(),
+            N_tilde: dlog_statement.N.clone(),
+        };
+        let pdl_w_slack_witness = PDLwSlackWitness {
+            x: party1_private.x1.clone(),
+            r: party1_private.c_key_randomness.clone(),
+            dk: party1_private.paillier_priv.clone(),
+        };
+        let pdl_w_slack_proof = PDLwSlackProof::prove(&pdl_w_slack_witness, &pdl_w_slack_statement);
+        (
+            pdl_w_slack_statement,
+            pdl_w_slack_proof,
+            composite_dlog_proof,
+        )
+    }
+}
+pub fn generate_h1_h2_n_tilde() -> (BigInt, BigInt, BigInt, BigInt) {
+    //note, should be safe primes:                                                                                                                                                                                                                                                       
+    // let (ek_tilde, dk_tilde) = Paillier::keypair_safe_primes().keys();;                                                                                                                                                                                                               
+    let (ek_tilde, dk_tilde) = Paillier::keypair().keys();
+    let one: BigInt = One::one();
+    let phi = (&dk_tilde.p - &one) * (&dk_tilde.q - &one);
+    let h1 = BigInt::sample_below(&phi);
+    let xhi = BigInt::sample(SECURITY_BITS);
+    let h2 = BigInt::mod_pow(&h1, &(-&xhi), &ek_tilde.n);
+
+    (ek_tilde.n, h1, h2, xhi)
+}
+
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PDLwSlackStatement {
+    pub ciphertext: BigInt,
+    pub ek: EncryptionKey,
+    pub Q: GE,
+    pub G: GE,
+    pub h1: BigInt,
+    pub h2: BigInt,
+    pub N_tilde: BigInt,
+}
+#[derive(Clone)]
+pub struct PDLwSlackWitness {
+    pub x: FE,
+    pub r: BigInt,
+    pub dk: DecryptionKey,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PDLwSlackProof {
+    pub z: BigInt,
+    pub u1: GE,
+    pub u2: BigInt,
+    pub u3: BigInt,
+    pub s1: BigInt,
+    pub s2: BigInt,
+    pub s3: BigInt,
+}
+
+pub fn commitment_unknown_order(
+    h1: &BigInt,
+    h2: &BigInt,
+    N_tilde: &BigInt,
+    x: &BigInt,
+    r: &BigInt,
+) -> BigInt {
+    let h1_x = BigInt::mod_pow(h1, &x, &N_tilde);
+    let h2_r = BigInt::mod_pow(h2, &r, &N_tilde);
+    let com = BigInt::mod_mul(&h1_x, &h2_r, &N_tilde);
+    com
+}
+
+
+impl PDLwSlackProof {
+    pub fn prove(witness: &PDLwSlackWitness, statement: &PDLwSlackStatement) -> Self {
+        let q3 = FE::q().pow(3 as u32);
+        let q_N_tilde = FE::q() * &statement.N_tilde;
+        let q3_N_tilde = &q3 * &statement.N_tilde;
+
+        let alpha = BigInt::sample_below(&q3);
+        let one = One::one();
+        let beta = BigInt::sample_range(&one, &(&statement.ek.n - &one));
+        let rho = BigInt::sample_below(&q_N_tilde);
+        let gamma = BigInt::sample_below(&q3_N_tilde);
+	let one: BigInt = One::one();
+
+        let z = commitment_unknown_order(
+            &statement.h1,
+            &statement.h2,
+            &statement.N_tilde,
+            &witness.x.to_big_int(),
+            &rho,
+        );
+        let u1 = &statement.G * &ECScalar::from(&alpha);
+        let u2 = commitment_unknown_order(
+            &(&statement.ek.n + one),
+            &beta,
+            &statement.ek.nn,
+            &alpha,
+            &statement.ek.n,
+        );
+        let u3 = commitment_unknown_order(
+            &statement.h1,
+            &statement.h2,
+            &statement.N_tilde,
+            &alpha,
+            &gamma,
+        );
+
+        let e = HSha256::create_hash(&[
+            &statement.G.bytes_compressed_to_big_int(),
+            &statement.Q.bytes_compressed_to_big_int(),
+            &statement.ciphertext,
+            &z,
+            &u1.bytes_compressed_to_big_int(),
+            &u2,
+            &u3,
+        ]);
+
+        let s1 = &e * witness.x.to_big_int() + alpha;
+        let s2 = commitment_unknown_order(&witness.r, &beta, &statement.ek.n, &e, &One::one());
+        let s3 = &e * rho + gamma;
+
+        PDLwSlackProof {
+            z,
+            u1,
+            u2,
+            u3,
+            s1,
+            s2,
+            s3,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyGenParty1Message2 {
+    pub ecdh_second_message: KeyGenSecondMsg,
+    pub ek: EncryptionKey,
+    pub c_key: BigInt,
+    pub correct_key_proof: NICorrectKeyProof,
+    pub pdl_statement: PDLwSlackStatement,
+    pub pdl_proof: PDLwSlackProof,
+    pub composite_dlog_proof: CompositeDLogProof,
+}
+
+/*
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyGenParty1Message2 {
+    pub ecdh_second_message: KeyGenSecondMsg,
+    pub ek: EncryptionKey,
+    pub c_key: BigInt,
+    pub correct_key_proof: NICorrectKeyProof,
+    pub range_proof: RangeProofNi,
+}
+ */
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {
@@ -770,7 +949,8 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 				key_gen_first_msg: &mut [u8;128]) -> sgx_status_t {
 
-
+    println!("first message");
+    
     let data = match Bytes32::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
@@ -846,7 +1026,7 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
     };
 
     
-    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, 2048);
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
@@ -884,25 +1064,34 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 #[no_mangle]
 pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 				 msg2_str: *const u8, len: usize,
+				 kg_party_one_second_message: &mut [u8;480000] 
 //				 kg_party_one_second_message: &mut [u8;128]
 ) -> sgx_status_t {
 
+    println!("second message");
+
     let str_slice = unsafe { slice::from_raw_parts(msg2_str, len) };
-    let _ = io::stdout().write(str_slice);
+    println!("got str slice: {:?}", str_slice);
+//    let _ = io::stdout().write(str_slice);
 
     let key_gen_msg2: KeyGenMsg2 = match std::str::from_utf8(&str_slice) {
-	Ok(v) => match serde_json::from_str(v){
-	    Ok(v) => v,
-	    Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	Ok(v) =>{
+	    println!("str from str slice: {}", v);
+	    match serde_json::from_str(v){
+		Ok(v) => v,
+		Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	    }
 	},
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-
+    println!("got key_gen_msg_2");
+    
     let user_id = key_gen_msg2.shared_key_id;
 
     let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
-    
+
+    println!("getting first message sealed");
     let data = match FirstMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
@@ -911,11 +1100,20 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     let comm_witness = data.comm_witness;
     let ec_key_pair = &data.ec_key_pair;
 
-
+    println!("get dlog proof");
     let key_gen_second_message = match DLogProof::verify(&key_gen_msg2.dlog_proof){
 	Ok(v) => KeyGenSecondMsg { comm_witness },
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
+    println!("get encoded vec");
+    let encoded_vec = match serde_cbor::to_vec(&key_gen_second_message){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+
+    let ev_len = encoded_vec.len();
+    println!("keygen 2nd msg: {:?}", encoded_vec);
+    println!("keygen 2nd msg len: {}", ev_len);
 
     let (ek, dk) = Paillier::keypair().keys();
     let randomness = Randomness::sample(&ek);
@@ -934,15 +1132,6 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 
     let paillier_context = PaillierKeyPair{ ek, dk, encrypted_share, randomness: randomness.0};
 
-    let range_proof = RangeProofNi::prove(
-            &paillier_context.ek,
-            &FE::q(),
-            &paillier_context.encrypted_share.clone(),
-            &party_one_private.x1.to_big_int(),
-            &paillier_context.randomness,
-	    );
-	
-  
     let correct_key_proof = NICorrectKeyProof::proof(&paillier_context.dk);
 
 /*
@@ -961,9 +1150,46 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
             paillier_key_pair,
             party_one_private,
         );
-*/
+     */
+
+    let (pdl_statement, pdl_proof, composite_dlog_proof) =
+            PaillierKeyPair::pdl_proof(&party_one_private, &paillier_context);
+
+    let second_message =  KeyGenParty1Message2 {
+        ecdh_second_message: key_gen_second_message,
+        ek: paillier_context.ek.clone(),
+        c_key: paillier_context.encrypted_share.clone(),
+        correct_key_proof,
+	pdl_statement,
+	pdl_proof,
+	composite_dlog_proof,
+	};     
 
 
+    let plain_str = match serde_json::to_string(&second_message){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    let len = plain_str.len();
+    let mut plain_str_sized=format!("{}", len);
+    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    println!("************ second msg plain len: {}", len);
+    plain_str_sized.push_str(&plain_str);
+
+    let mut plain_bytes=plain_str_sized.into_bytes();
+    plain_bytes.resize(480000,0);
+    
+    *kg_party_one_second_message  = match plain_bytes.as_slice().try_into(){
+	Ok(x) => x,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+    
+    //    *kg_party_one_second_message =
+    //match plain_str_slice.as_mut_ptr();
+    
+//    println!("second message plain slice: {}", len_out);
+    
 /*
 	MasterKey1::key_gen_second_message(
             comm_witness,
@@ -978,22 +1204,32 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
         party_one_private,
     };
 
+    println!("get sealable");
     let sealable = match SgxSealable::try_from(second_message_sealed){
 	Ok(x) => x,
 	Err(ret) => return ret
     };
 
+    println!("get sealed");
     let sealed_data = match sealable.to_sealed(){
 	Ok(x) => x,
         Err(ret) => return ret
     };
-    
-    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, 2048);
+
+//    println!("sealed data size: {}", sealed_data.deref().len());
+
+    println!("get sealed log");
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
 
 
+    //*key_gen_first_msg = match key_gen_first_message_str.into_bytes().as_slice().try_into(){
+//        Ok(x) => x,
+//        Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+//    };
+    
 //key_gen_second_message
 
     //let comm_witness_string = key_gen_second_message.comm_witness.to_hex();

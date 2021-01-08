@@ -22,10 +22,16 @@ extern crate log4rs;
 extern crate rusoto_dynamodb;
 extern crate bitcoin;
 extern crate curv;
+extern crate curv_client;
 extern crate kms;
+extern crate kms_sgx;
 extern crate multi_party_ecdsa;
+extern crate multi_party_ecdsa_client;
 extern crate rocksdb;
 extern crate tempdir;
+extern crate num_bigint_dig;
+extern crate num_traits;
+extern crate rand;
 
 #[macro_use]
 extern crate serde_derive;
@@ -42,7 +48,9 @@ extern crate serial_test;
 extern crate shared_lib;
 
 extern crate zk_paillier;
+extern crate zk_paillier_client;
 extern crate paillier;
+extern crate paillier_client;
 
 pub mod config;
 pub mod error;

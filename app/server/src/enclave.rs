@@ -2,15 +2,11 @@
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
-//extern crate curv;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
 use crate::shared_lib::structs::KeyGenMsg2;
 
-//#[macro_use]
-//extern crate serde_derive;
-//extern crate serde_cbor;
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
@@ -40,7 +36,6 @@ use zk_paillier_client::zkproofs::EncryptedPairs as EncryptedPairs_sgx;
 use zk_paillier_client::zkproofs::Proof as Proof_sgx;
 use zk_paillier_client::zkproofs::range_proof::Response as Response_sgx;
 pub use zk_paillier_client::zkproofs::CompositeDLogProof as CompositeDLogProof_sgx;
-//DLogStatement
 
 use num_traits::{Zero, One, Num};
 
@@ -88,22 +83,11 @@ impl DerefMut for KeyGenParty1Message2_w {
      }
 }
 
-/*
-pub ecdh_second_message: party_one::KeyGenSecondMsg,
-pub ek: EncryptionKey,
-pub c_key: BigInt,
-pub correct_key_proof: Option<NICorrectKeyProof>,
-pub range_proof: Option<RangeProofNi>,
-*/
+
 impl From<&KeyGenParty1Message2_sgx> for KeyGenParty1Message2_w {
     fn from(item: &KeyGenParty1Message2_sgx) -> Self {
 
 	let correct_key_proof = NICorrectKeyProof_w::from(&item.correct_key_proof).deref().to_owned(); 
-
-//	let range_proof = match item.range_proof {
-//	    Some(x) => Some(*RangeProofNi_w::from(&x).deref()),
-//	    None => None
-//	};
 
 	let composite_dlog_proof = CompositeDLogProof_w::from(&item.composite_dlog_proof).deref().to_owned();
 
@@ -272,19 +256,6 @@ impl From<&RangeProofNi_sgx> for RangeProofNi_w {
     }
 }
 
-//#[derive(Debug, Serialize, Deserialize, Clone)]
-//pub struct RangeProofNi {
-//    ek: EncryptionKey,
-//    range: BigInt,
-//    ciphertext: BigInt,
-//    encrypted_pairs: EncryptedPairs,
-//    proof: Proof,
-//    error_factor: usize,
-//}
-
-//EncryptionKey_w
-//EncryptedPairs_w
-//Proof_w
 
 pub struct EncryptionKey_w {
     inner: EncryptionKey
@@ -303,14 +274,6 @@ impl DerefMut for EncryptionKey_w {
      }
 }
 
-/*
-/// Public encryption key.                                                                                                                                                                                                                                                               
-#[derive(Clone, Debug, PartialEq)]
-pub struct EncryptionKey {
-    pub n: BigInt,  // the modulus                                                                                                                                                                                                                                                       
-    pub nn: BigInt, // the modulus squared                                                                                                                                                                                                                                               
-}
-*/
 
 impl From<&EncryptionKey_sgx> for EncryptionKey_w {
     fn from(item: &EncryptionKey_sgx) -> Self {
@@ -338,16 +301,6 @@ impl DerefMut for EncryptedPairs_w {
      }
 }
 
-/*
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
-pub struct EncryptedPairs {
-    #[serde(with = "crate::serialize::vecbigint")]
-    pub c1: Vec<BigInt>, // TODO[Morten] should not need to be public                                                                                                                                                                                                                    
-
-    #[serde(with = "crate::serialize::vecbigint")]
-    pub c2: Vec<BigInt>, // TODO[Morten] should not need to be public                                                                                                                                                                                                                    
-}
-*/
 
 impl From<&EncryptedPairs_sgx> for EncryptedPairs_w {
     fn from(item: &EncryptedPairs_sgx) -> Self {
@@ -386,39 +339,6 @@ impl DerefMut for Proof_w {
      	&mut self.inner
      }
 }
-
-/*
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Proof(Vec<Response>);
-
-// TODO[Morten] find better name                                                                                                                                                                                                                                                         
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum Response {
-    Open {
-        #[serde(with = "crate::serialize::bigint")]
-        w1: BigInt,
-
-        #[serde(with = "crate::serialize::bigint")]
-        r1: BigInt,
-
-        #[serde(with = "crate::serialize::bigint")]
-        w2: BigInt,
-
-        #[serde(with = "crate::serialize::bigint")]
-        r2: BigInt,
-    },
-
-    Mask {
-        j: u8,
-
-        #[serde(with = "crate::serialize::bigint")]
-        masked_x: BigInt,
-
-        #[serde(with = "crate::serialize::bigint")]
-        masked_r: BigInt,
-    },
-}
- */
 
 
 impl From<&Proof_sgx> for Proof_w {
@@ -776,10 +696,6 @@ impl Enclave {
 		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
 		let zk_pok_commitment = BigInt::from_hex(&zk_pok_comm_str);
 		let kg1m = party_one::KeyGenFirstMsg{pk_commitment, zk_pok_commitment};
-//		let kg1m: KeyGenFirstMsg = match serde_cbor::from_slice(&plain_ret) {
-//		    Ok(x) => x,
-//		    Err(e) => return Err(LockboxError::Generic(format!("Error deserialising KeyGenFirstMsg: {}", e)).into())
-//		};
 		Ok((kg1m, sealed_log_out))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
@@ -806,7 +722,6 @@ impl Enclave {
 
 	let mut rng = rand::thread_rng();
 	let bi: num_bigint_dig::BigInt = rng.sample(RandomBits::new(256));
-//	let bi = num_bigint_dig::BigInt::new_random();
 	let bi_str = serde_json::to_string(&bi).unwrap();
 	println!("big int example serialized: {}", bi_str);
 	let bi_2 = serde_json::from_str(&bi_str).unwrap();
@@ -824,23 +739,8 @@ impl Enclave {
 		let size = size_str.parse::<usize>().unwrap();
 		println!("len: {}",&size);
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
-//		let nl_pos = msg_str.find(" ").unwrap();
-//		msg_str.truncate(nl_pos-1);
-//		println!("msg size; {}",&size);
 		println!("{}",&msg_str);
-//		let c_key: num_bigint_dig::BigInt = serde_json::from_str(&msg_str).unwrap(); 
-		//		let kgm_2 : party1::KeyGenParty1Message2  = serde_json::from_str(&msg_str).unwrap();
 		let kgm2_sgx : KeyGenParty1Message2_sgx  = serde_json::from_str(&msg_str).unwrap();
-//		let ek : EncryptionKey  = serde_json::from_str(&msg_str).unwrap();
-//		let kp: NICorrectKeyProof = serde_json::from_str(&msg_str).unwrap(); 
-//		let rp: RangeProofNi = serde_json::from_str(&msg_str).unwrap();
-//		let ecdh : KeyGenSecondMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
-//		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
-//		let pk_commitment = BigInt::from_hex(&pk_comm_str);
-//		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
-//		let zk_pok_commitment = BigInt::from_hex(&zk_pok_comm_str);
-//		let kg1m = party_one::KeyGenFirstMsg{pk_commitment, zk_pok_commitment};
-		//		Ok((kg1m, sealed_log_out))
 		let kgm2 : party1::KeyGenParty1Message2 = KeyGenParty1Message2_w::from(&kgm2_sgx).inner;
 		Ok(kgm2)
 	    },

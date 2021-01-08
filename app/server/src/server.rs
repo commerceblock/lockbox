@@ -91,8 +91,6 @@ pub fn get_server()-> Result<Rocket> {
                 ping::ping,
                 ecdsa::first_message,
                 ecdsa::second_message,
-                ecdsa::third_message,
-                ecdsa::fourth_message,
                 ecdsa::sign_first,
                 ecdsa::sign_second,
 		transfer::transfer_sender,
@@ -171,5 +169,11 @@ mod tests {
 	let expected = 	shared_key_id;
 	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Deposit};
 	assert_eq!(server.first_message(msg).unwrap().0, expected);
+    }
+
+    #[test]
+    #[serial]
+    fn test_second_message() {
+
     }
 }

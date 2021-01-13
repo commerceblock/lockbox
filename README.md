@@ -19,3 +19,8 @@ cd /root/lockbox/app
 docker run --rm -it --device /dev/isgx commerceblock/lockbox bash
 cd /root/lockbox/app
 ```
+# Issue Tracker
+
+# License 
+
+Mercury Wallet is released under the terms of the GNU General Public License. See for more information https://opensource.org/licenses/GPL-3.0

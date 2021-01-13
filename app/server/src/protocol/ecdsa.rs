@@ -22,6 +22,7 @@ use crate::Key;
 use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, EncryptedPairs, Proof};
 use paillier::EncryptionKey;
 
+use std::convert::TryInto;
 
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
@@ -74,6 +75,7 @@ impl Ecdsa for Lockbox {
 
 
 	//Store the secrets in the DB
+	println!("sealed secrets: {:?} ", &sealed_secrets);
 	self.database.put(user_db_key, &sealed_secrets)?;
 
 	Ok((key_gen_msg1.shared_key_id, key_gen_first_mess))
@@ -87,16 +89,18 @@ impl Ecdsa for Lockbox {
 
         let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
 
-	let sealed_secrets = match db.get(user_db_key) {
-	    Ok(Some(x)) => x,
+	let mut sealed_secrets : [u8;8192] = match db.get(user_db_key) {
+	    Ok(Some(x)) => x.try_into().unwrap(),
 	    Ok(None) => return Err(LockboxError::Generic(format!("second_message: sealed_secrets for DB key {} is None", user_id))),
 	    Err(e) => return Err(e.into())
 	};
 
-	let mut sealed_log_out = [0u8;4096];
+	println!("sealed secrets: {:?} ", &sealed_secrets);
+	
+	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
 
-	match enc.second_message(&mut sealed_log_out, &key_gen_msg2) {
+	match enc.second_message(&mut sealed_secrets, &key_gen_msg2) {
 	    Ok(x) => {
 		self.database.put(user_db_key, &sealed_log_out)?;
 		Ok(Some(x))
@@ -106,7 +110,43 @@ impl Ecdsa for Lockbox {
     }
 
     fn sign_first(&self, sign_msg1: SignMsg1) -> Result<Option<party_one::EphKeyGenFirstMsg>> {
-	Ok(None)
+	let db = &self.database;
+
+        let user_id = &sign_msg1.shared_key_id;
+	let user_db_key = &Key::from_uuid(user_id);
+
+	let mut sealed_log_out = [0u8;8192];
+	let enc = Enclave::new().unwrap();
+
+
+	let mut sealed_secrets: [u8;8192] = match db.get(user_db_key) {
+	    Ok(Some(x)) => x.try_into().unwrap(),
+	    Ok(None) => return Err(LockboxError::Generic(format!("second_message: sealed_secrets for DB key {} is None", user_id))),
+	    Err(e) => return Err(e.into())
+	};
+
+	match enc.sign_first(&mut sealed_secrets, &sign_msg1) {
+	    Ok(x) => {
+		self.database.put(user_db_key, &sealed_log_out)?;
+		//		Ok(Some(x))
+		return Ok(None)
+	    },
+	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
+	}
+	
+	//To go outside sgx
+	/*
+	db.update_ecdsa_sign_first(
+            user_id,
+            sign_msg1.eph_key_gen_first_message_party_two,
+            eph_ec_key_pair_party1,
+        )?;
+	 */
+//	sign_party_one_first_msg = sign_party_one_first_message;
+        
+	//party_one::EphKeyGenFirstMsg
+	// Ok(sign_party_one_first_msg)
+//	Ok(None)
     }
 
     fn sign_second(&self, _sign_msg2: SignMsg2) -> Result<Vec<Vec<u8>>> {

@@ -66,7 +66,6 @@ enclave {
 			  [out, size=480000] uint8_t* plain_out);
 
 	public sgx_status_t sign_second([in, size=8192] uint8_t* sealed_log_in,
-	       		    [in, size=8192] uint8_t* master_key_sealed,		
 		       	  [out, size=8192] uint8_t* sealed_log_out,
 			  [in, size=len] const uint8_t* sign_msg2,
 			  size_t len,	     

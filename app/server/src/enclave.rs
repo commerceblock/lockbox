@@ -4,7 +4,7 @@ extern crate sgx_urts;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
-use crate::shared_lib::structs::{KeyGenMsg2, SignMsg1};
+use crate::shared_lib::structs::{KeyGenMsg2, SignMsg1, SignMsg2};
 
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
@@ -832,7 +832,8 @@ impl Enclave {
 		       sealed_log_in.as_mut_ptr() as *mut u8,
                        sealed_log_out.as_mut_ptr() as *mut u8,
 		       sign_msg1_str.as_ptr() as * const u8,
-		       sign_msg1_str.len())
+		       sign_msg1_str.len(),
+	    	       plain_ret.as_mut_ptr() as *mut u8))
 	};
 
 	match enclave_ret {
@@ -864,6 +865,46 @@ impl Enclave {
 
     }
 
+    pub fn sign_second(&self, sealed_log_in: &mut [u8; 8192], sign_msg2: &SignMsg2)
+		       -> Result<(Vec<Vec<u8>>, [u8;8192])>
+    {
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	let mut sealed_log_out = [0u8; 8192];
+	let mut plain_ret = [0u8;480000];
+
+	let sign_msg2_str = serde_json::to_string(sign_msg2).unwrap();
+        println!("sign_msg2_str_len: {}", sign_msg2_str.len());
+
+	let _result = unsafe {
+	    sign_second(self.geteid(), &mut enclave_ret,
+			sealed_log_in.as_mut_ptr() as *mut u8,
+			sealed_log_out.as_mut_ptr() as *mut u8,
+			sign_msg2_str.as_ptr() as * const u8,
+			sign_msg2_str.len(),
+	    		plain_ret.as_mut_ptr() as *mut u8)
+	};
+
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => {
+		let c = plain_ret[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		println!("num chars {}",nc_str);
+		let nc = nc_str.parse::<usize>().unwrap();
+		println!("num chars {}",nc);
+		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		println!("len: {}",&size);
+		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		println!("{}",&msg_str);
+		let plain_vec : Vec::<Vec::<u8>>  = serde_json::from_str(&msg_str).unwrap();
+		Ok((plain_vec, sealed_log_out))
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
+	}	
+	
+    }
+    
     pub fn destroy(&self) {
      	unsafe {
 	    sgx_destroy_enclave(self.geteid());

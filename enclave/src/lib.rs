@@ -126,6 +126,14 @@ pub struct EphKeyGenFirstMsg {
     pub c: GE, //c = secret_share * base_point2                                                                                                                                                                                                                                          
 }
 
+mod party_two {
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct EphKeyGenFirstMsg {
+	pub pk_commitment: BigInt,
+	pub zk_pok_commitment: BigInt,
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
 struct Bytes32{
     inner: [u8; 32]
@@ -519,7 +527,9 @@ impl TryFrom<SgxSealable> for SecondMessageSealed {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SignFirstSealed {
-    ec_key_pair: EphEcKeyPair
+    shared_key: Party1MasterKey,
+    eph_key_gen_first_message_party_two: party_two::EphKeyGenFirstMsg,
+    eph_ec_key_pair_party1: EphEcKeyPair,
 }
 
 impl TryFrom<(* mut u8, u32)> for SignFirstSealed {
@@ -1461,11 +1471,27 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 
 #[no_mangle]
 pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
-			     msg2_str: *const u8, len: usize,
+			     sign_msg1_str: *const u8, len: usize,
 			     sign_party_one_first_message: &mut [u8;480000]) -> sgx_status_t {
 
 
-//    let db = &self.database;
+    //    let db = &self.database;
+
+    let str_slice = unsafe { slice::from_raw_parts(sign_msg1_str, len) };
+    println!("got str slice: {:?}", str_slice);
+//    let _ = io::stdout().write(str_slice);                                                                                                                                                                                                                                             
+
+    let sign_msg1: SignMsg1 = match std::str::from_utf8(&str_slice) {
+        Ok(v) =>{
+            println!("str from str slice: {}", v);
+            match serde_json::from_str(v){
+                Ok(v) => v,
+                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+            }
+        },
+        Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+    
     
     let base: GE = ECPoint::generator();
     let secret_share: FE = ECScalar::new_random();
@@ -1519,7 +1545,9 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     };
 
     let sign_first_sealed =  SignFirstSealed {
-        ec_key_pair: eph_ec_key_pair_party1
+	shared_key: party_1_master_key,
+	eph_key_gen_firt_msg: sign_msg1.eph_key_gen_first_message_party_two,
+        eph_ec_key_pair_party1: eph_ec_key_pair_party1,
     };
 
     println!("get sealable");
@@ -1554,21 +1582,21 @@ pub struct sign_second_out {
 
 
 #[no_mangle]
-pub extern "C" fn sign_second(firstMessageSealed: * mut u8, masterKeySealed: * mut u8, sealed_log_out: * mut u8,
-			      eph_key_gen_first_msg: * const u8,
+pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+			      sign_msg2: * mut u8,
 			      plain_out: *const u8, len: usize) -> sgx_status_t {
 
-/*
-    println!("getting first message sealed");
-    let data = match FirstMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+
+    println!("getting sealed");
+    let ssi = match SignFirstSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
         Err(e) => return e
     };
 
-
+/*
     // Get 2P-Ecdsa data
     let ssi: ECDSASignSecondInput = db.get_ecdsa_sign_second_input(user_id)?;
-
+*/
     let signature;
     match ssi.shared_key.sign_second_message(
         &sign_msg2.sign_second_msg_request.party_two_sign_message,

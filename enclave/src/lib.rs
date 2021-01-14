@@ -343,7 +343,7 @@ impl TryFrom<SgxSealable> for Bytes32 {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Party1Private {
     x1: FE,
     paillier_priv: DecryptionKey,
@@ -535,7 +535,7 @@ impl TryFrom<SgxSealable> for SecondMessageSealed {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SignFirstSealed {
-//    shared_key: Party1MasterKey,
+    shared_key: MasterKey1,
     eph_key_gen_first_message_party_two: party_two::EphKeyGenFirstMsg,
     eph_ec_key_pair_party1: EphEcKeyPair,
 }
@@ -811,7 +811,7 @@ pub struct KeyGenParty1Message2 {
     pub composite_dlog_proof: CompositeDLogProof,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MasterKey1 {
     pub public: Party1Public,
     pub private: Party1Private,
@@ -1499,6 +1499,13 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         },
         Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
+
+
+    println!("getting second message sealed");
+    let data = match SecondMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+	Err(e) => return e
+    };
     
     
     let base: GE = ECPoint::generator();
@@ -1553,7 +1560,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     };
 
     let sign_first_sealed =  SignFirstSealed {
-//	shared_key: party_1_master_key,
+	shared_key: data.master_key,
 	eph_key_gen_first_message_party_two: sign_msg1.eph_key_gen_first_message_party_two,
         eph_ec_key_pair_party1: eph_ec_key_pair_party1,
     };

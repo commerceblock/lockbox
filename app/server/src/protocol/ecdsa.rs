@@ -174,6 +174,7 @@ impl Ecdsa for Lockbox {
 	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
 
+	/*
 	match enc.sign_second(&mut sealed_secrets, &sign_msg2) {
 	    Ok(x) => {
 		self.database.put(user_db_key, &sealed_log_out)?;
@@ -183,7 +184,7 @@ impl Ecdsa for Lockbox {
 	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
 	}
 
-	
+	*/
 	Ok(Some(Vec::<Vec::<u8>>::new()))
     }
 }

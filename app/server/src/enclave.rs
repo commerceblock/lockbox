@@ -813,7 +813,7 @@ impl Enclave {
 		Ok(kgm2)
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
-	}	
+	}
 	
     }
 
@@ -833,7 +833,7 @@ impl Enclave {
                        sealed_log_out.as_mut_ptr() as *mut u8,
 		       sign_msg1_str.as_ptr() as * const u8,
 		       sign_msg1_str.len(),
-	    	       plain_ret.as_mut_ptr() as *mut u8))
+	    	       plain_ret.as_mut_ptr() as *mut u8)
 	};
 
 	match enclave_ret {
@@ -855,7 +855,7 @@ impl Enclave {
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}	
-	
+    }
 //        db.update_ecdsa_sign_first(
 //            user_id,
 //            sign_msg1.eph_key_gen_first_message_party_two,
@@ -863,7 +863,7 @@ impl Enclave {
 //        )?;
 //	sign_party_one_first_msg = sign_party_one_first_message;
 
-    }
+//}
 
     pub fn sign_second(&self, sealed_log_in: &mut [u8; 8192], sign_msg2: &SignMsg2)
 		       -> Result<(Vec<Vec<u8>>, [u8;8192])>
@@ -958,13 +958,17 @@ extern {
 		  sealed_log_in: *mut u8,
                   sealed_log_out: *mut u8,
 		  sign_msg1: *const u8,
-		  len: usize);
+		  len: usize,
+		  plain_out: *mut u8,
+    );
 
     fn sign_second(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		   sealed_log_in: *mut u8,
                    sealed_log_out: *mut u8,
+		   sign_msg2: *const u8,
+		   len: usize,
 		   plain_out: *mut u8,
-		   len: usize);
+    );
 }
 
 #[cfg(test)]

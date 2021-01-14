@@ -100,6 +100,13 @@ pub struct KeyGenMsg2 {
     pub dlog_proof: DLogProof,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SignMsg1 {
+    pub shared_key_id: Uuid,
+    pub eph_key_gen_first_message_party_two: party_two::EphKeyGenFirstMsg,
+}
+
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommWitness {
     pub pk_commitment_blind_factor: BigInt,
@@ -127,6 +134,7 @@ pub struct EphKeyGenFirstMsg {
 }
 
 mod party_two {
+    use super::BigInt;
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub struct EphKeyGenFirstMsg {
 	pub pk_commitment: BigInt,
@@ -527,7 +535,7 @@ impl TryFrom<SgxSealable> for SecondMessageSealed {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SignFirstSealed {
-    shared_key: Party1MasterKey,
+//    shared_key: Party1MasterKey,
     eph_key_gen_first_message_party_two: party_two::EphKeyGenFirstMsg,
     eph_ec_key_pair_party1: EphEcKeyPair,
 }
@@ -1545,8 +1553,8 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     };
 
     let sign_first_sealed =  SignFirstSealed {
-	shared_key: party_1_master_key,
-	eph_key_gen_firt_msg: sign_msg1.eph_key_gen_first_message_party_two,
+//	shared_key: party_1_master_key,
+	eph_key_gen_first_message_party_two: sign_msg1.eph_key_gen_first_message_party_two,
         eph_ec_key_pair_party1: eph_ec_key_pair_party1,
     };
 
@@ -1596,7 +1604,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 /*
     // Get 2P-Ecdsa data
     let ssi: ECDSASignSecondInput = db.get_ecdsa_sign_second_input(user_id)?;
-*/
+
     let signature;
     match ssi.shared_key.sign_second_message(
         &sign_msg2.sign_second_msg_request.party_two_sign_message,

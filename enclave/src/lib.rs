@@ -1830,7 +1830,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
-pub struct sign_second_out {
+pub struct SignSecondOut {
     inner: Vec<Vec<u8>>
 }
 
@@ -1839,7 +1839,7 @@ pub struct sign_second_out {
 pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			      sign_msg2_str: * mut u8,
 			      len: usize,
-			      plain_out: *const u8) -> sgx_status_t {
+			      plain_out:  &mut [u8;480000]) -> sgx_status_t {
 
 
     let str_slice = unsafe { slice::from_raw_parts(sign_msg2_str, len) };
@@ -1907,38 +1907,26 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     let witness = vec![sig_vec, pk_vec];
     let mut ws: Vec<Vec<u8>>;
     ws = witness;
-    /*
-    // Get transaction which is being signed.
-    let mut tx: Transaction = match sign_msg2.sign_second_msg_request.protocol {
-        Protocol::Withdraw => db.get_tx_withdraw(user_id)?,
-        _ => db.get_user_backup_tx(user_id)?,
+
+    let output = SignSecondOut { inner: ws };
+
+    let plain_str = serde_json::to_string(&output).unwrap();
+    println!("output_str_len: {}", plain_str.len());
+
+    let len = plain_str.len();
+    let mut plain_str_sized=format!("{}", len);
+    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    println!("************ witness plain len: {}", len);
+    plain_str_sized.push_str(&plain_str);
+
+    let mut plain_bytes=plain_str_sized.into_bytes();
+    plain_bytes.resize(480000,0);
+    
+    *plain_out  = match plain_bytes.as_slice().try_into(){
+	Ok(x) => x,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-        // Add signature to tx
-        tx.input[0].witness = ws.clone();
-
-        match sign_msg2.sign_second_msg_request.protocol {
-            Protocol::Withdraw => {
-                // Store signed withdraw tx in UserSession DB object
-                db.update_tx_withdraw(user_id, tx)?;
-
-                info!("WITHDRAW: Tx signed and stored. User ID: {}", user_id);
-                // Do not return withdraw tx witness until /withdraw/confirm is complete
-                ws = vec![];
-            }
-            _ => {
-                // Store signed backup tx in UserSession DB object
-                db.update_user_backup_tx(&user_id, tx)?;
-                info!(
-                    "DEPOSIT/TRANSFER: Backup Tx signed and stored. User: {}",
-                    user_id
-                );
-            }
-        };
-
-        Ok(ws)
-    }
-*/
     sgx_status_t::SGX_SUCCESS
 }
 

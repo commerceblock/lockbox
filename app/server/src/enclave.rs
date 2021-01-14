@@ -608,6 +608,10 @@ impl From<&num_bigint_dig::BigInt> for BigInt_w {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+struct SignSecondOut {
+    inner: Vec<Vec<u8>>
+}
 
 impl Enclave {
     pub fn new() -> Result<Self> {
@@ -897,8 +901,8 @@ impl Enclave {
 		println!("len: {}",&size);
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		println!("{}",&msg_str);
-		let plain_vec : Vec::<Vec::<u8>>  = serde_json::from_str(&msg_str).unwrap();
-		Ok((plain_vec, sealed_log_out))
+		let output : SignSecondOut  = serde_json::from_str(&msg_str).unwrap();
+		Ok((output.inner, sealed_log_out))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}	

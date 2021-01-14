@@ -1879,36 +1879,40 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         Ok(sig) => signature = sig,
         Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
-  /*  
-            // Make signature witness
-            let mut r_vec = BigInt::to_vec(&signature.r);
-            if r_vec.len() != 32 {
-                // Check corrcet length of conversion to Signature
-                let mut temp = vec![0; 32 - r_vec.len()];
-                temp.extend(r_vec);
-                r_vec = temp;
-            }
-            let mut s_vec = BigInt::to_vec(&signature.s);
-            if s_vec.len() != 32 {
-                // Check corrcet length of conversion to Signature
-                let mut temp = vec![0; 32 - s_vec.len()];
-                temp.extend(s_vec);
-                s_vec = temp;
-            }
-            let mut v = r_vec;
-            v.extend(s_vec);
-            let mut sig_vec = Signature::from_compact(&v[..])?.serialize_der().to_vec();
-            sig_vec.push(01);
-            let pk_vec = ssi.shared_key.public.q.get_element().serialize().to_vec();
-            let witness = vec![sig_vec, pk_vec];
-            ws = witness;
-        }
 
-        // Get transaction which is being signed.
-        let mut tx: Transaction = match sign_msg2.sign_second_msg_request.protocol {
-            Protocol::Withdraw => db.get_tx_withdraw(user_id)?,
-            _ => db.get_user_backup_tx(user_id)?,
-        };
+    // Make signature witness
+    let mut r_vec = BigInt::to_vec(&signature.r);
+    if r_vec.len() != 32 {
+        // Check corrcet length of conversion to Signature
+        let mut temp = vec![0; 32 - r_vec.len()];
+        temp.extend(r_vec);
+        r_vec = temp;
+    }
+    let mut s_vec = BigInt::to_vec(&signature.s);
+    if s_vec.len() != 32 {
+        // Check corrcet length of conversion to Signature
+        let mut temp = vec![0; 32 - s_vec.len()];
+        temp.extend(s_vec);
+        s_vec = temp;
+    }
+    let mut v = r_vec;
+    v.extend(s_vec);
+    let mut s = Secp256k1::new();
+    let mut sig_vec = match secp256k1::Signature::from_compact(&s, &v[..]){
+	Ok(x) => x.serialize_der(&s).to_vec(),
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+    sig_vec.push(01);
+    let pk_vec = ssi.shared_key.public.q.get_element().serialize().to_vec();
+    let witness = vec![sig_vec, pk_vec];
+    let mut ws: Vec<Vec<u8>>;
+    ws = witness;
+    /*
+    // Get transaction which is being signed.
+    let mut tx: Transaction = match sign_msg2.sign_second_msg_request.protocol {
+        Protocol::Withdraw => db.get_tx_withdraw(user_id)?,
+        _ => db.get_user_backup_tx(user_id)?,
+    };
 
         // Add signature to tx
         tx.input[0].witness = ws.clone();

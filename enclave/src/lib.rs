@@ -37,6 +37,7 @@ extern crate num_traits;
 extern crate uuid;
 extern crate paillier;
 extern crate zk_paillier;
+extern crate subtle;
 //extern crate shared_lib;
 //use shared_lib::structs::*;
 
@@ -71,9 +72,10 @@ use zeroize::Zeroize;
 use integer::Integer;
 use uuid::Uuid;
 use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
-	       EncryptWithChosenRandomness, DecryptionKey, EncryptionKey};
+	       EncryptWithChosenRandomness, DecryptionKey, EncryptionKey, Decrypt, RawCiphertext};
 use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, CompositeDLogProof, DLogStatement};
 use num_traits::{One, Pow};
+
 
 #[macro_use]
 extern crate serde_derive;
@@ -99,6 +101,33 @@ pub struct KeyGenMsg2 {
     pub dlog_proof: DLogProof,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SignMsg1 {
+    pub shared_key_id: Uuid,
+    pub eph_key_gen_first_message_party_two: party_two::EphKeyGenFirstMsg,
+}
+
+/// State Entity protocols
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+pub enum Protocol {
+    Deposit,
+    Transfer,
+    Withdraw,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SignSecondMsgRequest {
+    pub protocol: Protocol,
+    pub message: BigInt,
+    pub party_two_sign_message: SignMessage,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SignMsg2 {
+    pub shared_key_id: Uuid,
+    pub sign_second_msg_request: SignSecondMsgRequest,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CommWitness {
     pub pk_commitment_blind_factor: BigInt,
@@ -110,6 +139,48 @@ pub struct CommWitness {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KeyGenSecondMsg {
     pub comm_witness: CommWitness,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct EphEcKeyPair {
+    pub public_share: GE,
+    secret_share: FE,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EphKeyGenFirstMsg {
+    pub d_log_proof: ECDDHProof,
+    pub public_share: GE,
+    pub c: GE, //c = secret_share * base_point2                                                                                                                                                                                                                                          
+}
+
+mod party_two {
+    use super::{BigInt, GE, ECDDHProof};
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct EphKeyGenFirstMsg {
+	pub pk_commitment: BigInt,
+	pub zk_pok_commitment: BigInt,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct EphKeyGenSecondMsg {
+	pub comm_witness: EphCommWitness,
+    }
+
+    
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct EphCommWitness {
+	pub pk_commitment_blind_factor: BigInt,
+	pub zk_pok_blind_factor: BigInt,
+	pub public_share: GE,
+	pub d_log_proof: ECDDHProof,
+	pub c: GE, //c = secret_share * base_point2
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct PartialSig {
+	pub c3: BigInt,
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
@@ -186,7 +257,7 @@ impl SgxSealable {
 
     #[inline]
     pub const fn size() -> usize {
-	4096
+	8192
     }
 }
 
@@ -211,7 +282,7 @@ pub struct SgxSealedLog {
 impl SgxSealedLog{
     #[inline]
     pub const fn size() -> usize {
-	4096
+	8192
     }
 }
 
@@ -313,7 +384,7 @@ impl TryFrom<SgxSealable> for Bytes32 {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Party1Private {
     x1: FE,
     paillier_priv: DecryptionKey,
@@ -325,6 +396,51 @@ pub struct KeyGenFirstMsg{
     pk_commitment: BigInt,
     zk_pok_commitment: BigInt,
 }
+
+impl KeyGenFirstMsg {
+    pub fn create_commitments() -> (KeyGenFirstMsg, CommWitness, EcKeyPair) {
+        let base: GE = ECPoint::generator();
+
+        let mut secret_share: FE = ECScalar::new_random();
+
+        let public_share = base.scalar_mul(&secret_share.get_element());
+
+	let d_log_proof = DLogProof::prove(&secret_share);
+        // we use hash based commitment                                                                                                                                                                                                                                                  
+        let pk_commitment_blind_factor = BigInt::sample(SECURITY_BITS);
+        let pk_commitment = HashCommitment::create_commitment_with_user_defined_randomness(
+            &public_share.bytes_compressed_to_big_int(),
+            &pk_commitment_blind_factor,
+        );
+
+	let zk_pok_blind_factor = BigInt::sample(SECURITY_BITS);
+        let zk_pok_commitment = HashCommitment::create_commitment_with_user_defined_randomness(
+            &d_log_proof
+                .pk_t_rand_commitment
+                .bytes_compressed_to_big_int(),
+            &zk_pok_blind_factor,
+	);
+        let ec_key_pair = EcKeyPair {
+            public_share,
+            secret_share,
+        };
+        secret_share.zeroize();
+        (
+            KeyGenFirstMsg {
+                pk_commitment,
+                zk_pok_commitment,
+            },
+            CommWitness {
+                pk_commitment_blind_factor,
+                zk_pok_blind_factor,
+                public_share: ec_key_pair.public_share,
+                d_log_proof,
+            },
+            ec_key_pair,
+        )
+    }
+}
+
 
 impl TryFrom<KeyGenFirstMsg> for SgxSealable {
     type Error = sgx_status_t;
@@ -410,6 +526,7 @@ impl TryFrom<SgxSealable> for FirstMessageSealed {
 pub struct SecondMessageSealed {
     paillier_key_pair: PaillierKeyPair,
     party_one_private: Party1Private,
+    master_key: MasterKey1,
 }
 
 impl TryFrom<(* mut u8, u32)> for SecondMessageSealed {
@@ -456,7 +573,112 @@ impl TryFrom<SgxSealable> for SecondMessageSealed {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SignFirstSealed {
+    shared_key: MasterKey1,
+    eph_key_gen_first_message_party_two: party_two::EphKeyGenFirstMsg,
+    eph_ec_key_pair_party1: EphEcKeyPair,
+}
+
+impl TryFrom<(* mut u8, u32)> for SignFirstSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: (* mut u8, u32)) -> Result<Self, Self::Error> {
+	let opt = from_sealed_log_for_slice::<u8>(item.0, item.1);
+	let sealed_data = match opt {
+            Some(x) => x,
+            None => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
+            },
+	};
+	let unsealed_data = SgxSealable::try_from_sealed(&sealed_data)?;
+	Self::try_from(unsealed_data)
+    }
+}
+
+impl TryFrom<SignFirstSealed> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: SignFirstSealed) -> Result<Self, Self::Error> {
+        let encoded_vec = match serde_cbor::to_vec(&item){
+            Ok(v) => v,
+            Err(e) => {
+                println!("error: {:?}",e);
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+            }
+        };
+        let res = Self{inner: encoded_vec};
+        Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for SignFirstSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+        match serde_cbor::from_slice(&item){
+            Ok(v) => Ok(v),
+            Err(_e) => {
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+            }
+        }
+    }
+}
+
+
+/*
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SignSecondSealed {
+    sign_second_input: ECDSASignSecondInput,
+    ec_key_pair: EphEcKeyPair,
+}
+
+impl TryFrom<(* mut u8, u32)> for SignSecondSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: (* mut u8, u32)) -> Result<Self, Self::Error> {
+	let opt = from_sealed_log_for_slice::<u8>(item.0, item.1);
+	let sealed_data = match opt {
+            Some(x) => x,
+            None => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
+            },
+	};
+	let unsealed_data = SgxSealable::try_from_sealed(&sealed_data)?;
+	Self::try_from(unsealed_data)
+    }
+}
+
+impl TryFrom<SignSecondSealed> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: SignSecondSealed) -> Result<Self, Self::Error> {
+        let encoded_vec = match serde_cbor::to_vec(&item){
+            Ok(v) => v,
+            Err(e) => {
+                println!("error: {:?}",e);
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+            }
+        };
+        let res = Self{inner: encoded_vec};
+        Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for SignSecondSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+        match serde_cbor::from_slice(&item){
+            Ok(v) => Ok(v),
+            Err(_e) => {
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+            }
+        }
+    }
+}*/
+
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PaillierKeyPair {
     pub ek: EncryptionKey,
     dk: DecryptionKey,
@@ -630,16 +852,247 @@ pub struct KeyGenParty1Message2 {
     pub composite_dlog_proof: CompositeDLogProof,
 }
 
-/*
-#[derive(Debug, Serialize, Deserialize)]
-pub struct KeyGenParty1Message2 {
-    pub ecdh_second_message: KeyGenSecondMsg,
-    pub ek: EncryptionKey,
-    pub c_key: BigInt,
-    pub correct_key_proof: NICorrectKeyProof,
-    pub range_proof: RangeProofNi,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MasterKey1 {
+    pub public: Party1Public,
+    pub private: Party1Private,
+    chain_code: BigInt,
 }
- */
+
+mod party_one {
+    use super::*;
+    use subtle::ConstantTimeEq;
+//    use super::{ECPoint, BigInt, ProofError, Commitment, HashCommitment, HSha256, ECDDHStatement, GE, KeyGenError, SignError, FE, ECScalar};
+    use super::party_two::EphKeyGenFirstMsg as Party2EphKeyGenFirstMessage;
+    use super::party_two::EphKeyGenSecondMsg as Party2EphKeyGenSecondMessage;
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct Signature {
+	pub s: BigInt,
+	pub r: BigInt,
+    }
+
+    impl Signature {
+	pub fn compute_with_recid(
+            party_one_private: &Party1Private,
+            partial_sig_c3: &BigInt,
+	    ephemeral_local_share: &EphEcKeyPair,
+            ephemeral_other_public_share: &GE,
+	) -> SignatureRecid {
+            //compute r = k2* R1                                                                                                                                                                                                                                                             
+            let r = ephemeral_other_public_share
+		.scalar_mul(&ephemeral_local_share.secret_share.get_element());
+	    
+	    let rx = r.x_coor().unwrap().mod_floor(&FE::q());
+            let ry = r.y_coor().unwrap().mod_floor(&FE::q());
+            let mut k1_inv = ephemeral_local_share.secret_share.invert();
+	    
+            let s_tag = Paillier::decrypt(
+		&party_one_private.paillier_priv,
+		&RawCiphertext::from(partial_sig_c3),
+            )
+		.0;
+            let mut s_tag_fe: FE = ECScalar::from(&s_tag);
+            let s_tag_tag = s_tag_fe * k1_inv;
+            k1_inv.zeroize();
+	    s_tag_fe.zeroize();
+            let s_tag_tag_bn = s_tag_tag.to_big_int();
+            let s = std::cmp::min(s_tag_tag_bn.clone(), FE::q() - &s_tag_tag_bn);
+	    
+            /*                                                                                                                                                                                                                                                                               
+            Calculate recovery id - it is not possible to compute the public key out of the signature                                                                                                                                                                                       
+            itself. Recovery id is used to enable extracting the public key uniquely.                                                                                                                                                                                                       
+            1. id = R.y & 1                                                                                                                                                                                                                                                                 
+            2. if (s > curve.q / 2) id = id ^ 1                                                                                                                                                                                                                                             
+             */
+            let is_ry_odd = ry.is_odd();
+            let mut recid = if is_ry_odd { 1 } else { 0 };
+            if s_tag_tag_bn.clone() > FE::q() - s_tag_tag_bn.clone() {
+		recid = recid ^ 1;
+            }
+	    
+            SignatureRecid { s, r: rx, recid }
+	}
+    }
+    
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct SignatureRecid {
+	pub s: BigInt,
+	pub r: BigInt,
+	pub recid: u8,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct EphKeyGenSecondMsg {}
+
+    impl EphKeyGenSecondMsg {
+	pub fn verify_commitments_and_dlog_proof(
+            party_two_first_message: &Party2EphKeyGenFirstMessage,
+            party_two_second_message: &Party2EphKeyGenSecondMessage,
+	) -> Result<EphKeyGenSecondMsg, ProofError> {
+            let party_two_pk_commitment = &party_two_first_message.pk_commitment;
+            let party_two_zk_pok_commitment = &party_two_first_message.zk_pok_commitment;
+            let party_two_zk_pok_blind_factor =
+		&party_two_second_message.comm_witness.zk_pok_blind_factor;
+	    let party_two_public_share = &party_two_second_message.comm_witness.public_share;
+            let party_two_pk_commitment_blind_factor = &party_two_second_message
+		.comm_witness
+		.pk_commitment_blind_factor;
+	    let party_two_d_log_proof = &party_two_second_message.comm_witness.d_log_proof;
+            let mut flag = true;
+            if party_two_pk_commitment
+		== &HashCommitment::create_commitment_with_user_defined_randomness(
+                    &party_two_public_share.bytes_compressed_to_big_int(),
+                    &party_two_pk_commitment_blind_factor,
+		)
+            {
+		flag = flag
+            } else {
+		flag = false
+            };
+            if party_two_zk_pok_commitment
+		== &HashCommitment::create_commitment_with_user_defined_randomness(
+                    &HSha256::create_hash_from_ge(&[
+			&party_two_d_log_proof.a1,
+			&party_two_d_log_proof.a2,
+                    ])
+			.to_big_int(),
+                    &party_two_zk_pok_blind_factor,
+		)
+            {
+		flag = flag
+            } else {
+		flag = false
+            };
+            assert!(flag);
+            let delta = ECDDHStatement {
+		g1: GE::generator(),
+		h1: *party_two_public_share,
+		g2: GE::base_point2(),
+		h2: party_two_second_message.comm_witness.c,
+            };
+            party_two_d_log_proof.verify(&delta)?;
+            Ok(EphKeyGenSecondMsg {})
+	}
+    }
+
+    pub fn verify(signature: &Signature, pubkey: &GE, message: &BigInt) -> Result<(), secp256k1::Error> {
+	let s_fe: FE = ECScalar::from(&signature.s);
+	let rx_fe: FE = ECScalar::from(&signature.r);
+	
+	let s_inv_fe = s_fe.invert();
+	let e_fe: FE = ECScalar::from(&message.mod_floor(&FE::q()));
+	let u1 = GE::generator() * e_fe * s_inv_fe;
+	let u2 = *pubkey * rx_fe * s_inv_fe;
+	
+	// second condition is against malleability                                                                                                                                                                                                                                          
+	let rx_bytes = &BigInt::to_vec(&signature.r)[..];
+	let u1_plus_u2_bytes = &BigInt::to_vec(&(u1 + u2).x_coor().unwrap())[..];
+	
+	if rx_bytes.ct_eq(&u1_plus_u2_bytes).unwrap_u8() == 1
+            && signature.s < FE::q() - signature.s.clone()
+	{
+	    Ok(())
+	} else {
+            Err(secp256k1::Error::InvalidSignature)
+	}
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SignMessage {
+    pub partial_sig: party_two::PartialSig,
+    pub second_message: party_two::EphKeyGenSecondMsg,
+}
+
+#[derive(Copy, PartialEq, Eq, Clone, Debug)]
+pub enum Errors {
+    KeyGenError,
+    SignError,
+}
+
+use Errors::{KeyGenError, SignError};
+
+impl MasterKey1 {
+    pub fn set_master_key(
+        chain_code: &BigInt,
+        party_one_private: Party1Private,
+        party_one_public_ec_key: &GE,
+        party2_first_message_public_share: &GE,
+        paillier_key_pair: PaillierKeyPair,
+    ) -> MasterKey1 {
+        let party1_public = Party1Public {
+            q: compute_pubkey(&party_one_private, party2_first_message_public_share),
+            p1: party_one_public_ec_key.clone(),
+            p2: party2_first_message_public_share.clone(),
+            paillier_pub: paillier_key_pair.ek.clone(),
+            c_key: paillier_key_pair.encrypted_share.clone(),
+        };
+	
+        MasterKey1 {
+            public: party1_public,
+            private: party_one_private,
+            chain_code: chain_code.clone(),
+        }
+    }
+    
+    pub fn sign_second_message(
+        &self,
+        party_two_sign_message: &SignMessage,
+        eph_key_gen_first_message_party_two: &party_two::EphKeyGenFirstMsg,
+        eph_ec_key_pair_party1: &EphEcKeyPair,
+        message: &BigInt,
+    ) -> Result<party_one::SignatureRecid, Errors> {
+        let verify_party_two_second_message =
+            party_one::EphKeyGenSecondMsg::verify_commitments_and_dlog_proof(
+                &eph_key_gen_first_message_party_two,
+                &party_two_sign_message.second_message,
+            )
+            .is_ok();
+	
+        let signature_with_recid = party_one::Signature::compute_with_recid(
+            &self.private,
+            &party_two_sign_message.partial_sig.c3,
+            &eph_ec_key_pair_party1,
+            &party_two_sign_message
+                .second_message
+                .comm_witness
+                .public_share,
+        );
+
+        // Creating a standard signature for the verification, currently discarding recid                                                                                                                                                                                                
+        // TODO: Investigate what verification could be done with recid                                                                                                                                                                                                                  
+        let signature = party_one::Signature {
+            r: signature_with_recid.r.clone(),
+            s: signature_with_recid.s.clone(),
+        };
+
+        let verify = party_one::verify(&signature, &self.public.q, message).is_ok();
+        if verify {
+            if verify_party_two_second_message {
+                Ok(signature_with_recid)
+            } else {
+                Err(SignError)
+            }
+        } else {
+            Err(SignError)
+        }
+    }
+    
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct Party1Public {
+    pub q: GE,
+    pub p1: GE,
+    pub p2: GE,
+    pub paillier_pub: EncryptionKey,
+    pub c_key: BigInt,
+}
+
+pub fn compute_pubkey(party_one_private: &Party1Private, other_share_public_share: &GE) -> GE {
+    other_share_public_share * &party_one_private.x1
+}
 
 #[no_mangle]
 pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_status_t {
@@ -1098,6 +1551,7 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     };
 
     let comm_witness = data.comm_witness;
+    let comm_witness_public_share = comm_witness.public_share.clone();
     let ec_key_pair = &data.ec_key_pair;
 
     println!("get dlog proof");
@@ -1198,10 +1652,18 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
         );
 */
 
+    let master_key = MasterKey1::set_master_key(
+            &BigInt::from(0),
+            party_one_private.clone(),
+            &comm_witness_public_share,
+            &party2_public,
+            paillier_context.clone(),
+    );
     
     let second_message_sealed =  SecondMessageSealed {
         paillier_key_pair: paillier_context,
         party_one_private,
+	master_key
     };
 
     println!("get sealable");
@@ -1252,6 +1714,222 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     
     sgx_status_t::SGX_SUCCESS
 }
+
+
+#[no_mangle]
+pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+			     sign_msg1_str: *const u8, len: usize,
+			     sign_party_one_first_message: &mut [u8;480000]) -> sgx_status_t {
+
+
+    //    let db = &self.database;
+
+    let str_slice = unsafe { slice::from_raw_parts(sign_msg1_str, len) };
+    println!("got str slice: {:?}", str_slice);
+//    let _ = io::stdout().write(str_slice);                                                                                                                                                                                                                                             
+
+    let sign_msg1: SignMsg1 = match std::str::from_utf8(&str_slice) {
+        Ok(v) =>{
+            println!("str from str slice: {}", v);
+            match serde_json::from_str(v){
+                Ok(v) => v,
+                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+            }
+        },
+        Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+
+    println!("getting second message sealed");
+    let data = match SecondMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+	Err(e) => return e
+    };
+    
+    
+    let base: GE = ECPoint::generator();
+    let secret_share: FE = ECScalar::new_random();
+    let public_share = &base * &secret_share;
+    let h: GE = GE::base_point2();
+    let w = ECDDHWitness {
+        x: secret_share.clone(),
+    };
+    let c = &h * &secret_share;
+    let delta = ECDDHStatement {
+        g1: base.clone(),
+        h1: public_share.clone(),
+        g2: h.clone(),
+        h2: c.clone(),
+    };
+    let d_log_proof = ECDDHProof::prove(&w, &delta);
+    let ec_key_pair = EphEcKeyPair {
+        public_share: public_share.clone(),
+        secret_share,
+    };
+    
+    let (sign_party_one_first_msg, eph_ec_key_pair_party1) :
+    //(multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::
+    (EphKeyGenFirstMsg, EphEcKeyPair) =
+	(
+            EphKeyGenFirstMsg {
+		d_log_proof,
+		public_share,
+		c,
+            },
+            ec_key_pair,
+	);
+
+    let plain_str = match serde_json::to_string(&sign_party_one_first_msg){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    let len = plain_str.len();
+    let mut plain_str_sized=format!("{}", len);
+    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    println!("************ second msg plain len: {}", len);
+    plain_str_sized.push_str(&plain_str);
+
+    let mut plain_bytes=plain_str_sized.into_bytes();
+    plain_bytes.resize(480000,0);
+    
+    *sign_party_one_first_message  = match plain_bytes.as_slice().try_into(){
+	Ok(x) => x,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    let sign_first_sealed =  SignFirstSealed {
+	shared_key: data.master_key,
+	eph_key_gen_first_message_party_two: sign_msg1.eph_key_gen_first_message_party_two,
+        eph_ec_key_pair_party1: eph_ec_key_pair_party1,
+    };
+
+    println!("get sealable");
+    let sealable = match SgxSealable::try_from(sign_first_sealed){
+	Ok(x) => x,
+	Err(ret) => return ret
+    };
+
+    println!("get sealed");
+    let sealed_data = match sealable.to_sealed(){
+	Ok(x) => x,
+        Err(ret) => return ret
+    };
+
+//    println!("sealed data size: {}", sealed_data.deref().len());
+
+    println!("get sealed log");
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
+    if opt.is_none() {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+	
+//    Ok(sign_party_one_first_message)
+    sgx_status_t::SGX_SUCCESS
+	
+}
+
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+pub struct SignSecondOut {
+    inner: Vec<Vec<u8>>
+}
+
+
+#[no_mangle]
+pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+			      sign_msg2_str: * mut u8,
+			      len: usize,
+			      plain_out:  &mut [u8;480000]) -> sgx_status_t {
+
+
+    let str_slice = unsafe { slice::from_raw_parts(sign_msg2_str, len) };
+    println!("got str slice: {:?}", str_slice);
+
+    let sign_msg2: SignMsg2 = match std::str::from_utf8(&str_slice) {
+        Ok(v) =>{
+            println!("str from str slice: {}", v);
+            match serde_json::from_str(v){
+                Ok(v) => v,
+                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+            }
+        },
+        Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+
+    
+
+    println!("getting sealed");
+    let ssi = match SignFirstSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+        Err(e) => return e
+    };
+
+
+    // Get 2P-Ecdsa data
+//    let ssi: ECDSASignSecondInput = db.get_ecdsa_sign_second_input(user_id)?;
+
+    let signature;
+    match ssi.shared_key.sign_second_message(
+        &sign_msg2.sign_second_msg_request.party_two_sign_message,
+        &ssi.eph_key_gen_first_message_party_two,
+        &ssi.eph_ec_key_pair_party1,
+                &sign_msg2.sign_second_msg_request.message,
+    ) {
+        Ok(sig) => signature = sig,
+        Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+
+    // Make signature witness
+    let mut r_vec = BigInt::to_vec(&signature.r);
+    if r_vec.len() != 32 {
+        // Check corrcet length of conversion to Signature
+        let mut temp = vec![0; 32 - r_vec.len()];
+        temp.extend(r_vec);
+        r_vec = temp;
+    }
+    let mut s_vec = BigInt::to_vec(&signature.s);
+    if s_vec.len() != 32 {
+        // Check corrcet length of conversion to Signature
+        let mut temp = vec![0; 32 - s_vec.len()];
+        temp.extend(s_vec);
+        s_vec = temp;
+    }
+    let mut v = r_vec;
+    v.extend(s_vec);
+    let mut s = Secp256k1::new();
+    let mut sig_vec = match secp256k1::Signature::from_compact(&s, &v[..]){
+	Ok(x) => x.serialize_der(&s).to_vec(),
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    };
+    sig_vec.push(01);
+    let pk_vec = ssi.shared_key.public.q.get_element().serialize().to_vec();
+    let witness = vec![sig_vec, pk_vec];
+    let mut ws: Vec<Vec<u8>>;
+    ws = witness;
+
+    let output = SignSecondOut { inner: ws };
+
+    let plain_str = serde_json::to_string(&output).unwrap();
+    println!("output_str_len: {}", plain_str.len());
+
+    let len = plain_str.len();
+    let mut plain_str_sized=format!("{}", len);
+    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    println!("************ witness plain len: {}", len);
+    plain_str_sized.push_str(&plain_str);
+
+    let mut plain_bytes=plain_str_sized.into_bytes();
+    plain_bytes.resize(480000,0);
+    
+    *plain_out  = match plain_bytes.as_slice().try_into(){
+	Ok(x) => x,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    sgx_status_t::SGX_SUCCESS
+}
+
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<[T]>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
     unsafe {

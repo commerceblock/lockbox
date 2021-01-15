@@ -65,6 +65,7 @@ use uuid::Uuid;
 use std::convert::AsRef;
 use std::fmt;
 
+#[derive(Clone, Debug)]
 pub struct Key(Uuid);
 
 impl Key {

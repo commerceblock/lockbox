@@ -1,4 +1,4 @@
-FROM baiduxlab/sgx-rust:latest
+FROM baiduxlab/sgx-rust:2004-1.1.3 
 
 COPY . /root/lockbox
 COPY ./docker-entrypoint.sh /docker-entrypoint.sh

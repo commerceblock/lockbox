@@ -309,19 +309,16 @@ impl DerefMut for SgxSealedLog {
 impl TryFrom<SgxSealable> for SgxSealedLog {
     type Error = sgx_status_t;
     fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
-	println!("Sealing data");
 	let sealed_data = match item.to_sealed(){
 	    Ok(v) => v,
 	    Err(e) => return Err(e)
 	};
 	let mut sealed_log  = Self::default();
 
-	println!("To sealed log");
 	let opt = to_sealed_log_for_slice(&sealed_data, (*sealed_log).as_mut_ptr(), Self::size() as u32);
 	if opt.is_none() {
             return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
 	}
-	println!("Got sealed log");
 	Ok(sealed_log)
     }
 }
@@ -625,59 +622,6 @@ impl TryFrom<SgxSealable> for SignFirstSealed {
     }
 }
 
-
-/*
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct SignSecondSealed {
-    sign_second_input: ECDSASignSecondInput,
-    ec_key_pair: EphEcKeyPair,
-}
-
-impl TryFrom<(* mut u8, u32)> for SignSecondSealed {
-    type Error = sgx_status_t;
-    fn try_from(item: (* mut u8, u32)) -> Result<Self, Self::Error> {
-	let opt = from_sealed_log_for_slice::<u8>(item.0, item.1);
-	let sealed_data = match opt {
-            Some(x) => x,
-            None => {
-		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
-            },
-	};
-	let unsealed_data = SgxSealable::try_from_sealed(&sealed_data)?;
-	Self::try_from(unsealed_data)
-    }
-}
-
-impl TryFrom<SignSecondSealed> for SgxSealable {
-    type Error = sgx_status_t;
-    fn try_from(item: SignSecondSealed) -> Result<Self, Self::Error> {
-        let encoded_vec = match serde_cbor::to_vec(&item){
-            Ok(v) => v,
-            Err(e) => {
-                println!("error: {:?}",e);
-                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
-
-            }
-        };
-        let res = Self{inner: encoded_vec};
-        Ok(res)
-    }
-}
-
-impl TryFrom<SgxSealable> for SignSecondSealed {
-    type Error = sgx_status_t;
-    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
-
-        match serde_cbor::from_slice(&item){
-            Ok(v) => Ok(v),
-            Err(_e) => {
-                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
-            }
-        }
-    }
-}*/
-
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PaillierKeyPair {
     pub ek: EncryptionKey,
@@ -862,7 +806,6 @@ pub struct MasterKey1 {
 mod party_one {
     use super::*;
     use subtle::ConstantTimeEq;
-//    use super::{ECPoint, BigInt, ProofError, Commitment, HashCommitment, HSha256, ECDDHStatement, GE, KeyGenError, SignError, FE, ECScalar};
     use super::party_two::EphKeyGenFirstMsg as Party2EphKeyGenFirstMessage;
     use super::party_two::EphKeyGenSecondMsg as Party2EphKeyGenSecondMessage;
 
@@ -1060,8 +1003,6 @@ impl MasterKey1 {
                 .public_share,
         );
 
-        // Creating a standard signature for the verification, currently discarding recid                                                                                                                                                                                                
-        // TODO: Investigate what verification could be done with recid                                                                                                                                                                                                                  
         let signature = party_one::Signature {
             r: signature_with_recid.r.clone(),
             s: signature_with_recid.s.clone(),
@@ -1128,11 +1069,29 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 #[no_mangle]
 pub extern "C" fn create_sealed_secret_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
-    let mut data = match Bytes32::new_random(){
-	Ok(v) => v,
-	Err(e) => return e,
-    };
+    let mut secret_share: FE = ECScalar::<SK>::zero();
+    let q_third = FE::q();
+    
+    let mut data;
+    loop {
+	data = match Bytes32::new_random(){
+	    Ok(v) => v,
+	    Err(e) => return e,
+	};
 
+	let mut sk = match SK::from_slice(&get_context_all(), data.deref()){
+            Ok(v) => v,
+            Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+	};
+	
+	secret_share.set_element(sk);
+	let sk_bigint = secret_share.to_big_int();
+
+	if (sk_bigint < q_third.div_floor(&BigInt::from(3))) {
+            break;
+	}
+    }
+        
     let sealable = match SgxSealable::try_from(data){
 	Ok(x) => x,
 	Err(ret) => return ret
@@ -1148,8 +1107,8 @@ pub extern "C" fn create_sealed_secret_key(sealed_log: * mut u8, sealed_log_size
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
 
-    println!("{:?}", sealed_log);
 
+    
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -1162,8 +1121,6 @@ pub extern "C" fn verify_sealed_secret_key(sealed_log: * mut u8, sealed_log_size
 	Err(e) => return e
     };
     
-    println!("{:?}", data);
-
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -1201,7 +1158,6 @@ pub extern "C" fn calc_sha256(input_str: *const u8,
                               some_len: usize,
                               hash: &mut [u8;32]) -> sgx_status_t {
 
-    println!("calc_sha256 invoked!");
 
     // First, build a slice for input_str
     let input_slice = unsafe { slice::from_raw_parts(input_str, some_len) };
@@ -1210,8 +1166,6 @@ pub extern "C" fn calc_sha256(input_str: *const u8,
     if input_slice.len() != some_len {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
-
-    println!("Input string len = {}, input len = {}", input_slice.len(), some_len);
 
     // Second, convert the vector to a slice and calculate its SHA256
     let result = rsgx_sha256_slice(&input_slice);
@@ -1242,12 +1196,6 @@ pub extern "C" fn generate_keypair(input_str: *const u8) -> sgx_status_t {
 
     let pubkey = libsecp256k1::PublicKey::from_secret_key(&privkey);
 
-    /*
-    let (privkey, pubkey) = match secp256k1.generate_keypair(&mut thread_rng()){
-	Ok(v) => v,
-	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
-    };
-*/
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -1278,8 +1226,6 @@ pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
     
-    println!("{:?}, {:?}", sk1, sk2);
-
     match sk1.tweak_add_assign(&sk2){
 	Ok(v) => (),
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
@@ -1332,8 +1278,6 @@ pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
     
-    println!("{:?}, {:?}", sk1, sk2);
-
     match sk1.tweak_mul_assign(&sk2){
 	Ok(v) => (),
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
@@ -1402,15 +1346,11 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 				key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
 
-    println!("first message");
-    println!("unseal data");
-    
     let data = match Bytes32::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
     };
 
-    println!("get secret key from data");
     let mut sk = match SK::from_slice(&get_context_all(), data.deref()){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
@@ -1418,10 +1358,12 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 
     let mut secret_share: FE = ECScalar::<SK>::zero();
     secret_share.set_element(sk);
-    
-    //let sk_bigint = secret_share.to_big_int();
+
+    let sk_bigint = secret_share.to_big_int();
     let q_third = FE::q();
-//    assert!(sk_bigint < q_third.div_floor(&BigInt::from(3)));
+    if (sk_bigint > q_third.div_floor(&BigInt::from(3))) {
+	return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    };
     let base: GE = ECPoint::generator();
     let element = secret_share.get_element().clone();
     let public_share = base.scalar_mul(&element);
@@ -1462,9 +1404,6 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
     
-    println!("bignum slice len: {}", pk_commitment_string.len());
-    println!("bignum slice len: {}", zk_pok_commitment_string.len());
-    
     let comm_witness = CommWitness {
         pk_commitment_blind_factor,
         zk_pok_blind_factor,
@@ -1484,34 +1423,10 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
         Err(ret) => return ret
     };
 
-
-    println!("data to sealed log");
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
-
-    
-    
-  //  let encoded_key_gen_first_message = match serde_cbor::to_vec(&key_gen_first_message){
-//	Ok(v) => v,
-//	Err(e) => {
-//	    println!("error: {:?}",e);
-//	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-//		
-//	}
-//    };
-
-//    *msg_size = encoded_key_gen_first_message.len().to_be_bytes();
-  //  let kg1m_slice = encoded_key_gen_first_message.as_slice();
-
-
-//    println!("kg1m slice len: {}", kg1m_slice.len());
-
-    println!("{:?}", sealed_log_out);
-    println!("keygen msg: {:?}", key_gen_first_message_str.as_str());
-
-    println!("key gen first msg into bytes");
 
     let len = key_gen_first_message_str.len();
     let mut plain_str_sized=format!("{}", len);
@@ -1527,15 +1442,6 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-/*    
-    *key_gen_first_msg = match key_gen_first_message_str.into_bytes().as_slice().try_into(){
-	Ok(x) => x,
-	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-    };
-*/
-
-    println!("finished key gen first msg into bytes");
-
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -1543,18 +1449,12 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 				 msg2_str: *const u8, len: usize,
 				 kg_party_one_second_message: &mut [u8;480000] 
-//				 kg_party_one_second_message: &mut [u8;128]
 ) -> sgx_status_t {
 
-    println!("second message");
-
     let str_slice = unsafe { slice::from_raw_parts(msg2_str, len) };
-    println!("got str slice: {:?}", str_slice);
-//    let _ = io::stdout().write(str_slice);
 
     let key_gen_msg2: KeyGenMsg2 = match std::str::from_utf8(&str_slice) {
 	Ok(v) =>{
-	    println!("str from str slice: {}", v);
 	    match serde_json::from_str(v){
 		Ok(v) => v,
 		Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -1563,13 +1463,10 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-    println!("got key_gen_msg_2");
-    
     let user_id = key_gen_msg2.shared_key_id;
 
     let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
 
-    println!("getting first message sealed");
     let data = match FirstMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
@@ -1579,20 +1476,17 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     let comm_witness_public_share = comm_witness.public_share.clone();
     let ec_key_pair = &data.ec_key_pair;
 
-    println!("get dlog proof");
     let key_gen_second_message = match DLogProof::verify(&key_gen_msg2.dlog_proof){
 	Ok(v) => KeyGenSecondMsg { comm_witness },
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
-    println!("get encoded vec");
+
     let encoded_vec = match serde_cbor::to_vec(&key_gen_second_message){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
 
     let ev_len = encoded_vec.len();
-    println!("keygen 2nd msg: {:?}", encoded_vec);
-    println!("keygen 2nd msg len: {}", ev_len);
 
     let (ek, dk) = Paillier::keypair().keys();
     let randomness = Randomness::sample(&ek);
@@ -1612,24 +1506,6 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     let paillier_context = PaillierKeyPair{ ek, dk, encrypted_share, randomness: randomness.0};
 
     let correct_key_proof = NICorrectKeyProof::proof(&paillier_context.dk);
-
-/*
-    let (kg_party_one_second_message, paillier_key_pair, party_one_private): (
-            party1::KeyGenParty1Message2, //public
-            party_one::PaillierKeyPair,   //private
-            party_one::Party1Private,     //private
-    ) =(
-            KeyGenParty1Message2 {
-                ecdh_second_message: key_gen_second_message,
-                ek: paillier_key_pair.ek.clone(),
-                c_key: paillier_key_pair.encrypted_share.clone(),
-                correct_key_proof,
-                range_proof,
-            },
-            paillier_key_pair,
-            party_one_private,
-        );
-     */
 
     let (pdl_statement, pdl_proof, composite_dlog_proof) =
             PaillierKeyPair::pdl_proof(&party_one_private, &paillier_context);
@@ -1653,7 +1529,6 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     let len = plain_str.len();
     let mut plain_str_sized=format!("{}", len);
     let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
-    println!("************ second msg plain len: {}", len);
     plain_str_sized.push_str(&plain_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();
@@ -1663,19 +1538,6 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 	Ok(x) => x,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
-    
-    //    *kg_party_one_second_message =
-    //match plain_str_slice.as_mut_ptr();
-    
-//    println!("second message plain slice: {}", len_out);
-    
-/*
-	MasterKey1::key_gen_second_message(
-            comm_witness,
-            &ec_key_pair,
-            &key_gen_msg2.dlog_proof,
-        );
-*/
 
     let master_key = MasterKey1::set_master_key(
             &BigInt::from(0),
@@ -1691,51 +1553,20 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 	master_key
     };
 
-    println!("get sealable");
     let sealable = match SgxSealable::try_from(second_message_sealed){
 	Ok(x) => x,
 	Err(ret) => return ret
     };
 
-    println!("get sealed");
     let sealed_data = match sealable.to_sealed(){
 	Ok(x) => x,
         Err(ret) => return ret
     };
 
-//    println!("sealed data size: {}", sealed_data.deref().len());
-
-    println!("get sealed log");
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
-
-
-    //*key_gen_first_msg = match key_gen_first_message_str.into_bytes().as_slice().try_into(){
-//        Ok(x) => x,
-//        Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-//    };
-    
-//key_gen_second_message
-
-    //let comm_witness_string = key_gen_second_message.comm_witness.to_hex();
-//    let kg_second_message_str = format!("{}",comm_witness_string);
-
-   // println!("{:?}", sealed_log_out);
-//    println!("keygen 2nd msg: {}", kg_second_message_str.as_str());
-//    println!("keygen 2nd msg len: {}", kg_second_message_str.len());
-
-  //  let kg2m_vec = match serde_cbor::to_vec(&key_gen_second_message){
-//	Ok(v) => v,
-//	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED
-  //  };
-    
-//    *kg_party_one_second_msg = match kg_second_message_str.into_bytes().as_slice().try_into(){
-//	Ok(x) => x,
-//	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-//    };
-
     
     sgx_status_t::SGX_SUCCESS
 }
@@ -1747,15 +1578,10 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			     sign_party_one_first_message: &mut [u8;480000]) -> sgx_status_t {
 
 
-    //    let db = &self.database;
-
     let str_slice = unsafe { slice::from_raw_parts(sign_msg1_str, len) };
-    println!("got str slice: {:?}", str_slice);
-//    let _ = io::stdout().write(str_slice);                                                                                                                                                                                                                                             
 
     let sign_msg1: SignMsg1 = match std::str::from_utf8(&str_slice) {
         Ok(v) =>{
-            println!("str from str slice: {}", v);
             match serde_json::from_str(v){
                 Ok(v) => v,
                 Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -1764,13 +1590,10 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-
-    println!("getting second message sealed");
     let data = match SecondMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
     };
-    
     
     let base: GE = ECPoint::generator();
     let secret_share: FE = ECScalar::new_random();
@@ -1793,7 +1616,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     };
     
     let (sign_party_one_first_msg, eph_ec_key_pair_party1) :
-    //(multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::
+
     (EphKeyGenFirstMsg, EphEcKeyPair) =
 	(
             EphKeyGenFirstMsg {
@@ -1812,7 +1635,6 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     let len = plain_str.len();
     let mut plain_str_sized=format!("{}", len);
     let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
-    println!("************ second msg plain len: {}", len);
     plain_str_sized.push_str(&plain_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();
@@ -1829,29 +1651,22 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         eph_ec_key_pair_party1: eph_ec_key_pair_party1,
     };
 
-    println!("get sealable");
     let sealable = match SgxSealable::try_from(sign_first_sealed){
 	Ok(x) => x,
 	Err(ret) => return ret
     };
 
-    println!("get sealed");
     let sealed_data = match sealable.to_sealed(){
 	Ok(x) => x,
         Err(ret) => return ret
     };
 
-//    println!("sealed data size: {}", sealed_data.deref().len());
-
-    println!("get sealed log");
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
 	
-//    Ok(sign_party_one_first_message)
     sgx_status_t::SGX_SUCCESS
-	
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
@@ -1868,11 +1683,9 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 
 
     let str_slice = unsafe { slice::from_raw_parts(sign_msg2_str, len) };
-    println!("got str slice: {:?}", str_slice);
 
     let sign_msg2: SignMsg2 = match std::str::from_utf8(&str_slice) {
         Ok(v) =>{
-            println!("str from str slice: {}", v);
             match serde_json::from_str(v){
                 Ok(v) => v,
                 Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -1881,18 +1694,10 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-
-    
-
-    println!("getting sealed");
     let ssi = match SignFirstSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
         Err(e) => return e
     };
-
-
-    // Get 2P-Ecdsa data
-//    let ssi: ECDSASignSecondInput = db.get_ecdsa_sign_second_input(user_id)?;
 
     let signature;
     match ssi.shared_key.sign_second_message(
@@ -1936,12 +1741,10 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     let output = SignSecondOut { inner: ws };
 
     let plain_str = serde_json::to_string(&output).unwrap();
-    println!("output_str_len: {}", plain_str.len());
 
     let len = plain_str.len();
     let mut plain_str_sized=format!("{}", len);
     let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
-    println!("************ witness plain len: {}", len);
     plain_str_sized.push_str(&plain_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();

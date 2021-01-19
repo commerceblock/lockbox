@@ -174,21 +174,52 @@ mod tests {
     #[test]
     #[serial]
     fn test_second_message() {
+	use kms::ecdsa::two_party::*;
+	use curv::{BigInt, FE, elliptic::curves::traits::ECScalar};
+	use crate::shared_lib::structs::KeyGenMsg2;
+	    
 	let server = Lockbox::load().unwrap();
 	let shared_key_id = uuid::Uuid::new_v4();
 
 	let expected = 	shared_key_id;
 	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Deposit};
 
-	println!("getting first message...");
 	
 	let (m1_id, m1_msg) = server.first_message(msg).unwrap();
 
-	println!("got first message.");
 	
 	assert_eq!(m1_id, expected);
 
-	println!("first message ret: {:?}", &m1_msg);
+
+	let secret_key : FE = ECScalar::new_random();
 	
+	let (kg_party_two_first_message, kg_ec_key_pair_party2) =
+            MasterKey2::key_gen_first_message_predefined(&secret_key);
+
+	let key_gen_msg2 = KeyGenMsg2 {
+            shared_key_id: shared_key_id,
+            dlog_proof: kg_party_two_first_message.d_log_proof,
+	};
+	
+	let kgp1m2 = server.second_message(key_gen_msg2).unwrap().unwrap();
+
+
+	let key_gen_second_message = MasterKey2::key_gen_second_message(
+            &m1_msg,
+            &kgp1m2,
+	);
+
+
+	let (_, party_two_paillier) = key_gen_second_message.unwrap();
+
+	let master_key = MasterKey2::set_master_key(
+            &BigInt::from(0),
+            &kg_ec_key_pair_party2,
+            &kgp1m2
+		.ecdh_second_message
+		.comm_witness
+		.public_share,
+            &party_two_paillier,
+	);
     }
 }

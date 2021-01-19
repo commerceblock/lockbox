@@ -811,14 +811,10 @@ impl Enclave {
 		let c = plain_ret[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
-		println!("num chars {}",nc_str);
 		let nc = nc_str.parse::<usize>().unwrap();
-		println!("num chars {}",nc);
 		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
 		let size = size_str.parse::<usize>().unwrap();
-		println!("len: {}",&size);
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
-		println!("{}",&msg_str);
 		let kg1m_sgx : KeyGenFirstMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
 		let kg1m_loc : KeyGenFirstMsg = KeyGenFirstMsg_w::from(&kg1m_sgx).inner;
 		let kg1m = party_one::KeyGenFirstMsg{ pk_commitment: kg1m_loc.pk_commitment, zk_pok_commitment: kg1m_loc.zk_pok_commitment };
@@ -835,7 +831,6 @@ impl Enclave {
 	let mut plain_ret = [0u8;480000];
 
 	let msg_2_str = serde_json::to_string(key_gen_msg_2).unwrap();
-	println!("msg2_str_len: {}", msg_2_str.len());
 	
 	let _result = unsafe{
 	    second_message(self.geteid(), &mut enclave_ret,
@@ -851,14 +846,10 @@ impl Enclave {
 		let c = plain_ret[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
-		println!("num chars {}",nc_str);
 		let nc = nc_str.parse::<usize>().unwrap();
-		println!("num chars {}",nc);
 		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
 		let size = size_str.parse::<usize>().unwrap();
-		println!("len: {}",&size);
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
-		println!("{}",&msg_str);
 		let kgm2_sgx : KeyGenParty1Message2_sgx  = serde_json::from_str(&msg_str).unwrap();
 		let kgm2 : party1::KeyGenParty1Message2 = KeyGenParty1Message2_w::from(&kgm2_sgx).inner;
 		Ok(kgm2)
@@ -876,7 +867,6 @@ impl Enclave {
 	let mut plain_ret = [0u8;480000];
 
 	let sign_msg1_str = serde_json::to_string(sign_msg1).unwrap();
-	println!("sign_msg1_str_len: {}", sign_msg1_str.len());
 	
 	let _result = unsafe {
 	    sign_first(self.geteid(), &mut enclave_ret,
@@ -892,14 +882,10 @@ impl Enclave {
 		let c = plain_ret[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
-		println!("num chars {}",nc_str);
 		let nc = nc_str.parse::<usize>().unwrap();
-		println!("num chars {}",nc);
 		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
 		let size = size_str.parse::<usize>().unwrap();
-		println!("len: {}",&size);
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
-		println!("{}",&msg_str);
 		let ekg1m_sgx : EphKeyGenFirstMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
 		let ekg1m : party_one::EphKeyGenFirstMsg = EphKeyGenFirstMsg_w::from(&ekg1m_sgx).inner;
 		Ok((ekg1m, sealed_log_out))
@@ -924,7 +910,6 @@ impl Enclave {
 	let mut plain_ret = [0u8;480000];
 
 	let sign_msg2_str = serde_json::to_string(sign_msg2).unwrap();
-        println!("sign_msg2_str_len: {}", sign_msg2_str.len());
 
 	let _result = unsafe {
 	    sign_second(self.geteid(), &mut enclave_ret,
@@ -940,14 +925,10 @@ impl Enclave {
 		let c = plain_ret[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
-		println!("num chars {}",nc_str);
 		let nc = nc_str.parse::<usize>().unwrap();
-		println!("num chars {}",nc);
 		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
 		let size = size_str.parse::<usize>().unwrap();
-		println!("len: {}",&size);
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
-		println!("{}",&msg_str);
 		let output : SignSecondOut  = serde_json::from_str(&msg_str).unwrap();
 		Ok((output.inner, sealed_log_out))
 	    },
@@ -1140,11 +1121,7 @@ mod tests {
 	let kgm2str = serde_json::to_string(&key_gen_msg2).unwrap();
 	let kgm_2 : KeyGenMsg2 = serde_json::from_str(&kgm2str).unwrap();
 
-	println!("test kgm2str: {}", kgm2str);
-
 	assert!(kgm2str.len() > 0);
-	
-//let kgm2_2 : KeyGenMsg2 =  serde_json::from_str("{\"shared_key_id\":\"c53163a5-26dc-4a60-8079-a9637aa5e27e\",\"dlog_proof\":{\"pk\":{\"x\":\"eafd0728e0657f4db33af34f495c5d0d6e1da309818e1484a2730309b784303c\",\"y\":\"9272cb27d0ddbe35a5f0453b4ed2157922294f99ca90bfd941adbe81e35053ee\"},\"pk_t_rand_commitment\":{\"x\":\"9466739b7e7d2f9b469eb59043c03814945fd7b781d90e98c6f5412de443f96a\",\"y\":\"83b8cb42b2b55597901a2f64fde59dd3b2bc50e702df64cf6c92c0df442325c1\"},\"challenge_response\":\"8c85a25c0da3a35bcbdf544a4928fe63a0fb7be631b2eeb8587008d4ffb0a88c\"yyyyy}}").unwrap();
 	
 	enc.second_message(&mut sealed_log_out, &kgm_2).unwrap();
     }

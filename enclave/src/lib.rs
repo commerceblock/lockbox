@@ -1400,15 +1400,17 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 
 #[no_mangle]
 pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
-				key_gen_first_msg: &mut [u8;128]) -> sgx_status_t {
+				key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
 
     println!("first message");
+    println!("unseal data");
     
     let data = match Bytes32::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
     };
 
+    println!("get secret key from data");
     let mut sk = match SK::from_slice(&get_context_all(), data.deref()){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
@@ -1454,7 +1456,11 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
     let pk_commitment_string = key_gen_first_message.pk_commitment.to_hex();
     let zk_pok_commitment_string = key_gen_first_message.zk_pok_commitment.to_hex();
 
-    let key_gen_first_message_str = format!("{}{}",pk_commitment_string,zk_pok_commitment_string);
+
+    let key_gen_first_message_str = match serde_json::to_string(&key_gen_first_message){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
     
     println!("bignum slice len: {}", pk_commitment_string.len());
     println!("bignum slice len: {}", zk_pok_commitment_string.len());
@@ -1478,7 +1484,8 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
         Err(ret) => return ret
     };
 
-    
+
+    println!("data to sealed log");
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
@@ -1503,13 +1510,31 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 
     println!("{:?}", sealed_log_out);
     println!("keygen msg: {:?}", key_gen_first_message_str.as_str());
+
+    println!("key gen first msg into bytes");
+
+    let len = key_gen_first_message_str.len();
+    let mut plain_str_sized=format!("{}", len);
+    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(),plain_str_sized);
+    plain_str_sized.push_str(&key_gen_first_message_str);
+
+    let mut plain_bytes=plain_str_sized.into_bytes();
+    plain_bytes.resize(256,0);
+
     
-    *key_gen_first_msg = match key_gen_first_message_str.into_bytes().as_slice().try_into(){
+    *key_gen_first_msg  = match plain_bytes.as_slice().try_into(){
 	Ok(x) => x,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-    
+/*    
+    *key_gen_first_msg = match key_gen_first_message_str.into_bytes().as_slice().try_into(){
+	Ok(x) => x,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+*/
+
+    println!("finished key gen first msg into bytes");
 
     sgx_status_t::SGX_SUCCESS
 }

@@ -174,6 +174,21 @@ mod tests {
     #[test]
     #[serial]
     fn test_second_message() {
+	let server = Lockbox::load().unwrap();
+	let shared_key_id = uuid::Uuid::new_v4();
 
+	let expected = 	shared_key_id;
+	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Deposit};
+
+	println!("getting first message...");
+	
+	let (m1_id, m1_msg) = server.first_message(msg).unwrap();
+
+	println!("got first message.");
+	
+	assert_eq!(m1_id, expected);
+
+	println!("first message ret: {:?}", &m1_msg);
+	
     }
 }

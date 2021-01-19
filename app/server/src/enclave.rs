@@ -10,6 +10,7 @@ extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::KeyGenSecondMsg as KeyGenSecondMsg_sgx;
+pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::KeyGenFirstMsg as KeyGenFirstMsg_sgx;
 pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::CommWitness as CommWitness_sgx;
 pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::EphKeyGenFirstMsg as EphKeyGenFirstMsg_sgx; 
 pub use multi_party_ecdsa_client::utilities::zk_pdl_with_slack::PDLwSlackProof as PDLwSlackProof_sgx;
@@ -25,6 +26,7 @@ pub use curv_client::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHProof 
 pub use curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHProof;
 pub use curv_client::GE as GE_sgx;
 pub use curv_client::FE as FE_sgx;
+pub use curv_client::BigInt as BigInt_sgx;
 use uuid::Uuid;
 use kms::ecdsa::two_party::*;
 use num_bigint_dig::{RandomBits};
@@ -67,6 +69,40 @@ impl DerefMut for Enclave {
 pub struct KeyGenFirstMsg{
     pk_commitment: BigInt,
     zk_pok_commitment: BigInt,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct KeyGenFirstMsg_w{
+    inner: KeyGenFirstMsg
+}
+
+impl Deref for KeyGenFirstMsg_w {
+     type Target = KeyGenFirstMsg;
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for KeyGenFirstMsg_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
+
+
+impl From<&KeyGenFirstMsg_sgx> for KeyGenFirstMsg_w {
+    fn from(item: &KeyGenFirstMsg_sgx) -> Self {
+
+	let pk_commitment = BigInt_w::from(&item.pk_commitment).inner;
+	let zk_pok_commitment = BigInt_w::from(&item.zk_pok_commitment).inner;
+	
+	let inner = KeyGenFirstMsg {
+	    pk_commitment,
+	    zk_pok_commitment,
+	};
+
+	Self { inner }
+    }
 }
 
 pub struct KeyGenParty1Message2_w {
@@ -449,6 +485,8 @@ impl From<&EphKeyGenFirstMsg_sgx> for EphKeyGenFirstMsg_w {
     }
 }
 
+
+
 struct GE_w {
     inner: GE
 }
@@ -600,8 +638,8 @@ impl DerefMut for BigInt_w {
     }
 }
 
-impl From<&num_bigint_dig::BigInt> for BigInt_w {
-    fn from(item: &num_bigint_dig::BigInt) -> Self {
+impl From<&BigInt_sgx> for BigInt_w {
+    fn from(item: &BigInt_sgx) -> Self {
 	let item_vec : Vec::<u8> = item.to_signed_bytes_be();
 	let inner : BigInt = From::from(item_vec.as_slice());
 	Self { inner }
@@ -759,7 +797,7 @@ impl Enclave {
     {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	let mut sealed_log_out = [0u8; 8192];
-	let mut plain_ret = [0u8;128];
+	let mut plain_ret = [0u8;256];
 
 	let _result = unsafe {
 	    first_message(self.geteid(), &mut enclave_ret,
@@ -770,11 +808,20 @@ impl Enclave {
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
-		let pk_comm_str = std::str::from_utf8(&plain_ret[0..64]).unwrap();
-		let pk_commitment = BigInt::from_hex(&pk_comm_str);
-		let zk_pok_comm_str = std::str::from_utf8(&plain_ret[64..128]).unwrap();
-		let zk_pok_commitment = BigInt::from_hex(&zk_pok_comm_str);
-		let kg1m = party_one::KeyGenFirstMsg{pk_commitment, zk_pok_commitment};
+		let c = plain_ret[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		println!("num chars {}",nc_str);
+		let nc = nc_str.parse::<usize>().unwrap();
+		println!("num chars {}",nc);
+		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		println!("len: {}",&size);
+		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		println!("{}",&msg_str);
+		let kg1m_sgx : KeyGenFirstMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
+		let kg1m_loc : KeyGenFirstMsg = KeyGenFirstMsg_w::from(&kg1m_sgx).inner;
+		let kg1m = party_one::KeyGenFirstMsg{ pk_commitment: kg1m_loc.pk_commitment, zk_pok_commitment: kg1m_loc.zk_pok_commitment };
 		Ok((kg1m, sealed_log_out))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
@@ -1094,6 +1141,8 @@ mod tests {
 	let kgm_2 : KeyGenMsg2 = serde_json::from_str(&kgm2str).unwrap();
 
 	println!("test kgm2str: {}", kgm2str);
+
+	assert!(kgm2str.len() > 0);
 	
 //let kgm2_2 : KeyGenMsg2 =  serde_json::from_str("{\"shared_key_id\":\"c53163a5-26dc-4a60-8079-a9637aa5e27e\",\"dlog_proof\":{\"pk\":{\"x\":\"eafd0728e0657f4db33af34f495c5d0d6e1da309818e1484a2730309b784303c\",\"y\":\"9272cb27d0ddbe35a5f0453b4ed2157922294f99ca90bfd941adbe81e35053ee\"},\"pk_t_rand_commitment\":{\"x\":\"9466739b7e7d2f9b469eb59043c03814945fd7b781d90e98c6f5412de443f96a\",\"y\":\"83b8cb42b2b55597901a2f64fde59dd3b2bc50e702df64cf6c92c0df442325c1\"},\"challenge_response\":\"8c85a25c0da3a35bcbdf544a4928fe63a0fb7be631b2eeb8587008d4ffb0a88c\"yyyyy}}").unwrap();
 	
@@ -1112,8 +1161,8 @@ mod tests {
 	let ns = n1 + n2;
 	let ns2 = ns + 1;
 	
-	let nbi1 : num_bigint_dig::BigInt = From::from(n1);
-	let nbi2 : num_bigint_dig::BigInt = From::from(n2);
+	let nbi1 : BigInt_sgx = From::from(n1);
+	let nbi2 : BigInt_sgx = From::from(n2);
 	let nbis = nbi1 + nbi2;
 
 	

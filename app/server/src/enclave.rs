@@ -1126,9 +1126,6 @@ mod tests {
 	enc.second_message(&mut sealed_log_out, &kgm_2).unwrap();
     }
 
-
-
-    
     #[test]
     fn test_convert_bigint() {
 	use num_bigint_dig::{ToBigInt, Sign};

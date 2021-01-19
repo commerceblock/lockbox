@@ -52,7 +52,7 @@ enclave {
 
         public sgx_status_t first_message([in, size=8192] uint8_t* sealed_log_in,
 		       	    		  [out, size=8192] uint8_t* sealed_log_out,
-				          [out, size=128] uint8_t* plain_out);
+				          [out, size=256] uint8_t* plain_out);
 
         public sgx_status_t second_message([in, size=8192] uint8_t* sealed_log_in,
 		       	    		  [out, size=8192] uint8_t* sealed_log_out,

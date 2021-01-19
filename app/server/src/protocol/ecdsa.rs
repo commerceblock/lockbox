@@ -120,8 +120,6 @@ impl Ecdsa for Lockbox {
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(&key_gen_msg2.shared_key_id)?;
 	
         let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
-
-	println!("sealed secrets: {:?} ", &sealed_secrets);
 	
 	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
@@ -139,32 +137,17 @@ impl Ecdsa for Lockbox {
 
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(&sign_msg1.shared_key_id)?;
 	
-//	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
 
 	match enc.sign_first(&mut sealed_secrets, &sign_msg1) {
 	    Ok(x) => {
 		let sealed_log = &x.1;
 		self.database.put(user_db_key, &x.1)?;
-		//		Ok(Some(x))
 		return Ok(Some(x.0))
 	    },
 	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
 	}
 	
-	//To go outside sgx
-	/*
-	db.update_ecdsa_sign_first(
-            user_id,
-            sign_msg1.eph_key_gen_first_message_party_two,
-            eph_ec_key_pair_party1,
-        )?;
-	 */
-//	sign_party_one_first_msg = sign_party_one_first_message;
-        
-	//party_one::EphKeyGenFirstMsg
-	// Ok(sign_party_one_first_msg)
-//	Ok(None)
     }
 
     fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Option<Vec<Vec<u8>>>> {

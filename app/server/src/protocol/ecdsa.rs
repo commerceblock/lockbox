@@ -23,12 +23,13 @@ use curv::cryptographic_primitives::proofs::sigma_dlog::*;
 use crate::Key;
 use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, EncryptedPairs, Proof};
 use paillier::EncryptionKey;
+use rocksdb::ColumnFamily;
 
 use std::convert::TryInto;
 
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
-    fn get_sealed_secrets(&self, _user_id: &Uuid) -> Result<([u8;8192], Key)>;
+    fn get_sealed_secrets(&self, _cf: &ColumnFamily, _user_id: &Uuid) -> Result<([u8;8192], Key)>;
 	
     fn master_key(&self, user_id: Uuid) -> Result<()>;
 
@@ -42,7 +43,7 @@ pub trait Ecdsa {
 }
 
 impl Ecdsa for Lockbox {
-    fn get_sealed_secrets(&self, _user_id: &Uuid) -> Result<([u8;8192], Key)>{
+    fn get_sealed_secrets(&self, _cf: &ColumnFamily, _user_id: &Uuid) -> Result<([u8;8192], Key)>{
 
 	let db = &self.database;
 
@@ -52,7 +53,7 @@ impl Ecdsa for Lockbox {
         let enc = Enclave::new().unwrap();
 
 
-        match self.database.get(&user_db_key) {
+        match self.database.get_cf(_cf, &user_db_key) {
             Ok(Some(x)) => match x.try_into(){
 		Ok(x) => Ok((x,user_db_key.clone())),
 		Err(e) => return Err(LockboxError::Generic(format!("sealed secrets format error"))),
@@ -84,14 +85,15 @@ impl Ecdsa for Lockbox {
 
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
         let user_db_key = &Key::from_uuid(&key_gen_msg1.shared_key_id);
-	match self.database.get(user_db_key) {
+	let cf = &self.database.cf_handle("ecdsa_first_message").unwrap();
+	match self.database.get_cf(cf, user_db_key) {
             Ok(data) => match data {
 		Some(x) => {
 		    if x.len() > 0 {
 			return Err(LockboxError::Generic(format!("Key Generation already completed for ID {}", user_db_key)))
 		    } 
 		},
-		None => self.database.put(user_db_key, &[0u8;0])?
+		None => self.database.put_cf(cf, user_db_key, &[0u8;0])?
             },
 	    Err(e) => return Err(e.into()) 
         };
@@ -110,14 +112,15 @@ impl Ecdsa for Lockbox {
 
         let user_db_key = Key::from_uuid(&key_gen_msg1.shared_key_id);
 	//Store the secrets in the DB
-	self.database.put(user_db_key, &sealed_secrets)?;
+	self.database.put_cf(cf, user_db_key, &sealed_secrets)?;
 
 	Ok((key_gen_msg1.shared_key_id, key_gen_first_mess))
      }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>> {
-
-	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(&key_gen_msg2.shared_key_id)?;
+	let cf_in = &self.database.cf_handle("ecdsa_first_message").unwrap();
+	let cf_out = &self.database.cf_handle("ecdsa_second_message").unwrap();
+	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &key_gen_msg2.shared_key_id)?;
 	
         let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
 	
@@ -126,7 +129,7 @@ impl Ecdsa for Lockbox {
 	
 	match enc.second_message(&mut sealed_secrets, &key_gen_msg2) {
 	    Ok(x) => {
-		self.database.put(user_db_key, &sealed_log_out)?;
+		self.database.put_cf(cf_out, user_db_key, &sealed_log_out)?;
 		Ok(Some(x.0))
 	    },
 	    Err(e) => Err(LockboxError::Generic(format!("generating second message: {}", e))),
@@ -134,15 +137,16 @@ impl Ecdsa for Lockbox {
     }
 
     fn sign_first(&self, sign_msg1: SignMsg1) -> Result<Option<party_one::EphKeyGenFirstMsg>> {
-
-	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(&sign_msg1.shared_key_id)?;
+	let cf_in = &self.database.cf_handle("ecdsa_second_message").unwrap();
+	let cf_out = &self.database.cf_handle("ecdsa_sign_first").unwrap();
+	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg1.shared_key_id)?;
 	
 	let enc = Enclave::new().unwrap();
 
 	match enc.sign_first(&mut sealed_secrets, &sign_msg1) {
 	    Ok(x) => {
 		let sealed_log = &x.1;
-		self.database.put(user_db_key, &x.1)?;
+		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		return Ok(Some(x.0))
 	    },
 	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
@@ -151,7 +155,9 @@ impl Ecdsa for Lockbox {
     }
 
     fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Option<Vec<Vec<u8>>>> {
-	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(&sign_msg2.shared_key_id)?;
+	let cf_in = &self.database.cf_handle("ecdsa_sign_first").unwrap();
+	let cf_out = &self.database.cf_handle("ecdsa_sign_second").unwrap();
+	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg2.shared_key_id)?;
 	
 
 	let mut sealed_log_out = [0u8;8192];
@@ -160,7 +166,7 @@ impl Ecdsa for Lockbox {
 	
 	match enc.sign_second(&mut sealed_secrets, &sign_msg2) {
 	    Ok(x) => {
-		self.database.put(user_db_key, &x.1)?;
+		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		return Ok(Some(x.0))
 	    },
 	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),

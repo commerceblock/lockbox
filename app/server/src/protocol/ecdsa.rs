@@ -127,7 +127,7 @@ impl Ecdsa for Lockbox {
 	match enc.second_message(&mut sealed_secrets, &key_gen_msg2) {
 	    Ok(x) => {
 		self.database.put(user_db_key, &sealed_log_out)?;
-		Ok(Some(x))
+		Ok(Some(x.0))
 	    },
 	    Err(e) => Err(LockboxError::Generic(format!("generating second message: {}", e))),
 	}

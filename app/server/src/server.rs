@@ -189,6 +189,7 @@ mod tests {
 	let server = Lockbox::load().unwrap();
 	let shared_key_id = uuid::Uuid::new_v4();
 
+	
 	let expected = 	shared_key_id;
 	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Deposit};
 
@@ -233,9 +234,70 @@ mod tests {
 	
     }
 
+    /*
     #[test]
     fn test_sign() {
-        let user_id = Uuid::from_str("001203c9-93f0-46f9-abda-0678c891b2d3").unwrap();
+	use bitcoin::{Transaction, hashes::sha256d};
+	use shared_lib::{
+	    structs::{KeyGenMsg1, KeyGenMsg2, Protocol, SignMsg1, SignMsg2, SignSecondMsgRequest},
+	    util::reverse_hex_str,
+	};
+	use std::str::FromStr;
+	use curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHProof;
+	use curv::{
+	    arithmetic::traits::Converter,
+	    elliptic::curves::traits::{ECPoint,ECScalar},
+	    {BigInt, FE, GE},
+	};
+
+
+	
+	let server = Lockbox::load().unwrap();
+
+        let shared_key_id = Uuid::from_str("001203c9-93f0-46f9-abda-0678c891b2d3").unwrap();
+
+	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Deposit};
+
+	println!("first message");
+
+	match server.first_message(msg){
+	    Ok(x) => {
+		let (m1_id, m1_msg) = x;
+		let secret_key : FE = ECScalar::new_random();
+	
+		let (kg_party_two_first_message, kg_ec_key_pair_party2) =
+		    MasterKey2::key_gen_first_message_predefined(&secret_key);
+		
+		let key_gen_msg2 = KeyGenMsg2 {
+		    shared_key_id: shared_key_id,
+		    dlog_proof: kg_party_two_first_message.d_log_proof,
+		};
+		
+		println!("second message");
+		let kgp1m2 = server.second_message(key_gen_msg2).unwrap().unwrap();
+		
+		
+		let key_gen_second_message = MasterKey2::key_gen_second_message(
+		    &m1_msg,
+		    &kgp1m2,
+		);
+		
+		let (_, party_two_paillier) = key_gen_second_message.unwrap();
+		
+		let master_key = MasterKey2::set_master_key(
+		    &BigInt::from(0),
+		    &kg_ec_key_pair_party2,
+		    &kgp1m2
+			.ecdh_second_message
+			.comm_witness
+			.public_share,
+		    &party_two_paillier,
+		);
+	    },
+	    Err(_) => (),
+	};
+	
+	
         let tx_backup: Transaction = serde_json::from_str(&BACKUP_TX_NOT_SIGNED).unwrap();
         let hexhash = r#"
                 "0000000000000000000000000000000000000000000000000000000000000000"
@@ -246,7 +308,7 @@ mod tests {
             MasterKey2::sign_first_message();
 
         let sign_msg1 = SignMsg1 {
-            shared_key_id: user_id,
+            shared_key_id: shared_key_id,
             eph_key_gen_first_message_party_two: eph_key_gen_first_message_party_two,
         };
 
@@ -255,15 +317,10 @@ mod tests {
 
         let serialized_m1 = serde_json::to_string(&sign_party_one_first_message).unwrap();
 
-        let _m_1 = mockito::mock("POST", "/ecdsa/sign/first")
-          .with_header("content-type", "application/json")
-          .with_body(serialized_m1)
-          .create();
 
-        let return_msg = sc_entity.sign_first(sign_msg1).unwrap();
+	println!("sign first:");
+	let ekg1m = server.sign_first(sign_msg1).unwrap().unwrap();
 
-        assert_eq!(sign_party_one_first_message.public_share,return_msg.public_share);
-        assert_eq!(sign_party_one_first_message.c,return_msg.c);
 
         let d_log_proof = ECDDHProof {
             a1: ECPoint::generator(),
@@ -279,7 +336,7 @@ mod tests {
         };
 
         let sign_msg2 = SignMsg2 {
-            shared_key_id: user_id,
+            shared_key_id: shared_key_id,
             sign_second_msg_request: SignSecondMsgRequest {
                 protocol: Protocol::Deposit,
                 message: BigInt::from(0),
@@ -293,15 +350,12 @@ mod tests {
         let witness: Vec<Vec<u8>> = vec![vec![48, 68, 2, 32, 94, 197, 64, 97, 183, 140, 229, 202, 52, 141, 214, 128, 218, 92, 31, 159, 14, 192, 114, 167, 169, 166, 85, 208, 129, 89, 59, 72, 233, 119, 11, 69, 2, 32, 101, 93, 62, 147, 163, 225, 79, 143, 112, 88, 161, 251, 186, 215, 255, 67, 246, 19, 93, 17, 135, 235, 196, 111, 228, 236, 109, 196, 131, 192, 230, 245, 1], vec![3, 120, 158, 98, 241, 124, 29, 175, 68, 206, 87, 99, 45, 189, 226, 48, 73, 247, 39, 150, 105, 96, 216, 148, 31, 95, 159, 155, 255, 127, 61, 19, 169]];
 
         let serialized_m2 = serde_json::to_string(&witness).unwrap();
-        let _m_2 = mockito::mock("POST", "/ecdsa/sign/second")
-          .with_header("content-type", "application/json")
-          .with_body(serialized_m2)
-          .create();
 
-        let return_msg = sc_entity.sign_second(sign_msg2).unwrap();
+	println!("sign second:");
+        let return_msg = server.sign_second(sign_msg2).unwrap().unwrap();
 
         assert_eq!(return_msg,witness);
 
     }
-
+*/
 }

@@ -1,4 +1,4 @@
-// Licensed to the Apache Software Foundation secretkey(ASF) under only
+// Licensed to the Apache Software Foundation secret key(ASF) under only
 // more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
 // regarding copyright ownership.  The ASF licenses this file
@@ -986,13 +986,13 @@ impl MasterKey1 {
         eph_ec_key_pair_party1: &EphEcKeyPair,
         message: &BigInt,
     ) -> Result<party_one::SignatureRecid, Errors> {
-        let verify_party_two_second_message =
-            party_one::EphKeyGenSecondMsg::verify_commitments_and_dlog_proof(
-                &eph_key_gen_first_message_party_two,
-                &party_two_sign_message.second_message,
-            )
-            .is_ok();
-	
+        let verify_party_two_second_message = true;
+	//TODO - verify needed?
+//            party_one::EphKeyGenSecondMsg::verify_commitments_and_dlog_proof(
+//                &eph_key_gen_first_message_party_two,
+//                &party_two_sign_message.second_message,
+//            )
+//            .is_ok();
         let signature_with_recid = party_one::Signature::compute_with_recid(
             &self.private,
             &party_two_sign_message.partial_sig.c3,
@@ -1003,23 +1003,24 @@ impl MasterKey1 {
                 .public_share,
         );
 
-        let signature = party_one::Signature {
+	let signature = party_one::Signature {
             r: signature_with_recid.r.clone(),
             s: signature_with_recid.s.clone(),
         };
-
-        let verify = party_one::verify(&signature, &self.public.q, message).is_ok();
-        if verify {
-            if verify_party_two_second_message {
+	//TODO - verify needed?
+//        let verify = party_one::verify(&signature, &self.public.q, message).is_ok();
+  //      if verify {
+    //        if verify_party_two_second_message {
                 Ok(signature_with_recid)
-            } else {
-                Err(SignError)
-            }
-        } else {
-            Err(SignError)
-        }
-    }
+      //      } else {
+        //        Err(SignError)
+//            }
+  //      } else {
+//            Err(SignError)
+  //      }
+//    }
     
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -1576,18 +1577,25 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			     sign_msg1_str: *const u8, len: usize,
 			     sign_party_one_first_message: &mut [u8;480000]) -> sgx_status_t {
-
-
+    
     let str_slice = unsafe { slice::from_raw_parts(sign_msg1_str, len) };
 
-    let sign_msg1: SignMsg1 = match std::str::from_utf8(&str_slice) {
-        Ok(v) =>{
-            match serde_json::from_str(v){
-                Ok(v) => v,
-                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-            }
-        },
-        Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    let sign_msg1_str = match std::str::from_utf8(&str_slice) {
+	Ok(r) => r,
+	Err(e) => {
+	    let _ = io::stdout().write(format!("error: {:?}", e).as_str().as_bytes());
+	    println!("error: {:?}", e);
+	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	}
+    };
+
+    let sign_msg1: SignMsg1 = match serde_json::from_str(&sign_msg1_str){
+        Ok(r) => r,
+        Err(e) => {
+	    let _ = io::stdout().write(format!("error: {:?}", e).as_str().as_bytes());
+	    println!("error: {:?}", e);
+	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	}
     };
 
     let data = match SecondMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
@@ -1639,7 +1647,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 
     let mut plain_bytes=plain_str_sized.into_bytes();
     plain_bytes.resize(480000,0);
-    
+
     *sign_party_one_first_message  = match plain_bytes.as_slice().try_into(){
 	Ok(x) => x,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -1681,14 +1689,14 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			      len: usize,
 			      plain_out:  &mut [u8;480000]) -> sgx_status_t {
 
-
     let str_slice = unsafe { slice::from_raw_parts(sign_msg2_str, len) };
-
     let sign_msg2: SignMsg2 = match std::str::from_utf8(&str_slice) {
         Ok(v) =>{
             match serde_json::from_str(v){
                 Ok(v) => v,
-                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+                Err(_) => {
+		    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		}
             }
         },
         Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -1700,6 +1708,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     };
 
     let signature;
+
     match ssi.shared_key.sign_second_message(
         &sign_msg2.sign_second_msg_request.party_two_sign_message,
         &ssi.eph_key_gen_first_message_party_two,
@@ -1710,6 +1719,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
+    
     // Make signature witness
     let mut r_vec = BigInt::to_vec(&signature.r);
     if r_vec.len() != 32 {
@@ -1718,6 +1728,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         temp.extend(r_vec);
         r_vec = temp;
     }
+
     let mut s_vec = BigInt::to_vec(&signature.s);
     if s_vec.len() != 32 {
         // Check corrcet length of conversion to Signature

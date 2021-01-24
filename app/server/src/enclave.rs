@@ -1,10 +1,11 @@
+
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
-use crate::shared_lib::structs::{KeyGenMsg2, SignMsg1, SignMsg2};
+use crate::shared_lib::structs::{KeyGenMsg2, SignMsg1, SignMsg2, Protocol, SignSecondMsgRequest};
 
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
@@ -12,15 +13,16 @@ pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::KeyGenSecondMsg as KeyGenSecondMsg_sgx;
 pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::KeyGenFirstMsg as KeyGenFirstMsg_sgx;
 pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::CommWitness as CommWitness_sgx;
-pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::EphKeyGenFirstMsg as EphKeyGenFirstMsg_sgx; 
+pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_one::EphKeyGenFirstMsg as EphKeyGenFirstMsg_sgx;
+pub use multi_party_ecdsa_client::protocols::two_party_ecdsa::lindell_2017::party_two as party_two_sgx; 
 pub use multi_party_ecdsa_client::utilities::zk_pdl_with_slack::PDLwSlackProof as PDLwSlackProof_sgx;
 pub use multi_party_ecdsa_client::utilities::zk_pdl_with_slack::PDLwSlackStatement as PDLwSlackStatement_sgx;
 pub use multi_party_ecdsa::utilities::zk_pdl_with_slack::{PDLwSlackStatement, PDLwSlackProof};
 pub use kms_sgx::ecdsa::two_party::party1::KeyGenParty1Message2 as KeyGenParty1Message2_sgx;
+pub use kms_sgx::ecdsa::two_party::party2 as party2_sgx;
 use curv::{BigInt, FE, GE, elliptic::curves::traits::{ECPoint, ECScalar},
 	   arithmetic::traits::Converter,
 	   cryptographic_primitives::proofs::sigma_dlog::{DLogProof,ProveDLog}};
-
 pub use curv_client::cryptographic_primitives::proofs::sigma_dlog::DLogProof as DLogProof_sgx;
 pub use curv_client::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHProof as ECDDHProof_sgx;
 pub use curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHProof;
@@ -63,6 +65,347 @@ impl DerefMut for Enclave {
      fn deref_mut(&mut self) -> &mut Self::Target {
      	&mut self.inner
      }
+}
+
+mod party_one_enc {
+    use super::*;
+
+    pub struct EphKeyGenFirstMsg_w {
+	pub inner: party_one::EphKeyGenFirstMsg
+    }
+    
+    impl Deref for EphKeyGenFirstMsg_w {
+	type Target = party_one::EphKeyGenFirstMsg;
+	fn deref(&self) -> &Self::Target {
+	    &self.inner
+	}
+    }
+    
+    impl DerefMut for EphKeyGenFirstMsg_w {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+	    &mut self.inner
+	}
+    }
+
+    /*
+    #[derive(Debug, Serialize, Deserialize)]
+    pub struct EphKeyGenFirstMsg {
+	pub d_log_proof: ECDDHProof,
+	pub public_share: GE,
+	pub c: GE, //c = secret_share * base_point2                                                                                                                                                                                                                                            
+    }
+     */
+    
+    impl From<&EphKeyGenFirstMsg_sgx> for EphKeyGenFirstMsg_w {
+	fn from(item: &EphKeyGenFirstMsg_sgx) -> Self {
+	    let d_log_proof = ECDDHProof_w::from(&item.d_log_proof).inner;
+	    let public_share = GE_w::from(&item.public_share).inner;
+	    let c = GE_w::from(&item.c).inner;
+
+	    Self { inner:  party_one::EphKeyGenFirstMsg{ d_log_proof, public_share, c } }
+	}
+    }
+}
+
+mod party_two_enc {
+    use super::*;
+
+    pub struct EphKeyGenFirstMsg_sgx_w {
+	pub inner: party_two_sgx::EphKeyGenFirstMsg
+    }
+
+    impl Deref for EphKeyGenFirstMsg_sgx_w {
+	type Target = party_two_sgx::EphKeyGenFirstMsg;
+	fn deref(&self) -> &Self::Target {
+	    &self.inner
+	}
+    }
+
+    impl DerefMut for EphKeyGenFirstMsg_sgx_w {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+	    &mut self.inner
+	}
+    }
+    
+    impl From<&party_two::EphKeyGenFirstMsg> for EphKeyGenFirstMsg_sgx_w {
+	fn from(item: &party_two::EphKeyGenFirstMsg) -> Self {
+	    let pk_commitment = BigInt_sgx_w::from(&item.pk_commitment).inner;
+	    let zk_pok_commitment = BigInt_sgx_w::from(&item.pk_commitment).inner;
+	    
+	    Self { inner:  party_two_sgx::EphKeyGenFirstMsg{ pk_commitment, zk_pok_commitment } }
+	}
+    }
+
+/*
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct EphCommWitness {
+	pub pk_commitment_blind_factor: BigInt,
+	pub zk_pok_blind_factor: BigInt,
+	pub public_share: GE,
+	pub d_log_proof: ECDDHProof,
+	pub c: GE, //c = secret_share * base_point2
+    }
+*/
+
+    struct EphCommWitness_sgx_w {
+	inner: party_two_sgx::EphCommWitness
+    }
+    
+    impl Deref for EphCommWitness_sgx_w {
+	type Target = party_two_sgx::EphCommWitness;
+	fn deref(&self) -> &Self::Target {
+     	    &self.inner
+	}
+    }
+    
+    impl DerefMut for EphCommWitness_sgx_w {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+     	    &mut self.inner
+	}
+    }
+    
+    impl From<&party_two::EphCommWitness> for EphCommWitness_sgx_w {
+	fn from(item: &party_two::EphCommWitness) -> Self {
+	    let pk_commitment_blind_factor = BigInt_sgx_w::from(&item.pk_commitment_blind_factor).inner;
+	    let zk_pok_blind_factor = BigInt_sgx_w::from(&item.zk_pok_blind_factor).inner;
+	    let public_share = GE_sgx_w::from(&item.public_share).inner;
+	    let d_log_proof = ECDDHProof_sgx_w::from(&item.d_log_proof).inner;
+	    let c = GE_sgx_w::from(&item.c).inner;
+	    
+	    Self { inner: party_two_sgx::EphCommWitness { pk_commitment_blind_factor, zk_pok_blind_factor, public_share, d_log_proof, c } }
+	    
+	}
+    }
+
+
+
+    pub struct ECDDHProof_sgx_w {
+	pub inner: ECDDHProof_sgx
+    }
+
+    impl Deref for ECDDHProof_sgx_w {
+	type Target = ECDDHProof_sgx;
+	fn deref(&self) -> &Self::Target {
+	    &self.inner
+	}
+    }
+
+    impl DerefMut for ECDDHProof_sgx_w {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+	    &mut self.inner
+	}
+    }
+    
+    impl From<&ECDDHProof> for ECDDHProof_sgx_w {
+	fn from(item: &ECDDHProof) -> Self {
+	    let a1 = GE_sgx_w::from(&item.a1).inner;
+	    let a2 = GE_sgx_w::from(&item.a1).inner;
+	    let z = FE_sgx_w::from(&item.z).inner;
+	    
+	    Self { inner:  ECDDHProof_sgx{ a1, a2, z } }
+	}
+    }
+
+    
+
+
+    pub struct EphKeyGenSecondMsg_sgx_w {
+	pub inner: party_two_sgx::EphKeyGenSecondMsg
+    }
+
+    impl Deref for EphKeyGenSecondMsg_sgx_w {
+	type Target = party_two_sgx::EphKeyGenSecondMsg;
+	fn deref(&self) -> &Self::Target {
+	    &self.inner
+	}
+    }
+
+    impl DerefMut for EphKeyGenSecondMsg_sgx_w {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+	    &mut self.inner
+	}
+    }
+    
+    impl From<&party_two::EphKeyGenSecondMsg> for EphKeyGenSecondMsg_sgx_w {
+	fn from(item: &party_two::EphKeyGenSecondMsg) -> Self {
+	    let comm_witness = party_two_enc::EphCommWitness_sgx_w::from(&item.comm_witness).inner;
+	    
+	    Self { inner:  party_two_sgx::EphKeyGenSecondMsg{ comm_witness } }
+	}
+    }
+
+
+
+
+    pub struct PartialSig_sgx_w {
+	pub inner: party_two_sgx::PartialSig
+    }
+
+    impl Deref for PartialSig_sgx_w {
+	type Target = party_two_sgx::PartialSig;
+	fn deref(&self) -> &Self::Target {
+	    &self.inner
+	}
+    }
+
+    impl DerefMut for PartialSig_sgx_w {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+	    &mut self.inner
+	}
+    }
+    
+    impl From<&party_two::PartialSig> for PartialSig_sgx_w {
+	fn from(item: &party_two::PartialSig) -> Self {
+	    let c3 = BigInt_sgx_w::from(&item.c3).inner;
+	    
+	    Self { inner:  party_two_sgx::PartialSig{ c3 } }
+	}
+    }
+    
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SignMsg1_sgx {
+    pub shared_key_id: Uuid,
+    pub eph_key_gen_first_message_party_two: party_two_sgx::EphKeyGenFirstMsg,
+}
+
+pub struct SignMsg1_sgx_w {
+    inner: SignMsg1_sgx
+}
+
+impl Deref for SignMsg1_sgx_w {
+     type Target = SignMsg1_sgx;
+     fn deref(&self) -> &Self::Target {
+	&self.inner
+     }
+}
+
+impl DerefMut for SignMsg1_sgx_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+	&mut self.inner
+     }
+}
+
+impl From<&SignMsg1> for SignMsg1_sgx_w {
+    fn from(item: &SignMsg1) -> Self {
+
+	let shared_key_id = item.shared_key_id;
+	let eph_key_gen_first_message_party_two =
+	    party_two_enc::EphKeyGenFirstMsg_sgx_w::from(&item.eph_key_gen_first_message_party_two).inner;
+	
+	Self { inner: SignMsg1_sgx { shared_key_id, eph_key_gen_first_message_party_two } }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SignMsg2_sgx {
+    pub shared_key_id: Uuid,
+    pub sign_second_msg_request: SignSecondMsgRequest_sgx,
+}
+
+pub struct SignMsg2_sgx_w {
+    inner: SignMsg2_sgx
+}
+
+impl Deref for SignMsg2_sgx_w {
+     type Target = SignMsg2_sgx;
+     fn deref(&self) -> &Self::Target {
+	&self.inner
+     }
+}
+
+impl DerefMut for SignMsg2_sgx_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+	&mut self.inner
+     }
+}
+
+impl From<&SignMsg2> for SignMsg2_sgx_w {
+    fn from(item: &SignMsg2) -> Self {
+
+	let shared_key_id = item.shared_key_id;
+	let sign_second_msg_request =
+	    SignSecondMsgRequest_sgx_w::from(&item.sign_second_msg_request).inner;
+	
+	Self { inner: SignMsg2_sgx { shared_key_id, sign_second_msg_request } }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct SignSecondMsgRequest_sgx {
+    pub protocol: Protocol,
+    pub message: BigInt_sgx,
+    pub party_two_sign_message: party2_sgx::SignMessage,
+}
+
+pub struct SignSecondMsgRequest_sgx_w {
+    inner: SignSecondMsgRequest_sgx
+}
+
+impl Deref for SignSecondMsgRequest_sgx_w {
+     type Target = SignSecondMsgRequest_sgx;
+     fn deref(&self) -> &Self::Target {
+	&self.inner
+     }
+}
+
+impl DerefMut for SignSecondMsgRequest_sgx_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+	&mut self.inner
+     }
+}
+
+impl From<&SignSecondMsgRequest> for SignSecondMsgRequest_sgx_w {
+    fn from(item: &SignSecondMsgRequest) -> Self {
+
+	let message = BigInt_sgx_w::from(&item.message).inner;
+	let party_two_sign_message = party2_enc::SignMessage_sgx_w::from(&item.party_two_sign_message).inner;
+	
+	Self { inner: SignSecondMsgRequest_sgx { protocol: item.protocol, message, party_two_sign_message } }
+    }
+}
+
+/*
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SignMessage {
+    pub partial_sig: party_two::PartialSig,
+    pub second_message: party_two::EphKeyGenSecondMsg,
+}
+ */
+
+mod party2_enc {
+    use super::*;
+
+    pub struct SignMessage_sgx_w {
+	pub inner: party2_sgx::SignMessage
+    }
+    
+    impl Deref for SignMessage_sgx_w {
+	type Target = party2_sgx::SignMessage;
+	fn deref(&self) -> &Self::Target {
+	    &self.inner
+	}
+    }
+    
+    impl DerefMut for SignMessage_sgx_w {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+	    &mut self.inner
+	}
+    }
+    
+    impl From<&party2::SignMessage> for SignMessage_sgx_w {
+	fn from(item: &party2::SignMessage) -> Self {
+	    let partial_sig = party_two_enc::PartialSig_sgx_w::from(&item.partial_sig).inner;
+	    let second_message = party_two_enc::EphKeyGenSecondMsg_sgx_w::from(&item.second_message).inner;
+	    
+	    Self { inner: party2_sgx::SignMessage { partial_sig, second_message } }
+	}
+    }
+
+    
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -456,37 +799,6 @@ impl From<&CommWitness_sgx> for CommWitness_w {
     }
 }
 
-struct EphKeyGenFirstMsg_w {
-    inner: party_one::EphKeyGenFirstMsg
-}
-
-impl Deref for EphKeyGenFirstMsg_w {
-     type Target = party_one::EphKeyGenFirstMsg;
-     fn deref(&self) -> &Self::Target {
-     	&self.inner
-     }
-}
-
-impl DerefMut for EphKeyGenFirstMsg_w {
-     fn deref_mut(&mut self) -> &mut Self::Target {
-     	&mut self.inner
-     }
-}
-
-impl From<&EphKeyGenFirstMsg_sgx> for EphKeyGenFirstMsg_w {
-    fn from(item: &EphKeyGenFirstMsg_sgx) -> Self {
-
-	let public_share = GE_w::from(&item.public_share).inner;
-	let d_log_proof = ECDDHProof_w::from(&item.d_log_proof).inner;
-	let c = GE_w::from(&item.c).inner;
-
-	Self { inner: party_one::EphKeyGenFirstMsg { d_log_proof, public_share, c } }
-	
-    }
-}
-
-
-
 struct GE_w {
     inner: GE
 }
@@ -507,13 +819,49 @@ impl DerefMut for GE_w {
 impl From<&GE_sgx> for GE_w {
     fn from(item: &GE_sgx) -> Self {
 	use curv_client::elliptic::curves::traits::ECPoint;
-	let inner: GE = curv::elliptic::curves::traits::ECPoint::from_coor(
-	    &BigInt_w::from(&item.x_coor().unwrap()).inner,
-	    &BigInt_w::from(&item.y_coor().unwrap()).inner
-	);
+	use curv::arithmetic::traits::Converter;
+
+	let ser = &item.get_element().serialize_uncompressed();
+	let inner: GE = curv::elliptic::curves::traits::ECPoint::from_bytes(
+	    &ser[1..ser.len()]
+	).unwrap();
+	
 	Self { inner }
     }
 }
+
+struct GE_sgx_w {
+    inner: GE_sgx
+}
+
+impl Deref for GE_sgx_w {
+     type Target = GE_sgx;
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for GE_sgx_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
+
+impl From<&GE> for GE_sgx_w {
+    fn from(item: &GE) -> Self {
+	use curv::elliptic::curves::traits::ECPoint;
+	use curv_client::arithmetic::traits::Converter as Converter_sgx;
+
+	let ser = &item.get_element().serialize_uncompressed();
+	let inner: GE_sgx = curv_client::elliptic::curves::traits::ECPoint::from_bytes(
+	    &ser[1..ser.len()]
+	).unwrap();
+
+
+	Self { inner }
+    }
+}
+
 
 struct FE_w {
     inner: FE
@@ -537,6 +885,33 @@ impl From<&FE_sgx> for FE_w {
 	use curv_client::elliptic::curves::traits::ECScalar;
 	let inner: FE = curv::elliptic::curves::traits::ECScalar::from(
 	    &BigInt_w::from(&item.to_big_int()).inner
+	);
+	Self { inner }
+    }
+}
+
+struct FE_sgx_w {
+    inner: FE_sgx
+}
+
+impl Deref for FE_sgx_w {
+     type Target = FE_sgx;
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for FE_sgx_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
+
+impl From<&FE> for FE_sgx_w {
+    fn from(item: &FE) -> Self {
+	use curv::elliptic::curves::traits::ECScalar;
+	let inner: FE_sgx = curv_client::elliptic::curves::traits::ECScalar::from(
+	    &BigInt_sgx_w::from(&item.to_big_int()).inner
 	);
 	Self { inner }
     }
@@ -566,21 +941,40 @@ impl DerefMut for ECDDHProof_w {
      }
 }
 
-/*
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct DLogProof {
-    pub pk: GE,
-    pub pk_t_rand_commitment: GE,
-    pub challenge_response: FE,
-}
-*/
-
 impl From<&ECDDHProof_sgx> for ECDDHProof_w {
     fn from(item: &ECDDHProof_sgx) -> Self {
 	let a1 = GE_w::from(&item.a1).inner;
 	let a2 = GE_w::from(&item.a2).inner;
 	let z = FE_w::from(&item.z).inner;
 	let inner =  ECDDHProof { a1, a2, z };
+	Self { inner }
+    }
+}
+
+
+struct ECDDHProof_sgx_w {
+    inner: ECDDHProof_sgx
+}
+
+impl Deref for ECDDHProof_sgx_w {
+     type Target = ECDDHProof_sgx;
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for ECDDHProof_sgx_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
+
+impl From<&ECDDHProof> for ECDDHProof_sgx_w {
+    fn from(item: &ECDDHProof) -> Self {
+	let a1 = GE_sgx_w::from(&item.a1).inner;
+	let a2 = GE_sgx_w::from(&item.a2).inner;
+	let z = FE_sgx_w::from(&item.z).inner;
+	let inner =  ECDDHProof_sgx { a1, a2, z };
 	Self { inner }
     }
 }
@@ -602,21 +996,39 @@ impl DerefMut for DLogProof_w {
      }
 }
 
-/*
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct DLogProof {
-    pub pk: GE,
-    pub pk_t_rand_commitment: GE,
-    pub challenge_response: FE,
-}
-*/
-
 impl From<&DLogProof_sgx> for DLogProof_w {
     fn from(item: &DLogProof_sgx) -> Self {
 	let pk = GE_w::from(&item.pk).inner;
 	let pk_t_rand_commitment = GE_w::from(&item.pk_t_rand_commitment).inner;
 	let challenge_response = FE_w::from(&item.challenge_response).inner;
 	let inner =  DLogProof { pk, pk_t_rand_commitment, challenge_response };
+	Self { inner }
+    }
+}
+
+struct DLogProof_sgx_w {
+    inner: DLogProof_sgx
+}
+
+impl Deref for DLogProof_sgx_w {
+     type Target = DLogProof_sgx;
+     fn deref(&self) -> &Self::Target {
+     	&self.inner
+     }
+}
+
+impl DerefMut for DLogProof_sgx_w {
+     fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+     }
+}
+
+impl From<&DLogProof> for DLogProof_sgx_w {
+    fn from(item: &DLogProof) -> Self {
+	let pk = GE_sgx_w::from(&item.pk).inner;
+	let pk_t_rand_commitment = GE_sgx_w::from(&item.pk_t_rand_commitment).inner;
+	let challenge_response = FE_sgx_w::from(&item.challenge_response).inner;
+	let inner =  DLogProof_sgx { pk, pk_t_rand_commitment, challenge_response };
 	Self { inner }
     }
 }
@@ -642,6 +1054,32 @@ impl From<&BigInt_sgx> for BigInt_w {
     fn from(item: &BigInt_sgx) -> Self {
 	let item_vec : Vec::<u8> = item.to_signed_bytes_be();
 	let inner : BigInt = From::from(item_vec.as_slice());
+	Self { inner }
+    }
+}
+
+
+pub struct BigInt_sgx_w {
+    inner: BigInt_sgx
+}
+
+impl Deref for BigInt_sgx_w {
+    type Target = BigInt_sgx;
+    fn deref(&self) -> &Self::Target {
+     	&self.inner
+    }
+}
+
+impl DerefMut for BigInt_sgx_w {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+     	&mut self.inner
+    }
+}
+
+impl From<&BigInt> for BigInt_sgx_w {
+    fn from(item: &BigInt) -> Self {
+	let item_vec : Vec<u8> = item.into();
+	let inner = BigInt_sgx::from_signed_bytes_be(item_vec.as_slice());
 	Self { inner }
     }
 }
@@ -825,7 +1263,7 @@ impl Enclave {
     }
 
     pub fn second_message(&self, sealed_log_in: &mut [u8; 8192], key_gen_msg_2: &KeyGenMsg2)
-	-> Result<party1::KeyGenParty1Message2>{
+	-> Result<(party1::KeyGenParty1Message2,  [u8;8192])>{
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
@@ -852,7 +1290,7 @@ impl Enclave {
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let kgm2_sgx : KeyGenParty1Message2_sgx  = serde_json::from_str(&msg_str).unwrap();
 		let kgm2 : party1::KeyGenParty1Message2 = KeyGenParty1Message2_w::from(&kgm2_sgx).inner;
-		Ok(kgm2)
+		Ok((kgm2, sealed_log_out))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}
@@ -866,7 +1304,10 @@ impl Enclave {
 	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
 
-	let sign_msg1_str = serde_json::to_string(sign_msg1).unwrap();
+	let sign_msg1_sgx = SignMsg1_sgx_w::from(sign_msg1).inner;
+	
+	
+	let sign_msg1_str = serde_json::to_string(&sign_msg1_sgx).unwrap();
 	
 	let _result = unsafe {
 	    sign_first(self.geteid(), &mut enclave_ret,
@@ -887,7 +1328,7 @@ impl Enclave {
 		let size = size_str.parse::<usize>().unwrap();
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let ekg1m_sgx : EphKeyGenFirstMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
-		let ekg1m : party_one::EphKeyGenFirstMsg = EphKeyGenFirstMsg_w::from(&ekg1m_sgx).inner;
+		let ekg1m : party_one::EphKeyGenFirstMsg = party_one_enc::EphKeyGenFirstMsg_w::from(&ekg1m_sgx).inner;
 		Ok((ekg1m, sealed_log_out))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
@@ -909,8 +1350,12 @@ impl Enclave {
 	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
 
-	let sign_msg2_str = serde_json::to_string(sign_msg2).unwrap();
+	println!("converting signmsg2 to sgx");
+	let sign_msg2_sgx = SignMsg2_sgx_w::from(sign_msg2).inner;
+	println!("signmsg2_sgx to string");
+	let sign_msg2_str = serde_json::to_string(&sign_msg2_sgx).unwrap();
 
+	println!("sign second in enclave:");
 	let _result = unsafe {
 	    sign_second(self.geteid(), &mut enclave_ret,
 			sealed_log_in.as_mut_ptr() as *mut u8,
@@ -922,6 +1367,8 @@ impl Enclave {
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
+		println!("sign_second success");
+		/*
 		let c = plain_ret[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
@@ -931,6 +1378,8 @@ impl Enclave {
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let output : SignSecondOut  = serde_json::from_str(&msg_str).unwrap();
 		Ok((output.inner, sealed_log_out))
+		 */
+		Ok((Vec::<Vec::<u8>>::new(), [0u8;8192]))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}	
@@ -1006,6 +1455,11 @@ extern {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    pub static BACKUP_TX_NOT_SIGNED: &str = "{\"version\":2,\"lock_time\":0,\"input\":[{\"previous_output\":\"faaaa0920fbaefae9c98a57cdace0deffa96cc64a651851bdd167f397117397c:0\",\"script_sig\":\"\",\"sequence\":4294967295,\"witness\":[]}],\"output\":[{\"value\":9000,\"script_pubkey\":\"00148fc32525487d2cb7323c960bdfb0a5ee6a364738\"}]}";
+    pub static BACKUP_TX_SIGNED: &str = "{\"version\":2,\"lock_time\":0,\"input\":[{\"previous_output\":\"faaaa0920fbaefae9c98a57cdace0deffa96cc64a651851bdd167f397117397c:0\",\"script_sig\":\"\",\"sequence\":4294967295,\"witness\":[[48,68,2,32,45,42,91,77,252,143,55,65,154,96,191,149,204,131,88,79,80,161,231,209,234,229,217,100,28,99,48,148,136,194,204,98,2,32,90,111,183,68,74,24,75,120,179,80,20,183,60,198,127,106,102,64,37,193,174,226,199,118,237,35,96,236,45,94,203,49,1],[2,242,131,110,175,215,21,123,219,179,199,144,85,14,163,42,19,197,97,249,41,130,243,139,15,17,51,185,147,228,100,122,213]]}],\"output\":[{\"value\":9000,\"script_pubkey\":\"00148fc32525487d2cb7323c960bdfb0a5ee6a364738\"}]}";
+    pub static STATE_CHAIN: &str = "{\"chain\":[{\"data\":\"026ff25fd651cd921fc490a6691f0dd1dcbf725510f1fbd80d7bf7abdfef7fea0e\",\"next_state\":null}]}";
+    pub static STATE_CHAIN_SIG: &str = "{ \"purpose\": \"TRANSFER\", \"data\": \"024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766\", \"sig\": \"3045022100e1171094db96e68392bb2a72695dc7cbce86db7be9d2e943444b6fa08877eec9022036dc63a3b2536d8e2327e0f44ff990f18e6166dce66d87bdcb57f825158a507c\"}";
 
     #[test]
     fn test_new() {
@@ -1146,6 +1600,169 @@ mod tests {
 	let wbis2 = BigInt_w { inner: wbi1.deref() + wbi2.deref() };
 
 	assert!(wbis.deref() == wbis2.deref(), format!("{:?} does not equal {:?}", wbis.deref(), wbis2.deref()));
+	
+    }
+
+    #[test]
+    fn test_convert_bigint_sgx() {
+	use num_bigint_dig::{ToBigInt, Sign};
+	
+	let n1 : u64 = 123;
+	let n2 : u64 = 456;
+	let ns = n1 + n2;
+	let ns2 = ns + 1;
+	
+	let nbi1 : BigInt = From::from(n1);
+	let nbi2 : BigInt = From::from(n2);
+	let nbis = nbi1 + nbi2;
+
+	
+	let wbi1 = BigInt_sgx_w { inner: From::from(n1) };
+	let wbi2 = BigInt_sgx_w { inner: From::from(n2) };
+	let wbis : BigInt_sgx_w  = From::from(&nbis);
+	let wbis2 = BigInt_sgx_w { inner: wbi1.deref() + wbi2.deref() };
+
+	assert!(wbis.deref() == wbis2.deref(), format!("{:?} does not equal {:?}", wbis.deref(), wbis2.deref()));
+    }
+
+    #[test]
+    fn test_convert_negative_bigint_sgx() {
+	use num_bigint_dig::{ToBigInt, Sign};
+	
+	let n1 : i64 = 123;
+	let n2 : i64 = -456;
+	let ns = n1 + n2;
+	let ns2 = ns + 1;
+	
+	let nbi1 : BigInt = From::from(n1);
+	let nbi2 : BigInt = From::from(n2);
+	let nbis = nbi1 + nbi2;
+
+	
+	let wbi1 = BigInt_sgx_w { inner: From::from(n1) };
+	let wbi2 = BigInt_sgx_w { inner: From::from(n2) };
+	let wbis : BigInt_sgx  = From::from(ns);
+	let wbis2 = BigInt_sgx_w { inner: wbi1.deref() + wbi2.deref() };
+
+	assert!(&wbis == wbis2.deref(), format!("{:?} does not equal {:?}", &wbis, wbis2.deref()));
+    }
+
+    use curv::elliptic::curves::traits::ECPoint as ECPoint_sgx;
+    
+    #[test]
+    fn test_convert_ge() {
+	let ge1: GE = GE::generator() * FE::new_random();
+	let ge2: GE = GE::generator() * FE::new_random();
+	let s1 = ge1 + ge2;
+	
+	let ge1_sgx = GE_sgx_w::from(&ge1).inner;
+	let ge2_sgx = GE_sgx_w::from(&ge2).inner;
+	let s1_sgx = ge1_sgx + ge2_sgx;
+
+	let ge1_2 = GE_w::from(&ge1_sgx).inner;
+	let ge2_2 = GE_w::from(&ge2_sgx).inner;
+	let s1_2 = GE_w::from(&s1_sgx).inner;
+
+
+	assert_eq!(ge1.get_element(), ge1_2.get_element());
+	assert_eq!(ge2.get_element(), ge2_2.get_element());
+	assert_eq!(s1.get_element(), s1_2.get_element());
+    }
+
+    #[test]
+    fn test_sign() {
+	use bitcoin::{Transaction, hashes::sha256d};
+	
+	let enc = Enclave::new().unwrap();
+	let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
+	enc.verify_sealed_log(rsd1).unwrap();
+
+
+
+	let (kg_party_one_first_message, mut sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
+
+	let wallet_secret_key: FE = ECScalar::new_random();
+
+	let pk_commitment = &kg_party_one_first_message.pk_commitment;
+	let zk_pok_commitment = &kg_party_one_first_message.zk_pok_commitment;
+	
+	let (kg_party_two_first_message, kg_ec_key_pair_party2) =
+	    MasterKey2::key_gen_first_message_predefined(&wallet_secret_key);
+
+	let shared_key_id = Uuid::new_v4();
+	let tx_backup: Transaction = serde_json::from_str(&BACKUP_TX_NOT_SIGNED).unwrap();
+
+
+	let hexhash = r#"
+                "0000000000000000000000000000000000000000000000000000000000000000"
+            "#;
+        let sig_hash: sha256d::Hash = serde_json::from_str(&hexhash.to_string()).unwrap();
+
+	let (eph_key_gen_first_message_party_two, eph_comm_witness, eph_ec_key_pair_party2) =
+            MasterKey2::sign_first_message();
+
+
+	let key_gen_msg2 = KeyGenMsg2 {
+            shared_key_id: shared_key_id.clone(),
+            dlog_proof: kg_party_two_first_message.d_log_proof,
+	};
+		
+	let kgm2str = serde_json::to_string(&key_gen_msg2).unwrap();
+	let kgm_2 : KeyGenMsg2 = serde_json::from_str(&kgm2str).unwrap();
+
+	assert!(kgm2str.len() > 0);
+	
+	let (kg_party_one_second_message, mut sealed_log_2) = enc.second_message(&mut sealed_log_out, &kgm_2).unwrap();
+
+	let key_gen_second_message = MasterKey2::key_gen_second_message(
+            &kg_party_one_first_message,
+            &kg_party_one_second_message,
+	);
+
+	let (_, party_two_paillier) = key_gen_second_message.unwrap();
+
+	let master_key = MasterKey2::set_master_key(
+            &BigInt::from(0),
+            &kg_ec_key_pair_party2,
+            &kg_party_one_second_message
+		.ecdh_second_message
+		.comm_witness
+		.public_share,
+            &party_two_paillier,
+	);
+
+	
+	let sign_msg1 = SignMsg1 {
+            shared_key_id: shared_key_id,
+            eph_key_gen_first_message_party_two: eph_key_gen_first_message_party_two,
+        };
+
+	
+	let (ekg1m, mut sign_first_sealed) = enc.sign_first(&mut sealed_log_2, &sign_msg1).unwrap();
+	
+
+	let message = BigInt::from(0);
+	
+	let party_two_sign_message = master_key.sign_second_message(
+            &eph_ec_key_pair_party2,
+            eph_comm_witness.clone(),
+            &ekg1m,
+            &message,
+	);
+	
+
+        let sign_msg2 = SignMsg2 {
+            shared_key_id: shared_key_id,
+            sign_second_msg_request: SignSecondMsgRequest {
+                protocol: Protocol::Deposit,
+                message: BigInt::from(0),
+                party_two_sign_message,
+            },
+        };
+	
+
+	println!("sign second:");
+        let (return_msg, return_sealed) = enc.sign_second(&mut sign_first_sealed, &sign_msg2).unwrap();
 	
     }
     

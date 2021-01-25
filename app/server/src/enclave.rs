@@ -5,7 +5,8 @@ extern crate sgx_urts;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
-use crate::shared_lib::structs::{KeyGenMsg2, SignMsg1, SignMsg2, Protocol, SignSecondMsgRequest};
+use crate::shared_lib::structs::{KeyGenMsg2, SignMsg1, SignMsg2, Protocol,
+				 SignSecondMsgRequest, KUSendMsg, KUReceiveMsg, KUFinalize, KUAttest};
 
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey, SecretKey, Secp256k1};
@@ -264,6 +265,50 @@ mod party_two_enc {
     
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUSendMsg_sgx {        // Sent from server to lockbox
+    pub user_id: Uuid,
+    pub statechain_id: Uuid,
+    pub x1: FE_sgx,
+    pub t1: FE_sgx,
+    pub o2_pub: GE_sgx,
+}
+
+pub struct KUSendMsg_sgx_w {
+    inner: KUSendMsg_sgx
+}
+
+impl From<&KUSendMsg> for KUSendMsg_sgx_w {
+    fn from(item: &KUSendMsg) -> Self {
+
+	let user_id = item.user_id;
+	let statechain_id = item.statechain_id;
+	let x1 = FE_sgx_w::from(&item.x1).inner;
+	let t1 = FE_sgx_w::from(&item.t1).inner;
+	let o2_pub = FE_sgx_w::from(&item.o2_pub).inner;
+	
+	Self { inner: KUSendMsg_sgx { user_id, statechain_id, x1, t1, o2_pub } }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUReceiveMsg_sgx {      // Sent from lockbox back to server
+    pub theta: FE_sgx,
+    pub s2_pub: GE_sgx,
+}
+
+pub struct KUReceiveMsg_w {
+    inner: KUReceiveMsg
+}
+
+impl From<&KUReceiveMsg_sgx> for KUReceiveMsg_w {
+    fn from(item: &KUReceiveMsg_sgx) -> Self {
+	let theta = FE_w::from(&item.theta);
+	let s2_pub = GE_w::from(&item.su_pub);
+	
+	Self { inner: KUReceiveMsg { theta, s2_pub } }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SignMsg1_sgx {
@@ -1334,14 +1379,6 @@ impl Enclave {
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}	
     }
-//        db.update_ecdsa_sign_first(
-//            user_id,
-//            sign_msg1.eph_key_gen_first_message_party_two,
-//            eph_ec_key_pair_party1,
-//        )?;
-//	sign_party_one_first_msg = sign_party_one_first_message;
-
-//}
 
     pub fn sign_second(&self, sealed_log_in: &mut [u8; 8192], sign_msg2: &SignMsg2)
 		       -> Result<(Vec<Vec<u8>>, [u8;8192])>
@@ -1368,7 +1405,6 @@ impl Enclave {
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
 		println!("sign_second success");
-		/*
 		let c = plain_ret[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
@@ -1378,8 +1414,7 @@ impl Enclave {
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let output : SignSecondOut  = serde_json::from_str(&msg_str).unwrap();
 		Ok((output.inner, sealed_log_out))
-		 */
-		Ok((Vec::<Vec::<u8>>::new(), [0u8;8192]))
+//		Ok((Vec::<Vec::<u8>>::new(), [0u8;8192]))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}	

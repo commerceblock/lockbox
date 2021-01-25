@@ -287,3 +287,28 @@ mod tests {
     }
 
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUSendMsg {        // Sent from server to lockbox
+    pub user_id: Uuid,
+    pub statechain_id: Uuid,
+    pub x1: FE,
+    pub t1: FE,
+    pub o2_pub: GE,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUReceiveMsg {      // Sent from lockbox back to server
+    pub theta: FE,
+    pub s2_pub: GE,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUFinalize {        // Sent from server to lockbox
+    pub statechain_id: Uuid,
+    pub shared_key_id: Uuid,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUAttest {      // Sent from lockbox back to server
+    pub statechain_id: Uuid,
+    pub attestation: String,
+}

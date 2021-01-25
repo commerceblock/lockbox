@@ -57,6 +57,8 @@ impl Lockbox
 	column_families.push(ColumnFamilyDescriptor::new("ecdsa_second_message", cf_opts.clone()));
 	column_families.push(ColumnFamilyDescriptor::new("ecdsa_sign_first", cf_opts.clone()));
 	column_families.push(ColumnFamilyDescriptor::new("ecdsa_sign_second", cf_opts.clone()));
+	column_families.push(ColumnFamilyDescriptor::new("ecdsa_keyupdate_first", cf_opts.clone()));
+	column_families.push(ColumnFamilyDescriptor::new("ecdsa_keyupdate_second", cf_opts.clone()));
 
 	let mut database = match DB::open_cf_descriptors(&db_opts, path, column_families) {
 	    Ok(db) => db,
@@ -105,6 +107,8 @@ pub fn get_server()-> Result<Rocket> {
                 ecdsa::second_message,
                 ecdsa::sign_first,
                 ecdsa::sign_second,
+		ecdsa::keyupdate_first,
+		ecdsa::keyupdate_second,
 		transfer::transfer_sender,
                 transfer::transfer_receiver,
             ],

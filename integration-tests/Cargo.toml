@@ -15,6 +15,9 @@ time = "0.2.22"
 env_logger = "0.7.1"
 floating-duration = "0.1.2"
 serial_test = "0.5.0"
+bitcoin = { version = "0.25", features = [ "use-serde" ] }
+subtle = "2.4.0"
+hex = "0.4.2"
 
 [dependencies.zk-paillier]
 git = "https://github.com/KZen-networks/zk-paillier"

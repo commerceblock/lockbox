@@ -1769,6 +1769,82 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     sgx_status_t::SGX_SUCCESS
 }
 
+#[no_mangle]
+pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+			     receiver_msg: *const u8, len: usize,
+			     ku_receive_msg: &mut [u8;480000]) -> sgx_status_t {
+    
+    let str_slice = unsafe { slice::from_raw_parts(receiver_msg, len) };
+
+    let receiver_msg_str = match std::str::from_utf8(&str_slice) {
+	Ok(r) => r,
+	Err(e) => {
+	    let _ = io::stdout().write(format!("error: {:?}", e).as_str().as_bytes());
+	    println!("error: {:?}", e);
+	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	}
+    };
+
+    let rec_msg: KUSendMsg = match serde_json::from_str(&receiver_msg_str){
+        Ok(r) => r,
+        Err(e) => {
+	    let _ = io::stdout().write(format!("error: {:?}", e).as_str().as_bytes());
+	    println!("error: {:?}", e);
+	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	}
+    };
+
+    let data = match SecondMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+	Err(e) => return e
+    };
+    
+    let s1 = data.party_one_
+    let theta: FE = ECScalar::new_random();
+
+
+
+    let plain_str = match serde_json::to_string(&sign_party_one_first_msg){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    let len = plain_str.len();
+    let mut plain_str_sized=format!("{}", len);
+    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    plain_str_sized.push_str(&plain_str);
+
+    let mut plain_bytes=plain_str_sized.into_bytes();
+    plain_bytes.resize(480000,0);
+
+    *sign_party_one_first_message  = match plain_bytes.as_slice().try_into(){
+	Ok(x) => x,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    let sign_first_sealed =  SignFirstSealed {
+	shared_key: data.master_key,
+	eph_key_gen_first_message_party_two: sign_msg1.eph_key_gen_first_message_party_two,
+        eph_ec_key_pair_party1: eph_ec_key_pair_party1,
+    };
+
+    let sealable = match SgxSealable::try_from(sign_first_sealed){
+	Ok(x) => x,
+	Err(ret) => return ret
+    };
+
+    let sealed_data = match sealable.to_sealed(){
+	Ok(x) => x,
+        Err(ret) => return ret
+    };
+
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
+    if opt.is_none() {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+	
+    sgx_status_t::SGX_SUCCESS
+}
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<[T]>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
     unsafe {

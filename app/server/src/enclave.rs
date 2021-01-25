@@ -1420,6 +1420,45 @@ impl Enclave {
 	}	
 	
     }
+
+
+    pub fn keyupdate_first(&self, sealed_log_in: &mut [u8; 8192], receiver_msg: &KUSendMsg)
+	-> Result<(KUReceiveMsg, [u8;8192])> {
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	let mut sealed_log_out = [0u8; 8192];
+	let mut plain_ret = [0u8;480000];
+
+	let receiver_msg_sgx = KUSendMsg_sgx_w::from(receiver_msg).inner;
+		
+	let receiver_msg_str = serde_json::to_string(&receiver_msg_sgx).unwrap();
+	
+	let _result = unsafe {
+	    sign_first(self.geteid(), &mut enclave_ret,
+		       sealed_log_in.as_mut_ptr() as *mut u8,
+                       sealed_log_out.as_mut_ptr() as *mut u8,
+		       receiver_msg_str.as_ptr() as * const u8,
+		       receiver_msg_str.len(),
+	    	       plain_ret.as_mut_ptr() as *mut u8)
+	};
+
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => {
+		let c = plain_ret[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		let nc = nc_str.parse::<usize>().unwrap();
+		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		let ku_receive_msg_sgx : KUReceiveMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
+		let ku_receive_msg : KUReceiveMsg = KUReceiveMsg_w::from(&ku_receive_msg_sgx).inner;
+		Ok((ku_receive_msg, sealed_log_out))
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
+	}	
+    }
+
+
     
     pub fn destroy(&self) {
      	unsafe {
@@ -1479,6 +1518,22 @@ extern {
     );
 
     fn sign_second(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		   sealed_log_in: *mut u8,
+                   sealed_log_out: *mut u8,
+		   sign_msg2: *const u8,
+		   len: usize,
+		   plain_out: *mut u8,
+    );
+
+    fn keyupdate_first(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		  sealed_log_in: *mut u8,
+                  sealed_log_out: *mut u8,
+		  receiver_msg: *const u8,
+		  len: usize,
+		  plain_out: *mut u8,
+    );
+
+    fn keyupdate_second(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		   sealed_log_in: *mut u8,
                    sealed_log_out: *mut u8,
 		   sign_msg2: *const u8,

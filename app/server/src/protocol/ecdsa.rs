@@ -117,13 +117,7 @@ impl Ecdsa for Lockbox {
 		match self.get_sealed_secrets(cf_ku, &key_gen_msg1.shared_key_id){
 		    Ok(mut sealed_in) =>{
 			match enc.first_message_transfer(&mut sealed_in.0) {
-			    Ok(x) => {
-				// Delete keyupdate info
-				match self.database.delete_cf(cf_ku, sealed_in.1) {
-				    Ok(_) => x,
-				    Err(e) => return Err(LockboxError::Generic(format!("error deleting transfer data: {}", e))),
-				}
-			    },
+			    Ok(x) => x,
 			    Err(e) => return Err(LockboxError::Generic(format!("{}", e))),
 			}
 		    },
@@ -215,7 +209,15 @@ impl Ecdsa for Lockbox {
     }
 
     fn keyupdate_second(&self, finalize_data: KUFinalize) -> Result<KUAttest> {
-	Ok(KUAttest { statechain_id: Uuid::parse_str("936DA01F9ABD4d9d80C702AF85C822A8").unwrap(), attestation: String::from("") })
+	
+	// Delete keyupdate info
+	let cf_ku = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
+	let db_key = Key::from_uuid(&finalize_data.shared_key_id);
+	match self.database.delete_cf(cf_ku, sealed_in.1) {
+	    Ok(_) => x,
+	    Err(e) => return Err(LockboxError::Generic(format!("error deleting transfer data: {}", e))),
+	}
+	Ok(KUAttest { statechain_id: Uuid::parse_str("00000000000000000000000000000000").unwrap(), attestation: String::from("") })
     }
 
 }

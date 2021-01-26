@@ -114,21 +114,18 @@ impl Ecdsa for Lockbox {
 		}
 	    } else {
 		let cf_ku = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
-		match self.database.get_cf(cf_ku, user_db_key) {
-		    Ok(data) => match data {
-			Some(x) => {
-			    match enc.first_message_transfer(&mut x) {
-				Ok(x) => {
-				    // Delete keyupdate info
-				    match self.database.delete_cf(cf_ku, user_db_key) {
-					Ok(_) => x,
-					Err(e) => return Err(LockboxError::Generic(format!("error deleting transfer data: {}", e))),
-				    }
-				},
-				Err(e) => return Err(LockboxError::Generic(format!("generating first message for transfer: {}", e)))
-			    }
-			},
-			None => return Err(LockboxError::Generic(format!("No key update data for ID {}", user_db_key)))
+		match self.get_sealed_secrets(cf_ku, &key_gen_msg1.shared_key_id){
+		    Ok(mut sealed_in) =>{
+			match enc.first_message_transfer(&mut sealed_in.0) {
+			    Ok(x) => {
+				// Delete keyupdate info
+				match self.database.delete_cf(cf_ku, sealed_in.1) {
+				    Ok(_) => x,
+				    Err(e) => return Err(LockboxError::Generic(format!("error deleting transfer data: {}", e))),
+				}
+			    },
+			    Err(e) => return Err(LockboxError::Generic(format!("{}", e))),
+			}
 		    },
 		    Err(e) => return Err(e.into()) 
 		}
@@ -211,44 +208,14 @@ impl Ecdsa for Lockbox {
 	match enc.keyupdate_first(&mut sealed_secrets, &receiver_msg) {
 	    Ok(x) => {
 		self.database.put_cf(cf_out, user_db_key, &x.1)?;
-		return Ok(Some(x.0))
+		return Ok(x.0)
 	    },
 	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
 	}
-
-
-	let s1 = self.database.get_private_keyshare(receiver_msg.user_id)?;
-
-	let x1 = receiver_msg.x1;
-	let t2 = receiver_msg.t2;
-	
-	// derive updated private key share
-	let s2 = t2 * (td.x1.invert()) * s1;
-	
-	let theta = FE::new_random();
-	// Note:
-	//  s2 = o1*o2_inv*s1
-	//  t2 = o1*x1*o2_inv
-	let s1_theta = s1 * theta;
-	let s2_theta = s2 * theta;
-	
-	let g: GE = ECPoint::generator();
-	let s2_pub = g * s2;
-	
-	let p1_pub = kp.party_2_public * s1_theta;
-	let p2_pub = receiver_msg.o2_pub * s2_theta;
-	
-	// Check P1 = o1_pub*s1 === p2 = o2_pub*s2
-	if p1_pub != p2_pub {
-            error!("TRANSFER: Protocol failed. P1 != P2.");
-	    return Err(LockboxError::Generic(String::from(
-		"Transfer protocol error: P1 != P2")));
-	}
-
     }
 
     fn keyupdate_second(&self, finalize_data: KUFinalize) -> Result<KUAttest> {
-	Ok(KUattest { statechain_id: Uuid::from(0), attestation: String::from("") })
+	Ok(KUAttest { statechain_id: Uuid::parse_str("936DA01F9ABD4d9d80C702AF85C822A8").unwrap(), attestation: String::from("") })
     }
 
 }
@@ -299,7 +266,7 @@ pub fn sign_second(lockbox: State<Lockbox>, sign_msg2: Json<SignMsg2>) -> Result
 pub fn keyupdate_first(
     lockbox: State<Lockbox>,
     receiver_msg: Json<KUSendMsg>,
-) -> Result<KUReceiveMsg> {
+) -> Result<Json<KUReceiveMsg>> {
     match lockbox.keyupdate_first(receiver_msg.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),
@@ -310,7 +277,7 @@ pub fn keyupdate_first(
 pub fn keyupdate_second(
     lockbox: State<Lockbox>,
     finalize_data: Json<KUFinalize>,
-) -> Result<KUAttest> {
+) -> Result<Json<KUAttest>> {
     match lockbox.keyupdate_second(finalize_data.into_inner()) {
         Ok(res) => return Ok(Json(res)),
         Err(e) => return Err(e),

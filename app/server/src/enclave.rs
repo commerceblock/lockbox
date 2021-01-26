@@ -285,7 +285,7 @@ impl From<&KUSendMsg> for KUSendMsg_sgx_w {
 	let statechain_id = item.statechain_id;
 	let x1 = FE_sgx_w::from(&item.x1).inner;
 	let t1 = FE_sgx_w::from(&item.t1).inner;
-	let o2_pub = FE_sgx_w::from(&item.o2_pub).inner;
+	let o2_pub = GE_sgx_w::from(&item.o2_pub).inner;
 	
 	Self { inner: KUSendMsg_sgx { user_id, statechain_id, x1, t1, o2_pub } }
     }
@@ -303,8 +303,8 @@ pub struct KUReceiveMsg_w {
 
 impl From<&KUReceiveMsg_sgx> for KUReceiveMsg_w {
     fn from(item: &KUReceiveMsg_sgx) -> Self {
-	let theta = FE_w::from(&item.theta);
-	let s2_pub = GE_w::from(&item.su_pub);
+	let theta = FE_w::from(&item.theta).inner;
+	let s2_pub = GE_w::from(&item.s2_pub).inner;
 	
 	Self { inner: KUReceiveMsg { theta, s2_pub } }
     }

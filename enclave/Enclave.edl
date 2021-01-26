@@ -81,11 +81,6 @@ enclave {
 			  size_t len,
 			  [out, size=480000] uint8_t* plain_out);
 
-	public sgx_status_t keyupdate_second([in, size=8192] uint8_t* sealed_log_in,
-		       	  [out, size=8192] uint8_t* sealed_log_out,
-			  [in, size=len] const uint8_t* receiver_msg,
-			  size_t len);
-
 	};
 };
 

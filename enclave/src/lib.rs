@@ -1,3 +1,4 @@
+
 // Licensed to the Apache Software Foundation secret key(ASF) under only
 // more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -112,7 +113,7 @@ pub struct KUSendMsg {        // Sent from server to lockbox
     pub user_id: Uuid,
     pub statechain_id: Uuid,
     pub x1: FE,
-    pub t1: FE,
+    pub t2: FE,
     pub o2_pub: GE,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -538,6 +539,7 @@ impl TryFrom<SgxSealable> for FirstMessageSealed {
 pub struct SecondMessageSealed {
     paillier_key_pair: PaillierKeyPair,
     party_one_private: Party1Private,
+    party2_public: GE,
     master_key: MasterKey1,
 }
 
@@ -675,7 +677,7 @@ impl TryFrom<KeyupdateSealed> for SgxSealable {
     }
 }
 
-impl TryFrom<SgxSealable> for FirstMessageSealed {
+impl TryFrom<SgxSealable> for KeyupdateSealed {
     type Error = sgx_status_t;
     fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
 
@@ -1427,14 +1429,14 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
     let mut secret_share: FE = ECScalar::<SK>::zero();
     secret_share.set_element(sk);
 
-    first_message_common(&secret_share, sealed_log_out, key_gen_first_msg)
+    first_message_common(&mut secret_share, sealed_log_out, key_gen_first_msg)
 }
 
 #[no_mangle]
 pub extern "C" fn first_message_transfer(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 				key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
 
-    let data = match Keyupdate_sealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+    let data = match KeyupdateSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
     };
@@ -1442,11 +1444,11 @@ pub extern "C" fn first_message_transfer(sealed_log_in: * mut u8, sealed_log_out
 
     let mut secret_share = data.s2*data.theta;
 
-    first_message_common(&secret_share, sealed_log_out, key_gen_first_msg)
+    first_message_common(&mut secret_share, sealed_log_out, key_gen_first_msg)
 }
 
-fn first_messsage_common( secret_share: &FE, sealed_log_out: * mut u8,
-                                key_gen_first_msg: &mut [u8;256]) -> sgx_status_t
+fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
+                                key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
     let sk_bigint = secret_share.to_big_int();
     let q_third = FE::q();
     if (sk_bigint > q_third.div_floor(&BigInt::from(3))) {
@@ -1474,7 +1476,7 @@ fn first_messsage_common( secret_share: &FE, sealed_log_out: * mut u8,
 
     let ec_key_pair = EcKeyPair {
         public_share,
-        secret_share,
+	secret_share: *secret_share,
     };
     secret_share.zeroize();
 
@@ -1638,6 +1640,7 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     let second_message_sealed =  SecondMessageSealed {
         paillier_key_pair: paillier_context,
         party_one_private,
+	party2_public,
 	master_key
     };
 
@@ -1859,7 +1862,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 #[no_mangle]
 pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			     receiver_msg: *const u8, len: usize,
-			     rec_msg_out: &mut [u8;480000]) -> sgx_status_t {
+			     plain_out: &mut [u8;480000]) -> sgx_status_t {
     
     let str_slice = unsafe { slice::from_raw_parts(receiver_msg, len) };
 
@@ -1888,11 +1891,11 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
     
     let s1 = data.party_one_private.x1;
 
-    let x1 = reciever_msg.x1;
-    let t2 = reciever_msg.t2;
+    let x1 = rec_msg.x1;
+    let t2 = rec_msg.t2;
 
     // derive updated private key share
-    let s2 = t2 * (td.x1.invert()) * s1;
+    let s2 = t2 * (x1.invert()) * s1;
 
     let theta: FE = ECScalar::new_random();
 
@@ -1905,12 +1908,11 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
     let g: GE = ECPoint::generator();
     let s2_pub = g * s2;
 
-    let p1_pub = kp.master_key.party_2_public * s1_theta;
-    let p2_pub = reciever_msg.o2_pub * s2_theta;
+    let p1_pub = data.party2_public * s1_theta;
+    let p2_pub = rec_msg.o2_pub * s2_theta;
 
     // Check P1 = o1_pub*s1 === p2 = o2_pub*s2
     if p1_pub != p2_pub {
-        error!("TRANSFER: Protocol failed. P1 != P2.");
 	return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
 
@@ -1918,7 +1920,7 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
     let rec_msg_out = KUReceiveMsg {
 	theta,
 	s2_pub,
-    }
+    };
     
     let plain_str = match serde_json::to_string(&rec_msg_out){
 	Ok(v) => v,
@@ -1933,7 +1935,7 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
     let mut plain_bytes=plain_str_sized.into_bytes();
     plain_bytes.resize(480000,0);
 
-    *rec_msg_out  = match plain_bytes.as_slice().try_into(){
+    *plain_out  = match plain_bytes.as_slice().try_into(){
 	Ok(x) => x,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };

@@ -107,6 +107,21 @@ pub struct SignMsg1 {
     pub eph_key_gen_first_message_party_two: party_two::EphKeyGenFirstMsg,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUSendMsg {        // Sent from server to lockbox                                                                                                                                                                                                                             
+    pub user_id: Uuid,
+    pub statechain_id: Uuid,
+    pub x1: FE,
+    pub t1: FE,
+    pub o2_pub: GE,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUReceiveMsg {      // Sent from lockbox back to server                                                                                                                                                                                                                       
+    pub theta: FE,
+    pub s2_pub: GE,
+}
+
+
 /// State Entity protocols
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum Protocol {
@@ -621,6 +636,58 @@ impl TryFrom<SgxSealable> for SignFirstSealed {
         }
     }
 }
+
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct KeyupdateSealed {
+    s2: FE,
+    theta: FE,
+}
+
+impl TryFrom<(* mut u8, u32)> for KeyupdateSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: (* mut u8, u32)) -> Result<Self, Self::Error> {
+	let opt = from_sealed_log_for_slice::<u8>(item.0, item.1);
+	let sealed_data = match opt {
+            Some(x) => x,
+            None => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
+            },
+	};
+	let unsealed_data = SgxSealable::try_from_sealed(&sealed_data)?;
+	Self::try_from(unsealed_data)
+    }
+}
+
+impl TryFrom<KeyupdateSealed> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: KeyupdateSealed) -> Result<Self, Self::Error> {
+        let encoded_vec = match serde_cbor::to_vec(&item){
+            Ok(v) => v,
+            Err(e) => {
+                println!("error: {:?}",e);
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+            }
+        };
+        let res = Self{inner: encoded_vec};
+        Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for FirstMessageSealed {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+        match serde_cbor::from_slice(&item){
+            Ok(v) => Ok(v),
+            Err(_e) => {
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+            }
+        }
+    }
+}
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PaillierKeyPair {
@@ -1360,6 +1427,26 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
     let mut secret_share: FE = ECScalar::<SK>::zero();
     secret_share.set_element(sk);
 
+    first_message_common(&secret_share, sealed_log_out, key_gen_first_msg)
+}
+
+#[no_mangle]
+pub extern "C" fn first_message_transfer(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+				key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
+
+    let data = match Keyupdate_sealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+	Err(e) => return e
+    };
+
+
+    let mut secret_share = data.s2*data.theta;
+
+    first_message_common(&secret_share, sealed_log_out, key_gen_first_msg)
+}
+
+fn first_messsage_common( secret_share: &FE, sealed_log_out: * mut u8,
+                                key_gen_first_msg: &mut [u8;256]) -> sgx_status_t
     let sk_bigint = secret_share.to_big_int();
     let q_third = FE::q();
     if (sk_bigint > q_third.div_floor(&BigInt::from(3))) {
@@ -1772,7 +1859,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 #[no_mangle]
 pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			     receiver_msg: *const u8, len: usize,
-			     ku_receive_msg: &mut [u8;480000]) -> sgx_status_t {
+			     rec_msg_out: &mut [u8;480000]) -> sgx_status_t {
     
     let str_slice = unsafe { slice::from_raw_parts(receiver_msg, len) };
 
@@ -1799,12 +1886,41 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
 	Err(e) => return e
     };
     
-    let s1 = data.party_one_
+    let s1 = data.party_one_private.x1;
+
+    let x1 = reciever_msg.x1;
+    let t2 = reciever_msg.t2;
+
+    // derive updated private key share
+    let s2 = t2 * (td.x1.invert()) * s1;
+
     let theta: FE = ECScalar::new_random();
 
+    // Note:
+    //  s2 = o1*o2_inv*s1
+    //  t2 = o1*x1*o2_inv
+    let s1_theta = s1 * theta;
+    let s2_theta = s2 * theta;
 
+    let g: GE = ECPoint::generator();
+    let s2_pub = g * s2;
 
-    let plain_str = match serde_json::to_string(&sign_party_one_first_msg){
+    let p1_pub = kp.master_key.party_2_public * s1_theta;
+    let p2_pub = reciever_msg.o2_pub * s2_theta;
+
+    // Check P1 = o1_pub*s1 === p2 = o2_pub*s2
+    if p1_pub != p2_pub {
+        error!("TRANSFER: Protocol failed. P1 != P2.");
+	return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+
+    
+    let rec_msg_out = KUReceiveMsg {
+	theta,
+	s2_pub,
+    }
+    
+    let plain_str = match serde_json::to_string(&rec_msg_out){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
@@ -1817,18 +1933,18 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
     let mut plain_bytes=plain_str_sized.into_bytes();
     plain_bytes.resize(480000,0);
 
-    *sign_party_one_first_message  = match plain_bytes.as_slice().try_into(){
+    *rec_msg_out  = match plain_bytes.as_slice().try_into(){
 	Ok(x) => x,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-    let sign_first_sealed =  SignFirstSealed {
-	shared_key: data.master_key,
-	eph_key_gen_first_message_party_two: sign_msg1.eph_key_gen_first_message_party_two,
-        eph_ec_key_pair_party1: eph_ec_key_pair_party1,
+
+    let keyupdate_sealed =  KeyupdateSealed {
+	s2,
+	theta,
     };
 
-    let sealable = match SgxSealable::try_from(sign_first_sealed){
+    let sealable = match SgxSealable::try_from(keyupdate_sealed){
 	Ok(x) => x,
 	Err(ret) => return ret
     };

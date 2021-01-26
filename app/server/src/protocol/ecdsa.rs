@@ -42,9 +42,9 @@ pub trait Ecdsa {
 
     fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Option<Vec<Vec<u8>>>>;
 
-//    fn keyupdate_first(&self, receiver_msg: KUSendMsg) -> Result<KUReceiveMsg>;
+    fn keyupdate_first(&self, receiver_msg: KUSendMsg) -> Result<KUReceiveMsg>;
 
-//    fn keyupdate_second(&self, finalize_data: KUFinalize) -> Result<KUAttest>;
+    fn keyupdate_second(&self, finalize_data: KUFinalize) -> Result<KUAttest>;
 }
 
 impl Ecdsa for Lockbox {
@@ -103,18 +103,38 @@ impl Ecdsa for Lockbox {
 	    Err(e) => return Err(e.into()) 
         };
 	
+	let enc = Enclave::new().unwrap();
+
 	let (key_gen_first_mess, sealed_secrets) =
 	    if key_gen_msg1.protocol == Protocol::Deposit {
-		let enc = Enclave::new().unwrap();
 		let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
 		match enc.first_message(&mut rsd1) {
 		    Ok(x) => x,
 		    Err(e) => return Err(LockboxError::Generic(format!("generating first message: {}", e)))
 		}
 	    } else {
-		return Err(LockboxError::Generic("transfer first message not yet implemented".to_string()))
+		let cf_ku = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
+		match self.database.get_cf(cf_ku, user_db_key) {
+		    Ok(data) => match data {
+			Some(x) => {
+			    match enc.first_message_transfer(&mut x) {
+				Ok(x) => {
+				    // Delete keyupdate info
+				    match self.database.delete_cf(cf_ku, user_db_key) {
+					Ok(_) => x,
+					Err(e) => return Err(LockboxError::Generic(format!("error deleting transfer data: {}", e))),
+				    }
+				},
+				Err(e) => return Err(LockboxError::Generic(format!("generating first message for transfer: {}", e)))
+			    }
+			},
+			None => return Err(LockboxError::Generic(format!("No key update data for ID {}", user_db_key)))
+		    },
+		    Err(e) => return Err(e.into()) 
+		}
 	    };
 
+	
         let user_db_key = Key::from_uuid(&key_gen_msg1.shared_key_id);
 	//Store the secrets in the DB
 	self.database.put_cf(cf, user_db_key, &sealed_secrets)?;
@@ -177,9 +197,10 @@ impl Ecdsa for Lockbox {
 	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
 	}
     }
-/*
+
     fn keyupdate_first(&self, receiver_msg: KUSendMsg) -> Result<KUReceiveMsg> {
 	let cf_in = &self.database.cf_handle("ecdsa_second_message").unwrap();
+	let cf_out = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &receiver_msg.user_id)?;
 
 	let mut sealed_log_out = [0u8;8192];
@@ -195,16 +216,16 @@ impl Ecdsa for Lockbox {
 	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
 	}
 
-	/*
-	let s1 = self.database.get_private_keyshare(reciever_msg.user_id)?;
 
-	let x1 = reciever_msg.x1;
-	let t2 = reciever_msg.t2;
+	let s1 = self.database.get_private_keyshare(receiver_msg.user_id)?;
+
+	let x1 = receiver_msg.x1;
+	let t2 = receiver_msg.t2;
 	
 	// derive updated private key share
-	s2 = t2 * (td.x1.invert()) * s1;
+	let s2 = t2 * (td.x1.invert()) * s1;
 	
-	theta = FE::new_random();
+	let theta = FE::new_random();
 	// Note:
 	//  s2 = o1*o2_inv*s1
 	//  t2 = o1*x1*o2_inv
@@ -212,25 +233,24 @@ impl Ecdsa for Lockbox {
 	let s2_theta = s2 * theta;
 	
 	let g: GE = ECPoint::generator();
-	s2_pub = g * s2;
+	let s2_pub = g * s2;
 	
 	let p1_pub = kp.party_2_public * s1_theta;
-	let p2_pub = reciever_msg.o2_pub * s2_theta;
+	let p2_pub = receiver_msg.o2_pub * s2_theta;
 	
 	// Check P1 = o1_pub*s1 === p2 = o2_pub*s2
 	if p1_pub != p2_pub {
             error!("TRANSFER: Protocol failed. P1 != P2.");
-            return Err(SEError::Generic(String::from(
-		"Transfer protocol error: P1 != P2",
-            )));
+	    return Err(LockboxError::Generic(String::from(
+		"Transfer protocol error: P1 != P2")));
 	}
-	 */
+
     }
 
     fn keyupdate_second(&self, finalize_data: KUFinalize) -> Result<KUAttest> {
-
+	Ok(KUattest { statechain_id: Uuid::from(0), attestation: String::from("") })
     }
-*/
+
 }
 
 #[post("/ecdsa/keygen/first", format = "json", data = "<key_gen_msg1>")]
@@ -274,7 +294,7 @@ pub fn sign_second(lockbox: State<Lockbox>, sign_msg2: Json<SignMsg2>) -> Result
     }
 }
 
-/*
+
 #[post("/ecdsa/keyupdate/first", format = "json", data = "<receiver_msg>")]
 pub fn keyupdate_first(
     lockbox: State<Lockbox>,
@@ -296,4 +316,4 @@ pub fn keyupdate_second(
         Err(e) => return Err(e),
     }
 }
-*/
+

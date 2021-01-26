@@ -1307,6 +1307,37 @@ impl Enclave {
 	}	
     }
 
+    pub fn first_message_transfer(&self, sealed_log_in: &mut [u8; 8192]) -> Result<(party_one::KeyGenFirstMsg, [u8;8192])>
+    {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	let mut sealed_log_out = [0u8; 8192];
+	let mut plain_ret = [0u8;256];
+
+	let _result = unsafe {
+	    first_message_transfer(self.geteid(), &mut enclave_ret,
+			  sealed_log_in.as_mut_ptr() as *mut u8,
+			  sealed_log_out.as_mut_ptr() as *mut u8,
+			  plain_ret.as_mut_ptr() as *mut u8);	    
+	};
+
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => {
+		let c = plain_ret[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		let nc = nc_str.parse::<usize>().unwrap();
+		let size_str = std::str::from_utf8(&plain_ret[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		let kg1m_sgx : KeyGenFirstMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
+		let kg1m_loc : KeyGenFirstMsg = KeyGenFirstMsg_w::from(&kg1m_sgx).inner;
+		let kg1m = party_one::KeyGenFirstMsg{ pk_commitment: kg1m_loc.pk_commitment, zk_pok_commitment: kg1m_loc.zk_pok_commitment };
+		Ok((kg1m, sealed_log_out))
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
+	}	
+    }
+
     pub fn second_message(&self, sealed_log_in: &mut [u8; 8192], key_gen_msg_2: &KeyGenMsg2)
 	-> Result<(party1::KeyGenParty1Message2,  [u8;8192])>{
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
@@ -1498,6 +1529,11 @@ extern {
 		      sk_sealed_log: *mut u8, public_key: *mut u8) -> sgx_status_t;
 
     fn first_message(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		     sealed_log_in: *mut u8,
+		     sealed_log_out: *mut u8,
+		     key_gen_first_msg: *mut u8);
+
+    fn first_message_transfer(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		     sealed_log_in: *mut u8,
 		     sealed_log_out: *mut u8,
 		     key_gen_first_msg: *mut u8);

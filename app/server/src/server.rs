@@ -57,8 +57,7 @@ impl Lockbox
 	column_families.push(ColumnFamilyDescriptor::new("ecdsa_second_message", cf_opts.clone()));
 	column_families.push(ColumnFamilyDescriptor::new("ecdsa_sign_first", cf_opts.clone()));
 	column_families.push(ColumnFamilyDescriptor::new("ecdsa_sign_second", cf_opts.clone()));
-	column_families.push(ColumnFamilyDescriptor::new("ecdsa_keyupdate_first", cf_opts.clone()));
-	column_families.push(ColumnFamilyDescriptor::new("ecdsa_keyupdate_second", cf_opts.clone()));
+	column_families.push(ColumnFamilyDescriptor::new("ecdsa_keyupdate", cf_opts.clone()));
 
 	let mut database = match DB::open_cf_descriptors(&db_opts, path, column_families) {
 	    Ok(db) => db,

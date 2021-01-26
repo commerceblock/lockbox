@@ -60,7 +60,7 @@ Then the following operations are performed:
     let t2 = reciever_msg.t2;
 
     // derive updated private key share
-    s2 = t2 * (td.x1.invert()) * s1;
+    let s2 = t2 * (x1.invert()) * s1;
 
     theta = FE::new_random();
     // Note:
@@ -70,7 +70,7 @@ Then the following operations are performed:
     let s2_theta = s2 * theta;
 
     let g: GE = ECPoint::generator();
-    s2_pub = g * s2;
+    let s2_pub = g * s2;
 
     let p1_pub = kp.party_2_public * s1_theta;
     let p2_pub = reciever_msg.o2_pub * s2_theta;

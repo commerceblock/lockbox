@@ -1667,7 +1667,7 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			     sign_msg1_str: *const u8, len: usize,
 			     sign_party_one_first_message: &mut [u8;480000]) -> sgx_status_t {
-    
+
     let str_slice = unsafe { slice::from_raw_parts(sign_msg1_str, len) };
 
     let sign_msg1_str = match std::str::from_utf8(&str_slice) {
@@ -1688,11 +1688,8 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 	}
     };
 
-    let data = match SecondMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
-        Ok(v) => v,
-	Err(e) => return e
-    };
-    
+
+
     let base: GE = ECPoint::generator();
     let secret_share: FE = ECScalar::new_random();
     let public_share = &base * &secret_share;
@@ -1707,7 +1704,11 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         g2: h.clone(),
         h2: c.clone(),
     };
+
+
+
     let d_log_proof = ECDDHProof::prove(&w, &delta);
+
     let ec_key_pair = EphEcKeyPair {
         public_share: public_share.clone(),
         secret_share,
@@ -1725,6 +1726,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
             ec_key_pair,
 	);
 
+
     let plain_str = match serde_json::to_string(&sign_party_one_first_msg){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -1741,6 +1743,11 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     *sign_party_one_first_message  = match plain_bytes.as_slice().try_into(){
 	Ok(x) => x,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
+
+    let data = match SecondMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+        Ok(v) => v,
+	Err(e) => return e
     };
 
     let sign_first_sealed =  SignFirstSealed {
@@ -1763,7 +1770,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
-	
+
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -1862,7 +1869,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 #[no_mangle]
 pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			     receiver_msg: *const u8, len: usize,
-			     plain_out: &mut [u8;480000]) -> sgx_status_t {
+			     plain_out: &mut [u8;8192]) -> sgx_status_t {
     
     let str_slice = unsafe { slice::from_raw_parts(receiver_msg, len) };
 

@@ -96,7 +96,7 @@ pub struct KUSendMsg {
     pub user_id: Uuid,
     pub statechain_id: Uuid,
     pub x1: FE,
-    pub t1: FE,
+    pub t2: FE,
     pub o2_pub: GE,
 }
 
@@ -313,6 +313,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/first";
+	println!("sign first");
         let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
             post_lb(&lockbox, path, &sign_msg1).unwrap();
 
@@ -337,9 +338,11 @@ mod tests {
         let path: &str = "ecdsa/sign/second";
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
 
+	println!("check sig length");
         assert_eq!(der_signature.len(),2);
         assert_eq!(der_signature[1].len(),33);
 
+	println!("verify");
         let sig = Signature::from_der_lax(&der_signature[0][..]).unwrap();
         let mut sig_compact = sig.serialize_compact();
 
@@ -438,8 +441,9 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/second";
+	println!("sign second");
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
-
+	
         assert_eq!(der_signature.len(),2);
         assert_eq!(der_signature[1].len(),33);
 
@@ -472,10 +476,11 @@ mod tests {
             user_id: shared_key_id,
             statechain_id,
             x1: x1,
-            t1: t2,
+            t2: t2,
             o2_pub: o2_pub,
         };
         let path: &str = "ecdsa/keyupdate/first";
+	println!("keyupdate first");
         let ku_receive: KUReceiveMsg = post_lb(&lockbox, path, &ku_send).unwrap();               
 
         let new_shared_key_id = Uuid::new_v4();
@@ -486,6 +491,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keyupdate/second";
+	println!("keyupdate second");
         let ku_attest: KUAttest = post_lb(&lockbox, path, &ku_send).unwrap();
 
         assert_eq!(ku_attest.statechain_id,statechain_id);
@@ -497,6 +503,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keygen/first";
+	println!("keygen first");
         let (return_id_2, key_gen_first_msg_2): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1_2).unwrap();
 
         assert_eq!(return_id_2,new_shared_key_id);
@@ -510,6 +517,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keygen/second";
+	println!("keygen second");
         let kg_party_one_second_message_2: party1::KeyGenParty1Message2 = post_lb(&lockbox, path, &key_gen_msg2_2).unwrap();
 
         let key_gen_second_message_2 = MasterKey2::key_gen_second_message(
@@ -548,6 +556,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/first";
+	println!("sign first");
         let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
             post_lb(&lockbox, path, &sign_msg1).unwrap();
 
@@ -570,6 +579,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/second";
+	println!("sign second");
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
 
         assert_eq!(der_signature.len(),2);
@@ -711,7 +721,7 @@ mod tests {
             user_id: shared_key_id,
             statechain_id,
             x1: x1,
-            t1: t2,
+            t2: t2,
             o2_pub: o2_pub,
         };
         let path: &str = "ecdsa/keyupdate/first";

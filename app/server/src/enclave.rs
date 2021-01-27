@@ -270,7 +270,7 @@ pub struct KUSendMsg_sgx {        // Sent from server to lockbox
     pub user_id: Uuid,
     pub statechain_id: Uuid,
     pub x1: FE_sgx,
-    pub t1: FE_sgx,
+    pub t2: FE_sgx,
     pub o2_pub: GE_sgx,
 }
 
@@ -284,10 +284,10 @@ impl From<&KUSendMsg> for KUSendMsg_sgx_w {
 	let user_id = item.user_id;
 	let statechain_id = item.statechain_id;
 	let x1 = FE_sgx_w::from(&item.x1).inner;
-	let t1 = FE_sgx_w::from(&item.t1).inner;
+	let t2 = FE_sgx_w::from(&item.t2).inner;
 	let o2_pub = GE_sgx_w::from(&item.o2_pub).inner;
 	
-	Self { inner: KUSendMsg_sgx { user_id, statechain_id, x1, t1, o2_pub } }
+	Self { inner: KUSendMsg_sgx { user_id, statechain_id, x1, t2, o2_pub } }
     }
 }
 
@@ -1375,7 +1375,7 @@ impl Enclave {
 
     
     pub fn sign_first(&self, sealed_log_in: &mut [u8; 8192], sign_msg1: &SignMsg1)
-	-> Result<(party_one::EphKeyGenFirstMsg, [u8;8192])> {
+	-> Result<Option<(party_one::EphKeyGenFirstMsg, [u8;8192])>> {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
@@ -1405,7 +1405,7 @@ impl Enclave {
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let ekg1m_sgx : EphKeyGenFirstMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
 		let ekg1m : party_one::EphKeyGenFirstMsg = party_one_enc::EphKeyGenFirstMsg_w::from(&ekg1m_sgx).inner;
-		Ok((ekg1m, sealed_log_out))
+		Ok(Some((ekg1m, sealed_log_out)))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
 	}	
@@ -1457,14 +1457,14 @@ impl Enclave {
 	-> Result<(KUReceiveMsg, [u8;8192])> {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	let mut sealed_log_out = [0u8; 8192];
-	let mut plain_ret = [0u8;480000];
+	let mut plain_ret = [0u8;8192];
 
 	let receiver_msg_sgx = KUSendMsg_sgx_w::from(receiver_msg).inner;
 		
 	let receiver_msg_str = serde_json::to_string(&receiver_msg_sgx).unwrap();
 	
 	let _result = unsafe {
-	    sign_first(self.geteid(), &mut enclave_ret,
+	    keyupdate_first(self.geteid(), &mut enclave_ret,
 		       sealed_log_in.as_mut_ptr() as *mut u8,
                        sealed_log_out.as_mut_ptr() as *mut u8,
 		       receiver_msg_str.as_ptr() as * const u8,

@@ -140,12 +140,11 @@ impl Ecdsa for Lockbox {
 	
         let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
 	
-	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
 	
 	match enc.second_message(&mut sealed_secrets, &key_gen_msg2) {
 	    Ok(x) => {
-		self.database.put_cf(cf_out, user_db_key, &sealed_log_out)?;
+		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		Ok(Some(x.0))
 	    },
 	    Err(e) => Err(LockboxError::Generic(format!("generating second message: {}", e))),
@@ -161,11 +160,16 @@ impl Ecdsa for Lockbox {
 
 	match enc.sign_first(&mut sealed_secrets, &sign_msg1) {
 	    Ok(x) => {
-		let sealed_log = &x.1;
-		self.database.put_cf(cf_out, user_db_key, &x.1)?;
-		return Ok(Some(x.0))
+		match x {
+		    Some(x) => {
+			let sealed_log = &x.1;
+			self.database.put_cf(cf_out, user_db_key, &x.1)?;
+			Ok(Some(x.0))
+		    },
+		    None => Ok(None)
+		}
 	    },
-	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
+	    Err(e) => return Err(LockboxError::Generic(format!("sign first: {}", e))),
 	}
 	
     }
@@ -179,13 +183,12 @@ impl Ecdsa for Lockbox {
 	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
 
-	
 	match enc.sign_second(&mut sealed_secrets, &sign_msg2) {
 	    Ok(x) => {
 		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		return Ok(Some(x.0))
 	    },
-	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
+	    Err(e) => return Err(LockboxError::Generic(format!("sign second: {}", e))),
 	}
     }
 
@@ -197,14 +200,12 @@ impl Ecdsa for Lockbox {
 	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
 
-
-
 	match enc.keyupdate_first(&mut sealed_secrets, &receiver_msg) {
 	    Ok(x) => {
 		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		return Ok(x.0)
 	    },
-	    Err(e) => return Err(LockboxError::Generic(format!("generating second message: {}", e))),
+	    Err(e) => return Err(LockboxError::Generic(format!("keyupdate first: {}", e))),
 	}
     }
 
@@ -213,11 +214,11 @@ impl Ecdsa for Lockbox {
 	// Delete keyupdate info
 	let cf_ku = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
 	let db_key = Key::from_uuid(&finalize_data.shared_key_id);
-	match self.database.delete_cf(cf_ku, sealed_in.1) {
-	    Ok(_) => x,
-	    Err(e) => return Err(LockboxError::Generic(format!("error deleting transfer data: {}", e))),
+	match self.database.delete_cf(cf_ku, db_key) {
+	    Ok(_) => Ok(KUAttest { statechain_id: Uuid::parse_str("00000000000000000000000000000000").unwrap(), attestation: String::from("") }),
+	    Err(e) => return Err(LockboxError::Generic(format!("keyupdate second: error deleting transfer data: {}", e))),
 	}
-	Ok(KUAttest { statechain_id: Uuid::parse_str("00000000000000000000000000000000").unwrap(), attestation: String::from("") })
+
     }
 
 }

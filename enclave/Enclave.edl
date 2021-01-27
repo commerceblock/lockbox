@@ -79,7 +79,7 @@ enclave {
 		       	  [out, size=8192] uint8_t* sealed_log_out,
 			  [in, size=len] const uint8_t* receiver_msg,
 			  size_t len,
-			  [out, size=480000] uint8_t* plain_out);
+			  [out, size=8192] uint8_t* plain_out);
 
 	};
 };

@@ -682,9 +682,7 @@ impl Enclave {
     	match result {
             sgx_status_t::SGX_SUCCESS => Ok(result.as_str().to_string()),
        	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
-        	
     	}
-	
     }
     
     pub fn get_random_sealed_log(&self, rand_size: u32) -> Result<[u8; 8192]> {

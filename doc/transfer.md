@@ -20,7 +20,6 @@ pub struct KUSendMsg {        // Sent from server to lockbox
 ```
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KUReceiveMsg {      // Sent from lockbox back to server
-    pub theta: FE,
     pub s2_pub: GE,
 }
 ```
@@ -62,18 +61,11 @@ Then the following operations are performed:
     // derive updated private key share
     let s2 = t2 * (x1.invert()) * s1;
 
-    theta = FE::new_random();
-    // Note:
-    //  s2 = o1*o2_inv*s1
-    //  t2 = o1*x1*o2_inv
-    let s1_theta = s1 * theta;
-    let s2_theta = s2 * theta;
-
     let g: GE = ECPoint::generator();
     let s2_pub = g * s2;
 
-    let p1_pub = kp.party_2_public * s1_theta;
-    let p2_pub = reciever_msg.o2_pub * s2_theta;
+    let p1_pub = kp.party_2_public * s1;
+    let p2_pub = reciever_msg.o2_pub * s2;
 
     // Check P1 = o1_pub*s1 === p2 = o2_pub*s2
     if p1_pub != p2_pub {

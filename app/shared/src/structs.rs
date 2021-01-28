@@ -250,7 +250,6 @@ pub struct TransferMsg4 {
 pub struct TransferMsg5 {
     pub new_shared_key_id: Uuid,
     pub s2_pub: GE,
-    pub theta: FE,
 }
 
 /// Data present if transfer is part of an atomic batch transfer
@@ -270,7 +269,6 @@ pub struct KUSendMsg {        // Sent from server to lockbox
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KUReceiveMsg {      // Sent from lockbox back to server
-    pub theta: FE,
     pub s2_pub: GE,
 }
 

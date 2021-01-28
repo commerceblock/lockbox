@@ -102,7 +102,6 @@ pub struct KUSendMsg {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct KUReceiveMsg {
-    pub theta: FE,
     pub s2_pub: GE,
 }
 
@@ -169,7 +168,12 @@ where
         Err(e) => return Err(CError::from(e)),
     };
 
-    Ok(serde_json::from_str(value.as_str()).unwrap())
+    match serde_json::from_str(value.as_str()) {
+	Ok(r) => Ok(r),
+	Err(e) => {
+	    Err(CError::Generic(format!("Error derserialising POST response: {}: {}", value.as_str(), e)))
+	}
+    }
 }
 
 // verify 2P ECDSA signature
@@ -186,8 +190,12 @@ pub fn verify(r: &BigInt, s: &BigInt, pubkey: &GE, message: &BigInt) -> bool {
     let rx_bytes = &BigInt::to_vec(&r)[..];
     let u1_plus_u2_bytes = &BigInt::to_vec(&(u1 + u2).x_coor().unwrap())[..];
 
-    if rx_bytes.ct_eq(&u1_plus_u2_bytes).unwrap_u8() == 1
-        && s < &(FE::q() - s.clone())
+    let cond1 = rx_bytes.ct_eq(&u1_plus_u2_bytes).unwrap_u8() == 1;
+    let cond2 = s < &(FE::q() - s.clone());
+
+    println!("verify - cond1: {}, cond2: {}", cond1, cond2);
+    
+    if cond1 && cond2
     {
         return true
     } else {
@@ -251,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    fn test_keygen_sign() {
+    fn test_sign_keygen() {
         let LOCKBOX_URL: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
 
         let lockbox = Lockbox::new(LOCKBOX_URL.to_string());
@@ -313,7 +321,6 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/first";
-	println!("sign first");
         let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
             post_lb(&lockbox, path, &sign_msg1).unwrap();
 
@@ -338,11 +345,9 @@ mod tests {
         let path: &str = "ecdsa/sign/second";
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
 
-	println!("check sig length");
         assert_eq!(der_signature.len(),2);
         assert_eq!(der_signature[1].len(),33);
 
-	println!("verify");
         let sig = Signature::from_der_lax(&der_signature[0][..]).unwrap();
         let mut sig_compact = sig.serialize_compact();
 
@@ -357,7 +362,7 @@ mod tests {
     }
 
     #[test]
-    fn test_keygen_sign_transfer() {
+    fn test_transfer_sign_keygen() {
         let LOCKBOX_URL: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
 
         let lockbox = Lockbox::new(LOCKBOX_URL.to_string());
@@ -441,7 +446,6 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/second";
-	println!("sign second");
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
 	
         assert_eq!(der_signature.len(),2);
@@ -503,7 +507,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keygen/first";
-	println!("keygen first");
+	println!("gen new shared key - first message:");
         let (return_id_2, key_gen_first_msg_2): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1_2).unwrap();
 
         assert_eq!(return_id_2,new_shared_key_id);
@@ -517,7 +521,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keygen/second";
-	println!("keygen second");
+	println!("gen new shared key - second message:");
         let kg_party_one_second_message_2: party1::KeyGenParty1Message2 = post_lb(&lockbox, path, &key_gen_msg2_2).unwrap();
 
         let key_gen_second_message_2 = MasterKey2::key_gen_second_message(
@@ -538,9 +542,11 @@ mod tests {
         );
 
         //confirm public key after transfer
-        assert_eq!(ku_receive.s2_pub*ku_receive.theta*o2,master_key_2.public.q);
+	println!("confirm public key after transfer");
+        assert_eq!(ku_receive.s2_pub*o2,master_key_2.public.q);
 
         //confirm public keys are the same
+	println!("confirm public keys are the same");
         assert_eq!(master_key.public.q,master_key_2.public.q);        
 
         // choose message to sign
@@ -556,7 +562,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/first";
-	println!("sign first");
+	println!("sign message: sign first");
         let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
             post_lb(&lockbox, path, &sign_msg1).unwrap();
 
@@ -579,7 +585,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/second";
-	println!("sign second");
+	println!("sign message: sign second");
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
 
         assert_eq!(der_signature.len(),2);
@@ -594,14 +600,16 @@ mod tests {
 
         let rec_pub = PublicKey::from_slice(&der_signature[1][..]).unwrap();
         let pk_vec = master_key.public.q;
+	println!("public key for verification: {:?}", master_key.public);
         let ver = verify(&r,&s,&pk_vec,&msg);
 
+	println!("final verify");
         assert!(ver);
 
     }
 
     #[test]
-    fn test_keygen_sign_transfer_fail() {
+    fn test_fail_transfer_sign_keygen() {
         let LOCKBOX_URL: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
 
         let lockbox = Lockbox::new(LOCKBOX_URL.to_string());
@@ -725,6 +733,7 @@ mod tests {
             o2_pub: o2_pub,
         };
         let path: &str = "ecdsa/keyupdate/first";
+	println!("keyupdate first");
         let ku_receive: KUReceiveMsg = post_lb(&lockbox, path, &ku_send).unwrap();               
 
         let new_shared_key_id = Uuid::new_v4();
@@ -735,6 +744,7 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keyupdate/second";
+	println!("keyupdate second");
         let ku_attest: KUAttest = post_lb(&lockbox, path, &ku_send).unwrap();
 
         assert_eq!(ku_attest.statechain_id,statechain_id);
@@ -779,7 +789,7 @@ mod tests {
         );
 
         //confirm public key after transfer
-        assert!(ku_receive.s2_pub*ku_receive.theta*o2 != master_key_2.public.q);
+        assert!(ku_receive.s2_pub*o2 != master_key_2.public.q);
 
         //confirm public keys are the same
         assert!(master_key.public.q != master_key_2.public.q);

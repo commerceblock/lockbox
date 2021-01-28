@@ -88,15 +88,6 @@ mod party_one_enc {
 	}
     }
 
-    /*
-    #[derive(Debug, Serialize, Deserialize)]
-    pub struct EphKeyGenFirstMsg {
-	pub d_log_proof: ECDDHProof,
-	pub public_share: GE,
-	pub c: GE, //c = secret_share * base_point2                                                                                                                                                                                                                                            
-    }
-     */
-    
     impl From<&EphKeyGenFirstMsg_sgx> for EphKeyGenFirstMsg_w {
 	fn from(item: &EphKeyGenFirstMsg_sgx) -> Self {
 	    let d_log_proof = ECDDHProof_w::from(&item.d_log_proof).inner;
@@ -136,17 +127,6 @@ mod party_two_enc {
 	    Self { inner:  party_two_sgx::EphKeyGenFirstMsg{ pk_commitment, zk_pok_commitment } }
 	}
     }
-
-/*
-    #[derive(Clone, Debug, Serialize, Deserialize)]
-    pub struct EphCommWitness {
-	pub pk_commitment_blind_factor: BigInt,
-	pub zk_pok_blind_factor: BigInt,
-	pub public_share: GE,
-	pub d_log_proof: ECDDHProof,
-	pub c: GE, //c = secret_share * base_point2
-    }
-*/
 
     struct EphCommWitness_sgx_w {
 	inner: party_two_sgx::EphCommWitness
@@ -293,7 +273,6 @@ impl From<&KUSendMsg> for KUSendMsg_sgx_w {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct KUReceiveMsg_sgx {      // Sent from lockbox back to server
-    pub theta: FE_sgx,
     pub s2_pub: GE_sgx,
 }
 
@@ -303,10 +282,28 @@ pub struct KUReceiveMsg_w {
 
 impl From<&KUReceiveMsg_sgx> for KUReceiveMsg_w {
     fn from(item: &KUReceiveMsg_sgx) -> Self {
-	let theta = FE_w::from(&item.theta).inner;
 	let s2_pub = GE_w::from(&item.s2_pub).inner;
 	
-	Self { inner: KUReceiveMsg { theta, s2_pub } }
+	Self { inner: KUReceiveMsg { s2_pub } }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KeyGenMsg2_sgx {      // Sent from lockbox back to server
+    pub shared_key_id: Uuid,
+    pub dlog_proof: DLogProof_sgx,
+}
+
+pub struct KeyGenMsg2_sgx_w {
+    inner: KeyGenMsg2_sgx
+}
+
+impl From<&KeyGenMsg2> for KeyGenMsg2_sgx_w {
+    fn from(item: &KeyGenMsg2) -> Self {
+	let shared_key_id = item.shared_key_id;
+	let dlog_proof = DLogProof_sgx_w::from(&item.dlog_proof).inner;
+	
+	Self { inner: KeyGenMsg2_sgx { shared_key_id, dlog_proof } }
     }
 }
 
@@ -412,14 +409,6 @@ impl From<&SignSecondMsgRequest> for SignSecondMsgRequest_sgx_w {
 	Self { inner: SignSecondMsgRequest_sgx { protocol: item.protocol, message, party_two_sign_message } }
     }
 }
-
-/*
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SignMessage {
-    pub partial_sig: party_two::PartialSig,
-    pub second_message: party_two::EphKeyGenSecondMsg,
-}
- */
 
 mod party2_enc {
     use super::*;
@@ -962,13 +951,6 @@ impl From<&FE> for FE_sgx_w {
     }
 }
 
-//#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-//pub struct ECDDHProof {
-//    pub a1: GE,
-//    pub a2: GE,
-//    pub z: FE,
-//}
-
 struct ECDDHProof_w {
     inner: ECDDHProof
 }
@@ -1344,9 +1326,13 @@ impl Enclave {
 	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
 
-	let msg_2_str = serde_json::to_string(key_gen_msg_2).unwrap();
+	println!("converting KeyGenMsg2 to SGX");
+	let key_gen_msg2_sgx = &KeyGenMsg2_sgx_w::from(key_gen_msg_2).inner;
+	println!("converting KeyGenMsg2_sgx to string");
+	let msg_2_str = serde_json::to_string(key_gen_msg2_sgx).unwrap();
 	
 	let _result = unsafe{
+	    println!("doing second message");
 	    second_message(self.geteid(), &mut enclave_ret,
 			   sealed_log_in.as_mut_ptr() as *mut u8,
 			   sealed_log_out.as_mut_ptr() as *mut u8,

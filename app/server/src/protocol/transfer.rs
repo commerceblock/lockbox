@@ -24,7 +24,6 @@ pub struct TransferFinalizeData {
     pub state_chain_id: Uuid,
     pub state_chain_sig: StateChainSig,
     pub s2: FE,
-    pub theta: FE,
     pub new_tx_backup: Transaction,
     pub batch_data: Option<BatchData>,
 }

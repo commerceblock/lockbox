@@ -367,6 +367,54 @@ impl TryFrom<SgxSealable> for RandDataSerializable {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+struct FESealed {
+    inner: FE
+}
+
+impl TryFrom<(* mut u8, u32)> for FESealed {
+    type Error = sgx_status_t;
+    fn try_from(item: (* mut u8, u32)) -> Result<Self, Self::Error> {
+	let opt = from_sealed_log_for_slice::<u8>(item.0, item.1);
+	let sealed_data = match opt {
+            Some(x) => x,
+            None => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
+            },
+	};
+	let unsealed_data = SgxSealable::try_from_sealed(&sealed_data)?;
+	Self::try_from(unsealed_data)
+    }
+}
+
+impl TryFrom<FESealed> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: FESealed) -> Result<Self, Self::Error> {
+        let encoded_vec = match serde_cbor::to_vec(&item){
+            Ok(v) => v,
+            Err(e) => {
+                println!("error: {:?}",e);
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+            }
+        };
+        let res = Self{inner: encoded_vec};
+        Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for FESealed {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+        match serde_cbor::from_slice(&item){
+            Ok(v) => Ok(v),
+            Err(_e) => {
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+            }
+        }
+    }
+}
 
 impl TryFrom<Bytes32> for SgxSealable {
     type Error = sgx_status_t;
@@ -410,10 +458,13 @@ pub struct KeyGenFirstMsg{
 }
 
 impl KeyGenFirstMsg {
-    pub fn create_commitments() -> (KeyGenFirstMsg, CommWitness, EcKeyPair) {
+
+    pub fn create_commitments_with_fixed_secret_share(
+        mut secret_share: FE,
+    ) -> (KeyGenFirstMsg, CommWitness, EcKeyPair) {
         let base: GE = ECPoint::generator();
 
-        let mut secret_share: FE = ECScalar::new_random();
+
 
         let public_share = base.scalar_mul(&secret_share.get_element());
 
@@ -1053,7 +1104,8 @@ impl MasterKey1 {
         eph_ec_key_pair_party1: &EphEcKeyPair,
         message: &BigInt,
     ) -> Result<party_one::SignatureRecid, Errors> {
-        let verify_party_two_second_message = true;
+        let verify_party_two_second_message =
+	true;
 	//TODO - verify needed?
 //        party_one::EphKeyGenSecondMsg::verify_commitments_and_dlog_proof(
 //            &eph_key_gen_first_message_party_two,
@@ -1074,7 +1126,8 @@ impl MasterKey1 {
             s: signature_with_recid.s.clone(),
         };
 	//TODO - verify needed?
-        let verify = true;
+        let verify =
+	    true;
 	    //party_one::verify(&signature, &self.public.q, message).is_ok();
         if verify {
             if verify_party_two_second_message {
@@ -1134,31 +1187,15 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 }
 
 #[no_mangle]
-pub extern "C" fn create_sealed_secret_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
-
+pub extern "C" fn create_sealed_random_bytes32(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
     let mut secret_share: FE = ECScalar::<SK>::zero();
     let q_third = FE::q();
     
-    let mut data;
-    loop {
-	data = match Bytes32::new_random(){
-	    Ok(v) => v,
-	    Err(e) => return e,
-	};
+    let data = match Bytes32::new_random(){
+          Ok(v) => v,
+        Err(_) => return return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
 
-	let mut sk = match SK::from_slice(&get_context_all(), data.deref()){
-            Ok(v) => v,
-            Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-	};
-	
-	secret_share.set_element(sk);
-	let sk_bigint = secret_share.to_big_int();
-
-	if (sk_bigint < q_third.div_floor(&BigInt::from(3))) {
-            break;
-	}
-    }
-        
     let sealable = match SgxSealable::try_from(data){
 	Ok(x) => x,
 	Err(ret) => return ret
@@ -1174,14 +1211,11 @@ pub extern "C" fn create_sealed_secret_key(sealed_log: * mut u8, sealed_log_size
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
 
-
-    
     sgx_status_t::SGX_SUCCESS
 }
 
-
 #[no_mangle]
-pub extern "C" fn verify_sealed_secret_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
+pub extern "C" fn verify_sealed_bytes32(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
     let data = match Bytes32::try_from((sealed_log, sealed_log_size)) {
 	Ok(v) => v,
@@ -1189,6 +1223,41 @@ pub extern "C" fn verify_sealed_secret_key(sealed_log: * mut u8, sealed_log_size
     };
     
     sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn create_sealed_random_fe(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
+
+    let mut secret_share: FE = ECScalar::new_random();
+
+    let fes = FESealed { inner: secret_share }; 
+    
+    let sealable = match SgxSealable::try_from(fes){
+	Ok(x) => x,
+	Err(ret) => return ret
+    };
+
+    let sealed_data = match sealable.to_sealed(){
+	Ok(x) => x,
+        Err(ret) => return ret
+    };
+    
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, sealed_log_size);
+    if opt.is_none() {
+        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
+    
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn verify_sealed_fe(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
+
+    match FESealed::try_from((sealed_log, sealed_log_size)) {
+	Ok(_) => sgx_status_t::SGX_SUCCESS,
+	Err(e) => e
+    }
+
 }
 
 /// A Ecall function takes a string and output its SHA256 digest.
@@ -1413,18 +1482,12 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 				key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
 
-    let data = match Bytes32::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
+    let data = match FESealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
     };
 
-    let mut sk = match SK::from_slice(&get_context_all(), data.deref()){
-	Ok(v) => v,
-	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-    };
-
-    let mut secret_share: FE = ECScalar::<SK>::zero();
-    secret_share.set_element(sk);
+    let mut secret_share = data.inner;
 
     first_message_common(&mut secret_share, sealed_log_out, key_gen_first_msg)
 }
@@ -1447,12 +1510,16 @@ pub extern "C" fn first_message_transfer(sealed_log_in: * mut u8, sealed_log_out
 
 fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
                                 key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
-    let sk_bigint = secret_share.to_big_int();
-    let q_third = FE::q();
-    println!("check secret share in range");
-    if (sk_bigint > q_third.div_floor(&BigInt::from(3))) {
-	return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-    };
+//    let sk_bigint = secret_share.to_big_int();
+//    let q_third = FE::q();
+//    println!("check secret share in range");
+//    if (sk_bigint > q_third.div_floor(&BigInt::from(3))) {
+//	return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    //    };
+
+    let (key_gen_first_message, comm_witness, ec_key_pair) =
+	KeyGenFirstMsg::create_commitments_with_fixed_secret_share(*secret_share);
+/*    
     let base: GE = ECPoint::generator();
     let element = secret_share.get_element().clone();
     let public_share = base.scalar_mul(&element);
@@ -1486,20 +1553,22 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
 
     let pk_commitment_string = key_gen_first_message.pk_commitment.to_hex();
     let zk_pok_commitment_string = key_gen_first_message.zk_pok_commitment.to_hex();
-
-    println!("key gen first msg to stringe");
+*/
+    println!("key gen first msg to string");
     let key_gen_first_message_str = match serde_json::to_string(&key_gen_first_message){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
-    
+
+    /*
     let comm_witness = CommWitness {
         pk_commitment_blind_factor,
         zk_pok_blind_factor,
         public_share: ec_key_pair.public_share,
         d_log_proof,
     };
-
+     */
+    
     let first_message_sealed = FirstMessageSealed { comm_witness, ec_key_pair };
     
     let sealable = match SgxSealable::try_from(first_message_sealed){
@@ -1554,6 +1623,14 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
+
+
+
+
+
+
+
+    
     let user_id = key_gen_msg2.shared_key_id;
 
     let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
@@ -1570,11 +1647,15 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     //TODO move to outside enclave
     println!("Get KeyGenSecondMsg");
     let key_gen_second_message = //match DLogProof::verify(&key_gen_msg2.dlog_proof){
-	//Ok(v) =>
+    //	Ok(v) =>
 	KeyGenSecondMsg { comm_witness };
     //,
 //	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 //    };
+    
+
+
+
     println!("Get encoded_vec");
     let encoded_vec = match serde_cbor::to_vec(&key_gen_second_message){
 	Ok(v) => v,
@@ -1583,8 +1664,14 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 
     let ev_len = encoded_vec.len();
 
+
+
+    
     let (ek, dk) = Paillier::keypair().keys();
     let randomness = Randomness::sample(&ek);
+    
+
+
 
     let encrypted_share = Paillier::encrypt_with_chosen_randomness(
         &ek,
@@ -1592,23 +1679,31 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
         &randomness,
     ).0.into_owned();
     
+    let paillier_key_pair = PaillierKeyPair{ ek, dk: dk.clone(), encrypted_share, randomness: randomness.0.clone()};
+
+
+
+
     let party_one_private = Party1Private {
             x1: ec_key_pair.secret_share,
-            paillier_priv: dk.clone(),
-            c_key_randomness: randomness.0.clone(),
+            paillier_priv: dk,
+            c_key_randomness: randomness.0,
     };
 
-    let paillier_context = PaillierKeyPair{ ek, dk, encrypted_share, randomness: randomness.0};
-
-    let correct_key_proof = NICorrectKeyProof::proof(&paillier_context.dk);
 
     let (pdl_statement, pdl_proof, composite_dlog_proof) =
-            PaillierKeyPair::pdl_proof(&party_one_private, &paillier_context);
+        PaillierKeyPair::pdl_proof(&party_one_private, &paillier_key_pair);
+
+
+
+    let correct_key_proof = NICorrectKeyProof::proof(&paillier_key_pair.dk);
+
+
 
     let second_message =  KeyGenParty1Message2 {
         ecdh_second_message: key_gen_second_message,
-        ek: paillier_context.ek.clone(),
-        c_key: paillier_context.encrypted_share.clone(),
+        ek: paillier_key_pair.ek.clone(),
+        c_key: paillier_key_pair.encrypted_share.clone(),
         correct_key_proof,
 	pdl_statement,
 	pdl_proof,
@@ -1639,12 +1734,12 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
             party_one_private.clone(),
             &comm_witness_public_share,
             &party2_public,
-            paillier_context.clone(),
+            paillier_key_pair.clone(),
     );
 
     
     let second_message_sealed =  SecondMessageSealed {
-        paillier_key_pair: paillier_context,
+        paillier_key_pair: paillier_key_pair,
         party_one_private,
 	party2_public,
 	master_key
@@ -1817,7 +1912,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         &sign_msg2.sign_second_msg_request.party_two_sign_message,
         &ssi.eph_key_gen_first_message_party_two,
         &ssi.eph_ec_key_pair_party1,
-                &sign_msg2.sign_second_msg_request.message,
+        &sign_msg2.sign_second_msg_request.message,
     ) {
         Ok(sig) => signature = sig,
         Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
@@ -1921,9 +2016,9 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
 
     // Check P1 = o1_pub*s1 === p2 = o2_pub*s2
     println!("keyupdate checking pub keys: {:?}, {:?}", p1_pub, p2_pub);
-//    if p1_pub != p2_pub {
-//	return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-//    }
+    if p1_pub != p2_pub {
+	return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+    }
 
     
     let rec_msg_out = KUReceiveMsg {

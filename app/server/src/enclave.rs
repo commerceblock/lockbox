@@ -442,19 +442,19 @@ mod party2_enc {
     
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct KeyGenFirstMsg{
-    pk_commitment: BigInt,
-    zk_pok_commitment: BigInt,
-}
+//#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+//pub struct KeyGenFirstMsg{
+//    pk_commitment: BigInt,
+//    zk_pok_commitment: BigInt,
+//}
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct KeyGenFirstMsg_w{
-    inner: KeyGenFirstMsg
+    inner: party_one::KeyGenFirstMsg
 }
 
 impl Deref for KeyGenFirstMsg_w {
-     type Target = KeyGenFirstMsg;
+     type Target = party_one::KeyGenFirstMsg;
      fn deref(&self) -> &Self::Target {
      	&self.inner
      }
@@ -473,7 +473,7 @@ impl From<&KeyGenFirstMsg_sgx> for KeyGenFirstMsg_w {
 	let pk_commitment = BigInt_w::from(&item.pk_commitment).inner;
 	let zk_pok_commitment = BigInt_w::from(&item.zk_pok_commitment).inner;
 	
-	let inner = KeyGenFirstMsg {
+	let inner = party_one::KeyGenFirstMsg {
 	    pk_commitment,
 	    zk_pok_commitment,
 	};
@@ -1150,12 +1150,12 @@ impl Enclave {
     	}
     }
     
-    pub fn get_random_sealed_log(&self, rand_size: u32) -> Result<[u8; 8192]> {
+    pub fn get_random_sealed_log(&self) -> Result<[u8; 8192]> {
      	let sealed_log = [0; 8192];
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
-	    create_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
+	    create_sealed_random_bytes32(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
 	};
 	
 	match enclave_ret {
@@ -1168,7 +1168,34 @@ impl Enclave {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
-	    verify_sealed_secret_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
+	    verify_sealed_bytes32(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
+    pub fn get_random_sealed_fe_log(&self) -> Result<[u8; 8192]> {
+     	let sealed_log = [0; 8192];
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	
+	let _result = unsafe {
+	    create_sealed_random_fe(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(sealed_log),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
+    pub fn verify_sealed_fe_log(&self, sealed_log: [u8; 8192]) -> Result<()> {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	
+	let _result = unsafe {
+	    verify_sealed_fe(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
 	};
 	
 	match enclave_ret {
@@ -1279,8 +1306,8 @@ impl Enclave {
 		let size = size_str.parse::<usize>().unwrap();
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let kg1m_sgx : KeyGenFirstMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
-		let kg1m_loc : KeyGenFirstMsg = KeyGenFirstMsg_w::from(&kg1m_sgx).inner;
-		let kg1m = party_one::KeyGenFirstMsg{ pk_commitment: kg1m_loc.pk_commitment, zk_pok_commitment: kg1m_loc.zk_pok_commitment };
+		let kg1m : party_one::KeyGenFirstMsg = KeyGenFirstMsg_w::from(&kg1m_sgx).inner;
+		//let kg1m = party_one::KeyGenFirstMsg{ pk_commitment: kg1m_loc.pk_commitment, zk_pok_commitment: kg1m_loc.zk_pok_commitment };
 		Ok((kg1m, sealed_log_out))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
@@ -1310,8 +1337,9 @@ impl Enclave {
 		let size = size_str.parse::<usize>().unwrap();
 		let mut msg_str = std::str::from_utf8(&plain_ret[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let kg1m_sgx : KeyGenFirstMsg_sgx  = serde_json::from_str(&msg_str).unwrap();
-		let kg1m_loc : KeyGenFirstMsg = KeyGenFirstMsg_w::from(&kg1m_sgx).inner;
-		let kg1m = party_one::KeyGenFirstMsg{ pk_commitment: kg1m_loc.pk_commitment, zk_pok_commitment: kg1m_loc.zk_pok_commitment };
+		let kg1m : party_one::KeyGenFirstMsg = KeyGenFirstMsg_w::from(&kg1m_sgx).inner;
+//		let kg1m =
+		    //party_one::KeyGenFirstMsg{ pk_commitment: kg1m_loc.pk_commitment, zk_pok_commitment: kg1m_loc.zk_pok_commitment };
 		Ok((kg1m, sealed_log_out))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into()),
@@ -1488,10 +1516,16 @@ extern {
                      some_string: *const u8, len: usize) -> sgx_status_t;
 
 
-    fn create_sealed_secret_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    fn create_sealed_random_bytes32(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
             sealed_log: * mut u8, sealed_log_size: u32 );
 
-    fn verify_sealed_secret_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    fn verify_sealed_bytes32(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+			     sealed_log: * mut u8, sealed_log_size: u32);
+
+    fn create_sealed_random_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+            sealed_log: * mut u8, sealed_log_size: u32 );
+
+    fn verify_sealed_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 				sealed_log: * mut u8, sealed_log_size: u32);
 
     fn calc_sha256(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
@@ -1587,15 +1621,30 @@ mod tests {
     #[test]
     fn test_get_random_sealed_log() {
        let enc = Enclave::new().unwrap();
-       let _rsd = enc.get_random_sealed_log(100).unwrap();
+       let _rsd = enc.get_random_sealed_log().unwrap();
        enc.destroy();
     }
 
     #[test]
     fn test_verify_sealed_log() {
        let enc = Enclave::new().unwrap();
-       let rsd = enc.get_random_sealed_log(1020).unwrap();
+       let rsd = enc.get_random_sealed_log().unwrap();
        enc.verify_sealed_log(rsd).unwrap();
+       enc.destroy();
+    }
+
+    #[test]
+    fn test_get_random_sealed_fe_log() {
+       let enc = Enclave::new().unwrap();
+       let _rsd = enc.get_random_sealed_fe_log().unwrap();
+       enc.destroy();
+    }
+
+    #[test]
+    fn test_verify_sealed_fe_log() {
+       let enc = Enclave::new().unwrap();
+       let rsd = enc.get_random_sealed_fe_log().unwrap();
+       enc.verify_sealed_fe_log(rsd).unwrap();
        enc.destroy();
     }
 
@@ -1611,8 +1660,8 @@ mod tests {
     #[test]
     fn test_sk_tweak_add_assign() {
 	let enc = Enclave::new().unwrap();
-	let rsd1 = enc.get_random_sealed_log(32).unwrap();
-	let rsd2 = enc.get_random_sealed_log(32).unwrap();
+	let rsd1 = enc.get_random_sealed_log().unwrap();
+	let rsd2 = enc.get_random_sealed_log().unwrap();
 
 	let rsd = enc.sk_tweak_add_assign(rsd1, rsd2).unwrap();
 
@@ -1622,8 +1671,8 @@ mod tests {
     #[test]
     fn test_sk_tweak_mul_assign() {
 	let enc = Enclave::new().unwrap();
-	let rsd1 = enc.get_random_sealed_log(32).unwrap();
-	let rsd2 = enc.get_random_sealed_log(32).unwrap();
+	let rsd1 = enc.get_random_sealed_log().unwrap();
+	let rsd2 = enc.get_random_sealed_log().unwrap();
 
 	let rsd = enc.sk_tweak_mul_assign(rsd1, rsd2).unwrap();
 	
@@ -1633,7 +1682,7 @@ mod tests {
     #[test]
     fn test_sign_verify() {
 	let enc = Enclave::new().unwrap();
-	let rsd1 = enc.get_random_sealed_log(32).unwrap();
+	let rsd1 = enc.get_random_sealed_log().unwrap();
 	let msg_data : [u8;32] = [214, 88, 152, 71, 224, 205, 127, 22, 31, 115, 20, 230, 91, 68, 228, 203, 78, 44, 34, 152, 244, 172, 69, 123, 168, 248, 39, 67, 243, 30, 147, 11];
 	let message = Message::from_slice(&msg_data).unwrap();
 	let signature = enc.sign(&message, &rsd1).unwrap();
@@ -1655,16 +1704,16 @@ mod tests {
     #[test]
     fn test_first_message() {
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
-	enc.verify_sealed_log(rsd1).unwrap();
+	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
+	enc.verify_sealed_fe_log(rsd1).unwrap();
 	let (kg1m, sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
     }
 
     #[test]
     fn test_second_message() {
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
-	enc.verify_sealed_log(rsd1).unwrap();
+	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
+	enc.verify_sealed_fe_log(rsd1).unwrap();
 	let (kg1m, mut sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
 
 	let wallet_secret_key: FE = ECScalar::new_random();
@@ -1784,8 +1833,8 @@ mod tests {
 	use bitcoin::{Transaction, hashes::sha256d};
 	
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_log(32).unwrap();
-	enc.verify_sealed_log(rsd1).unwrap();
+	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
+	enc.verify_sealed_fe_log(rsd1).unwrap();
 
 
 
@@ -1848,7 +1897,7 @@ mod tests {
         };
 
 	
-	let (ekg1m, mut sign_first_sealed) = enc.sign_first(&mut sealed_log_2, &sign_msg1).unwrap();
+	let (ekg1m, mut sign_first_sealed) = enc.sign_first(&mut sealed_log_2, &sign_msg1).unwrap().unwrap();
 	
 
 	let message = BigInt::from(0);

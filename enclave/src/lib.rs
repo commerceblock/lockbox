@@ -39,11 +39,11 @@ extern crate uuid;
 extern crate paillier;
 extern crate zk_paillier;
 extern crate subtle;
-//extern crate shared_lib;
-//use shared_lib::structs::*;
 
-use secp256k1::{Secp256k1, VerifyOnly};
-use secp256k1::key::{SecretKey, PublicKey};
+use secp256k1::{Secp256k1
+		//td, VerifyOnly
+};
+//td use secp256k1::key::{SecretKey, PublicKey};
 use sgx_types::*;
 use sgx_tcrypto::*;  
 use std::string::String;
@@ -56,25 +56,31 @@ use sgx_rand::{Rng, StdRng};
 use sgx_tseal::{SgxSealedData};
 use std::ops::{Deref, DerefMut};
 use std::default::Default;
-use curv::{BigInt, FE, GE, PK};
+use curv::{BigInt, FE, GE
+//td	   , PK
+};
 use curv::elliptic::curves::traits::{ECScalar, ECPoint};
-use curv::elliptic::curves::secp256_k1::{SK, get_context_all};
+//td use curv::elliptic::curves::secp256_k1::{//td SK
+					 //td , get_context_all
+//td };
 use curv::arithmetic_sgx::traits::{Samplable, Converter};
 use curv::cryptographic_primitives_sgx::proofs::sigma_ec_ddh::*;
 use curv::cryptographic_primitives_sgx::proofs::sigma_dlog::*;
-use curv::cryptographic_primitives_sgx::proofs::ProofError;
+//td use curv::cryptographic_primitives_sgx::proofs::ProofError;
 use curv::cryptographic_primitives_sgx::hashing::{hash_sha256::HSha256, traits::Hash};
 use curv::cryptographic_primitives_sgx::commitments::hash_commitment::HashCommitment;
 use curv::cryptographic_primitives_sgx::commitments::traits::Commitment;
 use curv::cryptographic_primitives_sgx::twoparty::dh_key_exchange::EcKeyPair;
-use curv::elliptic::curves::traits::*;
+//td use curv::elliptic::curves::traits::*;
 use curv::arithmetic_sgx::traits::*;
 use zeroize::Zeroize;
 use integer::Integer;
 use uuid::Uuid;
 use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
 	       EncryptWithChosenRandomness, DecryptionKey, EncryptionKey, Decrypt, RawCiphertext};
-use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, CompositeDLogProof, DLogStatement};
+use zk_paillier::zkproofs::{NICorrectKeyProof,
+			    //td RangeProofNi,
+			    CompositeDLogProof, DLogStatement};
 use num_traits::{One, Pow};
 
 
@@ -797,7 +803,7 @@ pub fn generate_h1_h2_n_tilde() -> (BigInt, BigInt, BigInt, BigInt) {
     (ek_tilde.n, h1, h2, xhi)
 }
 
-
+#[allow(non_snake_case)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PDLwSlackStatement {
     pub ciphertext: BigInt,
@@ -827,6 +833,7 @@ pub struct PDLwSlackProof {
     pub s3: BigInt,
 }
 
+#[allow(non_snake_case)]
 pub fn commitment_unknown_order(
     h1: &BigInt,
     h2: &BigInt,
@@ -842,6 +849,7 @@ pub fn commitment_unknown_order(
 
 
 impl PDLwSlackProof {
+    #[allow(non_snake_case)]
     pub fn prove(witness: &PDLwSlackWitness, statement: &PDLwSlackStatement) -> Self {
         let q3 = FE::q().pow(3 as u32);
         let q_N_tilde = FE::q() * &statement.N_tilde;
@@ -923,9 +931,9 @@ pub struct MasterKey1 {
 
 mod party_one {
     use super::*;
-    use subtle::ConstantTimeEq;
-    use super::party_two::EphKeyGenFirstMsg as Party2EphKeyGenFirstMessage;
-    use super::party_two::EphKeyGenSecondMsg as Party2EphKeyGenSecondMessage;
+    //td use subtle::ConstantTimeEq;
+//td    use super::party_two::EphKeyGenFirstMsg as Party2EphKeyGenFirstMessage;
+    //td use super::party_two::EphKeyGenSecondMsg as Party2EphKeyGenSecondMessage;
 
     #[derive(Debug, Serialize, Deserialize)]
     pub struct Signature {
@@ -986,6 +994,7 @@ mod party_one {
     #[derive(Debug, Serialize, Deserialize)]
     pub struct EphKeyGenSecondMsg {}
 
+    /*
     impl EphKeyGenSecondMsg {
 	pub fn verify_commitments_and_dlog_proof(
             party_two_first_message: &Party2EphKeyGenFirstMessage,
@@ -1037,6 +1046,7 @@ mod party_one {
 	}
     }
 
+
     pub fn verify(signature: &Signature, pubkey: &GE, message: &BigInt) -> Result<(), secp256k1::Error> {
 	let s_fe: FE = ECScalar::from(&signature.s);
 	let rx_fe: FE = ECScalar::from(&signature.r);
@@ -1058,6 +1068,7 @@ mod party_one {
             Err(secp256k1::Error::InvalidSignature)
 	}
     }
+     */
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1072,7 +1083,9 @@ pub enum Errors {
     SignError,
 }
 
-use Errors::{KeyGenError, SignError};
+use Errors::{
+    //td KeyGenError,
+    SignError};
 
 impl MasterKey1 {
     pub fn set_master_key(
@@ -1100,9 +1113,9 @@ impl MasterKey1 {
     pub fn sign_second_message(
         &self,
         party_two_sign_message: &SignMessage,
-        eph_key_gen_first_message_party_two: &party_two::EphKeyGenFirstMsg,
+        _eph_key_gen_first_message_party_two: &party_two::EphKeyGenFirstMsg,
         eph_ec_key_pair_party1: &EphEcKeyPair,
-        message: &BigInt,
+        _message: &BigInt,
     ) -> Result<party_one::SignatureRecid, Errors> {
         let verify_party_two_second_message =
 	true;
@@ -1121,11 +1134,12 @@ impl MasterKey1 {
                 .public_share,
         );
 
-	let signature = party_one::Signature {
-            r: signature_with_recid.r.clone(),
-            s: signature_with_recid.s.clone(),
-        };
 	//TODO - verify needed?
+//	let signature = party_one::Signature {
+//            r: signature_with_recid.r.clone(),
+//            s: signature_with_recid.s.clone(),
+//        };
+
         let verify =
 	    true;
 	    //party_one::verify(&signature, &self.public.q, message).is_ok();
@@ -1188,12 +1202,12 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 
 #[no_mangle]
 pub extern "C" fn create_sealed_random_bytes32(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
-    let mut secret_share: FE = ECScalar::<SK>::zero();
-    let q_third = FE::q();
+//td    let mut secret_share: FE = ECScalar::<SK>::zero();
+//td    let q_third = FE::q();
     
     let data = match Bytes32::new_random(){
           Ok(v) => v,
-        Err(_) => return return sgx_status_t::SGX_ERROR_UNEXPECTED,
+        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
 
     let sealable = match SgxSealable::try_from(data){
@@ -1217,7 +1231,7 @@ pub extern "C" fn create_sealed_random_bytes32(sealed_log: * mut u8, sealed_log_
 #[no_mangle]
 pub extern "C" fn verify_sealed_bytes32(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
-    let data = match Bytes32::try_from((sealed_log, sealed_log_size)) {
+    let _data = match Bytes32::try_from((sealed_log, sealed_log_size)) {
 	Ok(v) => v,
 	Err(e) => return e
     };
@@ -1228,7 +1242,7 @@ pub extern "C" fn verify_sealed_bytes32(sealed_log: * mut u8, sealed_log_size: u
 #[no_mangle]
 pub extern "C" fn create_sealed_random_fe(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
 
-    let mut secret_share: FE = ECScalar::new_random();
+    let secret_share: FE = ECScalar::new_random();
 
     let fes = FESealed { inner: secret_share }; 
     
@@ -1316,7 +1330,7 @@ pub extern "C" fn calc_sha256(input_str: *const u8,
 }
 
 #[no_mangle]
-pub extern "C" fn generate_keypair(input_str: *const u8) -> sgx_status_t {
+pub extern "C" fn generate_keypair(_input_str: *const u8) -> sgx_status_t {
 
     let mut rand = match StdRng::new() {
         Ok(rng) => rng,
@@ -1330,7 +1344,7 @@ pub extern "C" fn generate_keypair(input_str: *const u8) -> sgx_status_t {
 	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
 
-    let pubkey = libsecp256k1::PublicKey::from_secret_key(&privkey);
+    let _pubkey = libsecp256k1::PublicKey::from_secret_key(&privkey);
 
     sgx_status_t::SGX_SUCCESS
 }
@@ -1363,7 +1377,7 @@ pub extern "C" fn sk_tweak_add_assign(sealed_log1: * mut u8, sealed_log1_size: u
     };
     
     match sk1.tweak_add_assign(&sk2){
-	Ok(v) => (),
+	Ok(_) => (),
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
@@ -1415,7 +1429,7 @@ pub extern "C" fn sk_tweak_mul_assign(sealed_log1: * mut u8, sealed_log1_size: u
     };
     
     match sk1.tweak_mul_assign(&sk2){
-	Ok(v) => (),
+	Ok(_) => (),
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
@@ -1452,7 +1466,7 @@ pub extern "C" fn sign(some_message: &[u8;32], sk_sealed_log: * mut u8, sig: &mu
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
 
-    let (signature, _recoveryId) = libsecp256k1::sign(&message, &sk);
+    let (signature, _recovery_id) = libsecp256k1::sign(&message, &sk);
 
     *sig = signature.serialize();
 
@@ -1468,7 +1482,7 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 	Err(e) => return e
     };
 
-    let mut sk = match libsecp256k1::SecretKey::parse(&data){
+    let sk = match libsecp256k1::SecretKey::parse(&data){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     };
@@ -1589,7 +1603,7 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
 
     let len = key_gen_first_message_str.len();
     let mut plain_str_sized=format!("{}", len);
-    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(),plain_str_sized);
+    plain_str_sized=format!("{}{}", plain_str_sized.len(),plain_str_sized);
     plain_str_sized.push_str(&key_gen_first_message_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();
@@ -1623,16 +1637,6 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-
-
-
-
-
-
-
-    
-    let user_id = key_gen_msg2.shared_key_id;
-
     let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
 
     let data = match FirstMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
@@ -1653,25 +1657,9 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 //	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 //    };
     
-
-
-
-    println!("Get encoded_vec");
-    let encoded_vec = match serde_cbor::to_vec(&key_gen_second_message){
-	Ok(v) => v,
-	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
-    };
-
-    let ev_len = encoded_vec.len();
-
-
-
     
     let (ek, dk) = Paillier::keypair().keys();
     let randomness = Randomness::sample(&ek);
-    
-
-
 
     let encrypted_share = Paillier::encrypt_with_chosen_randomness(
         &ek,
@@ -1718,7 +1706,7 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 
     let len = plain_str.len();
     let mut plain_str_sized=format!("{}", len);
-    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
     plain_str_sized.push_str(&plain_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();
@@ -1836,7 +1824,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 
     let len = plain_str.len();
     let mut plain_str_sized=format!("{}", len);
-    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
     plain_str_sized.push_str(&plain_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();
@@ -1883,7 +1871,7 @@ pub struct SignSecondOut {
 
 
 #[no_mangle]
-pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+pub extern "C" fn sign_second(sealed_log_in: * mut u8, _sealed_log_out: * mut u8,
 			      sign_msg2_str: * mut u8,
 			      len: usize,
 			      plain_out:  &mut [u8;480000]) -> sgx_status_t {
@@ -1937,7 +1925,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     }
     let mut v = r_vec;
     v.extend(s_vec);
-    let mut s = Secp256k1::new();
+    let s = Secp256k1::new();
     let mut sig_vec = match secp256k1::Signature::from_compact(&s, &v[..]){
 	Ok(x) => x.serialize_der(&s).to_vec(),
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
@@ -1945,8 +1933,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
     sig_vec.push(01);
     let pk_vec = ssi.shared_key.public.q.get_element().serialize().to_vec();
     let witness = vec![sig_vec, pk_vec];
-    let mut ws: Vec<Vec<u8>>;
-    ws = witness;
+    let ws: Vec<Vec<u8>> = witness;
 
     let output = SignSecondOut { inner: ws };
 
@@ -1954,7 +1941,7 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 
     let len = plain_str.len();
     let mut plain_str_sized=format!("{}", len);
-    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
     plain_str_sized.push_str(&plain_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();
@@ -2032,7 +2019,7 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
 
     let len = plain_str.len();
     let mut plain_str_sized=format!("{}", len);
-    let mut plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+    plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
     plain_str_sized.push_str(&plain_str);
 
     let mut plain_bytes=plain_str_sized.into_bytes();

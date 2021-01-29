@@ -13,9 +13,13 @@ use rocket::{
 };
 use crate::enclave::Enclave;
 
+use rocksdb::{DB, Options as DBOptions, ColumnFamilyDescriptor};
+
+#[cfg(test)] 
 use tempdir::TempDir;
-use rocksdb::{DB, Options as DBOptions, ColumnFamily, ColumnFamilyDescriptor};
+#[cfg(test)] 
 use uuid::Uuid;
+
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -34,7 +38,7 @@ impl Lockbox
 
         let enclave = Enclave::new().expect("failed to start enclave");
 
-	let mut path;
+	let path;
 	cfg_if::cfg_if! {
 	    if #[cfg(test)] {
 		let tempdir = TempDir::new(&format!("/tmp/{}",Uuid::new_v4().to_hyphenated())).unwrap();
@@ -44,8 +48,6 @@ impl Lockbox
 	    }
 	}
 	
-	let path = ("/root/lockbox/database");
-
 	let mut db_opts = DBOptions::default();
 	db_opts.create_missing_column_families(true);
 	db_opts.create_if_missing(true);
@@ -59,7 +61,7 @@ impl Lockbox
 	column_families.push(ColumnFamilyDescriptor::new("ecdsa_sign_second", cf_opts.clone()));
 	column_families.push(ColumnFamilyDescriptor::new("ecdsa_keyupdate", cf_opts.clone()));
 
-	let mut database = match DB::open_cf_descriptors(&db_opts, path, column_families) {
+	let database = match DB::open_cf_descriptors(&db_opts, path, column_families) {
 	    Ok(db) => db,
 	    Err(e) => { panic!("failed to open database: {:?}", e) }
 	};
@@ -151,7 +153,6 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 mod tests {
     use super::*;
     use shared_lib::structs::{KeyGenMsg1, Protocol};
-    use uuid::Uuid;
     use crate::protocol::ecdsa::Ecdsa;
     use rocket::{
 	http::Status,
@@ -160,14 +161,6 @@ mod tests {
     pub use kms::ecdsa::two_party::*;                                                                                                      
     pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*; 
 
-
-    // Useful data structs for tests throughout codebase
-    pub static BACKUP_TX_NOT_SIGNED: &str = "{\"version\":2,\"lock_time\":0,\"input\":[{\"previous_output\":\"faaaa0920fbaefae9c98a57cdace0deffa96cc64a651851bdd167f397117397c:0\",\"script_sig\":\"\",\"sequence\":4294967295,\"witness\":[]}],\"output\":[{\"value\":9000,\"script_pubkey\":\"00148fc32525487d2cb7323c960bdfb0a5ee6a364738\"}]}";
-    pub static BACKUP_TX_SIGNED: &str = "{\"version\":2,\"lock_time\":0,\"input\":[{\"previous_output\":\"faaaa0920fbaefae9c98a57cdace0deffa96cc64a651851bdd167f397117397c:0\",\"script_sig\":\"\",\"sequence\":4294967295,\"witness\":[[48,68,2,32,45,42,91,77,252,143,55,65,154,96,191,149,204,131,88,79,80,161,231,209,234,229,217,100,28,99,48,148,136,194,204,98,2,32,90,111,183,68,74,24,75,120,179,80,20,183,60,198,127,106,102,64,37,193,174,226,199,118,237,35,96,236,45,94,203,49,1],[2,242,131,110,175,215,21,123,219,179,199,144,85,14,163,42,19,197,97,249,41,130,243,139,15,17,51,185,147,228,100,122,213]]}],\"output\":[{\"value\":9000,\"script_pubkey\":\"00148fc32525487d2cb7323c960bdfb0a5ee6a364738\"}]}";
-    pub static STATE_CHAIN: &str = "{\"chain\":[{\"data\":\"026ff25fd651cd921fc490a6691f0dd1dcbf725510f1fbd80d7bf7abdfef7fea0e\",\"next_state\":null}]}";
-    pub static STATE_CHAIN_SIG: &str = "{ \"purpose\": \"TRANSFER\", \"data\": \"024d4b6cd1361032ca9bd2aeb9d900aa4d45d9ead80ac9423374c451a7254d0766\", \"sig\": \"3045022100e1171094db96e68392bb2a72695dc7cbce86db7be9d2e943444b6fa08877eec9022036dc63a3b2536d8e2327e0f44ff990f18e6166dce66d87bdcb57f825158a507c\"}";
-
-    
     fn get_client() -> Client {
         Client::new(get_server().expect("valid rocket instance")).expect("client")   
     }
@@ -236,7 +229,7 @@ mod tests {
 
 	let (_, party_two_paillier) = key_gen_second_message.unwrap();
 
-	let master_key = MasterKey2::set_master_key(
+	let _master_key = MasterKey2::set_master_key(
             &BigInt::from(0),
             &kg_ec_key_pair_party2,
             &kgp1m2
@@ -249,128 +242,4 @@ mod tests {
 	
     }
 
-    /*
-    #[test]
-    fn test_sign() {
-	use bitcoin::{Transaction, hashes::sha256d};
-	use shared_lib::{
-	    structs::{KeyGenMsg1, KeyGenMsg2, Protocol, SignMsg1, SignMsg2, SignSecondMsgRequest},
-	    util::reverse_hex_str,
-	};
-	use std::str::FromStr;
-	use curv::cryptographic_primitives::proofs::sigma_ec_ddh::ECDDHProof;
-	use curv::{
-	    arithmetic::traits::Converter,
-	    elliptic::curves::traits::{ECPoint,ECScalar},
-	    {BigInt, FE, GE},
-	};
-
-
-	
-	let server = Lockbox::load().unwrap();
-
-        let shared_key_id = Uuid::from_str("001203c9-93f0-46f9-abda-0678c891b2d3").unwrap();
-
-	let msg = KeyGenMsg1{shared_key_id, protocol: Protocol::Deposit};
-
-	println!("first message");
-
-	match server.first_message(msg){
-	    Ok(x) => {
-		let (m1_id, m1_msg) = x;
-		let secret_key : FE = ECScalar::new_random();
-	
-		let (kg_party_two_first_message, kg_ec_key_pair_party2) =
-		    MasterKey2::key_gen_first_message_predefined(&secret_key);
-		
-		let key_gen_msg2 = KeyGenMsg2 {
-		    shared_key_id: shared_key_id,
-		    dlog_proof: kg_party_two_first_message.d_log_proof,
-		};
-		
-		println!("second message");
-		let kgp1m2 = server.second_message(key_gen_msg2).unwrap().unwrap();
-		
-		
-		let key_gen_second_message = MasterKey2::key_gen_second_message(
-		    &m1_msg,
-		    &kgp1m2,
-		);
-		
-		let (_, party_two_paillier) = key_gen_second_message.unwrap();
-		
-		let master_key = MasterKey2::set_master_key(
-		    &BigInt::from(0),
-		    &kg_ec_key_pair_party2,
-		    &kgp1m2
-			.ecdh_second_message
-			.comm_witness
-			.public_share,
-		    &party_two_paillier,
-		);
-	    },
-	    Err(_) => (),
-	};
-	
-	
-        let tx_backup: Transaction = serde_json::from_str(&BACKUP_TX_NOT_SIGNED).unwrap();
-        let hexhash = r#"
-                "0000000000000000000000000000000000000000000000000000000000000000"
-            "#;
-        let sig_hash: sha256d::Hash = serde_json::from_str(&hexhash.to_string()).unwrap();
-
-        let (eph_key_gen_first_message_party_two, _, _) =
-            MasterKey2::sign_first_message();
-
-        let sign_msg1 = SignMsg1 {
-            shared_key_id: shared_key_id,
-            eph_key_gen_first_message_party_two: eph_key_gen_first_message_party_two,
-        };
-
-        let (sign_party_one_first_message, _) :
-                (party_one::EphKeyGenFirstMsg, party_one::EphEcKeyPair) = MasterKey1::sign_first_message();
-
-        let serialized_m1 = serde_json::to_string(&sign_party_one_first_message).unwrap();
-
-
-	println!("sign first:");
-	let ekg1m = server.sign_first(sign_msg1).unwrap().unwrap();
-
-
-        let d_log_proof = ECDDHProof {
-            a1: ECPoint::generator(),
-            a2: ECPoint::generator(),
-            z: ECScalar::new_random(),
-        };
-        let comm_witness = party_two::EphCommWitness {
-            pk_commitment_blind_factor: BigInt::from(0),
-            zk_pok_blind_factor: BigInt::from(1),
-            public_share: ECPoint::generator(),
-            d_log_proof: d_log_proof.clone(),
-            c: ECPoint::generator(),
-        };
-
-        let sign_msg2 = SignMsg2 {
-            shared_key_id: shared_key_id,
-            sign_second_msg_request: SignSecondMsgRequest {
-                protocol: Protocol::Deposit,
-                message: BigInt::from(0),
-                party_two_sign_message: party2::SignMessage {
-                    partial_sig: party_two::PartialSig {c3: BigInt::from(3)},
-                    second_message: party_two::EphKeyGenSecondMsg {comm_witness: comm_witness},
-                },
-            },
-        };
-
-        let witness: Vec<Vec<u8>> = vec![vec![48, 68, 2, 32, 94, 197, 64, 97, 183, 140, 229, 202, 52, 141, 214, 128, 218, 92, 31, 159, 14, 192, 114, 167, 169, 166, 85, 208, 129, 89, 59, 72, 233, 119, 11, 69, 2, 32, 101, 93, 62, 147, 163, 225, 79, 143, 112, 88, 161, 251, 186, 215, 255, 67, 246, 19, 93, 17, 135, 235, 196, 111, 228, 236, 109, 196, 131, 192, 230, 245, 1], vec![3, 120, 158, 98, 241, 124, 29, 175, 68, 206, 87, 99, 45, 189, 226, 48, 73, 247, 39, 150, 105, 96, 216, 148, 31, 95, 159, 155, 255, 127, 61, 19, 169]];
-
-        let serialized_m2 = serde_json::to_string(&witness).unwrap();
-
-	println!("sign second:");
-        let return_msg = server.sign_second(sign_msg2).unwrap().unwrap();
-
-        assert_eq!(return_msg,witness);
-
-    }
-*/
 }

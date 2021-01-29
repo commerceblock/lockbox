@@ -6,24 +6,16 @@ use crate::error::LockboxError;
 use crate::server::Lockbox;
 use crate::enclave::Enclave;
 use shared_lib::{
-    structs::{KeyGenMsg1, KeyGenMsg2, KeyGenMsg3, KeyGenMsg4, SignMsg1, SignMsg2, Protocol,
+    structs::{KeyGenMsg1, KeyGenMsg2, SignMsg1, SignMsg2, Protocol,
     KUSendMsg, KUReceiveMsg, KUFinalize, KUAttest},
 };
 
-use curv::{
-    {BigInt, FE, GE},
-    elliptic::curves::traits::{ECPoint, ECScalar}
-};
 pub use kms::ecdsa::two_party::*;
 pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 use rocket::State;
 use rocket_contrib::json::Json;
-use std::string::ToString;
 use uuid::Uuid;
-use curv::cryptographic_primitives::proofs::sigma_dlog::*;
 use crate::Key;
-use zk_paillier::zkproofs::{NICorrectKeyProof, RangeProofNi, EncryptedPairs, Proof};
-use paillier::EncryptionKey;
 use rocksdb::ColumnFamily;
 
 use std::convert::TryInto;
@@ -32,8 +24,6 @@ use std::convert::TryInto;
 pub trait Ecdsa {
     fn get_sealed_secrets(&self, _cf: &ColumnFamily, _user_id: &Uuid) -> Result<([u8;8192], Key)>;
 	
-    fn master_key(&self, user_id: Uuid) -> Result<()>;
-
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)>;
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>>;
@@ -50,42 +40,16 @@ pub trait Ecdsa {
 impl Ecdsa for Lockbox {
     fn get_sealed_secrets(&self, _cf: &ColumnFamily, _user_id: &Uuid) -> Result<([u8;8192], Key)>{
 
-	let db = &self.database;
-
         let user_db_key = Key::from_uuid(_user_id);
-
-        let mut sealed_log_out = [0u8;8192];
-        let enc = Enclave::new().unwrap();
-
 
         match self.database.get_cf(_cf, &user_db_key) {
             Ok(Some(x)) => match x.try_into(){
 		Ok(x) => Ok((x,user_db_key.clone())),
-		Err(e) => return Err(LockboxError::Generic(format!("sealed secrets format error"))),
+		Err(e) => return Err(LockboxError::Generic(format!("sealed secrets format error: {:?}", e))),
 	    },
             Ok(None) => return Err(LockboxError::Generic(format!("sealed_secrets for DB key {} is None", _user_id))),
             Err(e) => return Err(e.into())
 	}
-    }
-
-    
-    fn master_key(&self, _user_id: Uuid) -> Result<()> {
-	Ok(())
-/*
-	let db = &self.database;
-
-        let mki = db.get_ecdsa_master_key_input(user_id)?;
-
-        let master_key = MasterKey1::set_master_key(
-            &BigInt::from(0),
-            mki.party_one_private,
-            &mki.comm_witness.public_share,
-            &mki.party2_public,
-            mki.paillier_key_pair,
-        );
-
-        db.update_ecdsa_master(&user_id, master_key)
-*/
     }
 
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)> {
@@ -164,7 +128,6 @@ impl Ecdsa for Lockbox {
 	    Ok(x) => {
 		match x {
 		    Some(x) => {
-			let sealed_log = &x.1;
 			self.database.put_cf(cf_out, user_db_key, &x.1)?;
 			Ok(Some(x.0))
 		    },
@@ -183,7 +146,6 @@ impl Ecdsa for Lockbox {
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg2.shared_key_id)?;
 	
 
-	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
 
 	match enc.sign_second(&mut sealed_secrets, &sign_msg2) {
@@ -199,9 +161,8 @@ impl Ecdsa for Lockbox {
 	let cf_in = &self.database.cf_handle("ecdsa_second_message").unwrap();
 	let cf_out = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
 	println!("keyupdate_first getting  sealed secrets");
-	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &receiver_msg.user_id)?;
+	let (mut sealed_secrets, _user_db_key) = self.get_sealed_secrets(cf_in, &receiver_msg.user_id)?;
 
-	let mut sealed_log_out = [0u8;8192];
 	let enc = Enclave::new().unwrap();
 
 	match enc.keyupdate_first(&mut sealed_secrets, &receiver_msg) {
@@ -221,7 +182,7 @@ impl Ecdsa for Lockbox {
 	let cf_ku = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
 
 
-	let (mut statechain_secrets, statechain_db_key) = self.get_sealed_secrets(cf_ku, &finalize_data.statechain_id)?;
+	let (statechain_secrets, statechain_db_key) = self.get_sealed_secrets(cf_ku, &finalize_data.statechain_id)?;
 
 	println!("deleting keyupdate info");
 	match self.database.delete_cf(cf_ku, statechain_db_key) {

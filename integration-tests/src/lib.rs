@@ -608,4 +608,253 @@ mod tests {
         assert!(ver);
 
     }
+
+    #[test]
+    fn test_transfer_sign_keygen_const() {
+        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
+
+        let lockbox = Lockbox::new(lockbox_url.to_string());
+
+        let shared_key_id = Uuid::new_v4();
+
+        let key_gen_msg1 = KeyGenMsg1 {
+            shared_key_id: shared_key_id,
+            protocol: Protocol::Deposit,
+        };
+
+        let path: &str = "ecdsa/keygen/first";
+
+        let (return_id, key_gen_first_msg): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1).unwrap();
+
+        assert_eq!(return_id,shared_key_id);
+
+        // generate a secret key share
+        let key_share_priv: FE = ECScalar::from(&BigInt::from_hex("706a20e8ea1c85cfcb38ab939fac5454868dcc3c912841e3320e7d7601fccdc3"));
+
+        let (kg_party_two_first_message, kg_ec_key_pair_party2) =
+            MasterKey2::key_gen_first_message_predefined(&key_share_priv);
+
+        let key_gen_msg2 = KeyGenMsg2 {
+            shared_key_id: shared_key_id,
+            dlog_proof: kg_party_two_first_message.d_log_proof,
+        };
+
+        let path: &str = "ecdsa/keygen/second";
+        let kg_party_one_second_message: party1::KeyGenParty1Message2 = post_lb(&lockbox, path, &key_gen_msg2).unwrap();
+
+        let key_gen_second_message = MasterKey2::key_gen_second_message(
+            &key_gen_first_msg,
+            &kg_party_one_second_message,
+        );
+
+        let (_, party_two_paillier) = key_gen_second_message.unwrap();
+
+        let master_key = MasterKey2::set_master_key(
+            &BigInt::from(0),
+            &kg_ec_key_pair_party2,
+            &kg_party_one_second_message
+                .ecdh_second_message
+                .comm_witness
+                .public_share,
+            &party_two_paillier,
+        );
+
+        // choose message to sign
+        let message = BigInt::from(1);
+
+        // start signing process
+        let (eph_key_gen_first_message_party_two, eph_comm_witness, eph_ec_key_pair_party2) =
+            MasterKey2::sign_first_message();
+
+        let sign_msg1 = SignMsg1 {
+            shared_key_id: shared_key_id,
+            eph_key_gen_first_message_party_two,
+        };
+
+        let path: &str = "ecdsa/sign/first";
+        let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
+            post_lb(&lockbox, path, &sign_msg1).unwrap();
+
+        let party_two_sign_message = master_key.sign_second_message(
+            &eph_ec_key_pair_party2,
+            eph_comm_witness.clone(),
+            &sign_party_one_first_message,
+            &message,
+        );
+
+        let msg = message.clone();
+
+        let sign_msg2 = SignMsg2 {
+            shared_key_id: shared_key_id,
+            sign_second_msg_request: SignSecondMsgRequest {
+                protocol: Protocol::Deposit,
+                message,
+                party_two_sign_message,
+            },
+        };
+
+        let path: &str = "ecdsa/sign/second";
+        let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
+    
+        assert_eq!(der_signature.len(),2);
+        assert_eq!(der_signature[1].len(),33);
+
+        let sig = Signature::from_der_lax(&der_signature[0][..]).unwrap();
+        let sig_compact = sig.serialize_compact();
+
+        let r = BigInt::from_hex(&hex::encode(&sig_compact[0..32]));
+        let s = BigInt::from_hex(&hex::encode(&sig_compact[32..64]));
+
+        let _rec_pub = PublicKey::from_slice(&der_signature[1][..]).unwrap();
+        let pk_vec = master_key.public.q;
+        let ver = verify(&r,&s,&pk_vec,&msg);
+
+        assert!(ver);
+
+        // do transfer
+        let statechain_id = Uuid::new_v4();
+
+        let o1 = master_key.private.get_private_key();
+        let x1 = ECScalar::from(&BigInt::from_hex("e3b378caeb6738f8c5c7dc1b4537170c9d3ed1484949da7f6ca3717c3023de18"));
+        let t1 = o1 * x1;
+        let o2: FE = ECScalar::from(&BigInt::from_hex("a79b24691cdd10da2d54f1617a60e34d27c9e02b46420b0ca2aa5fcfa41dc65f"));
+
+        let g: GE = ECPoint::generator();
+        let o2_pub: GE = g * o2;
+
+        let t2 = t1 * (o2.invert());
+
+        let ku_send = KUSendMsg {
+            user_id: shared_key_id,
+            statechain_id: statechain_id,
+            x1: x1,
+            t2: t2,
+            o2_pub: o2_pub,
+        };
+
+        let path: &str = "ecdsa/keyupdate/first";
+    println!("keyupdate first");
+        let ku_receive: KUReceiveMsg = post_lb(&lockbox, path, &ku_send).unwrap();               
+
+        let new_shared_key_id = Uuid::new_v4();
+
+        println!("{:?}", new_shared_key_id);
+
+        let ku_send = KUFinalize {
+            statechain_id,
+            shared_key_id: new_shared_key_id,
+        };
+
+        let path: &str = "ecdsa/keyupdate/second";
+    println!("keyupdate second");
+        let ku_attest: KUAttest = post_lb(&lockbox, path, &ku_send).unwrap();
+
+        assert_eq!(ku_attest.statechain_id,statechain_id);
+
+        //generate new shared key
+        let key_gen_msg1_2 = KeyGenMsg1 {
+            shared_key_id: new_shared_key_id,
+            protocol: Protocol::Transfer,
+        };
+
+        let path: &str = "ecdsa/keygen/first";
+    println!("gen new shared key - first message:");
+        let (return_id_2, key_gen_first_msg_2): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1_2).unwrap();
+
+        assert_eq!(return_id_2,new_shared_key_id);
+
+        let (kg_party_two_first_message_2, kg_ec_key_pair_party2_2) =
+            MasterKey2::key_gen_first_message_predefined(&o2);
+
+        let key_gen_msg2_2 = KeyGenMsg2 {
+            shared_key_id: new_shared_key_id,
+            dlog_proof: kg_party_two_first_message_2.d_log_proof,
+        };
+
+        let path: &str = "ecdsa/keygen/second";
+    println!("gen new shared key - second message:");
+        let kg_party_one_second_message_2: party1::KeyGenParty1Message2 = post_lb(&lockbox, path, &key_gen_msg2_2).unwrap();
+
+        let key_gen_second_message_2 = MasterKey2::key_gen_second_message(
+            &key_gen_first_msg_2,
+            &kg_party_one_second_message_2,
+        );
+
+        let (_, party_two_paillier_2) = key_gen_second_message_2.unwrap();
+
+        let master_key_2 = MasterKey2::set_master_key(
+            &BigInt::from(0),
+            &kg_ec_key_pair_party2_2,
+            &kg_party_one_second_message_2
+                .ecdh_second_message
+                .comm_witness
+                .public_share,
+            &party_two_paillier_2,
+        );
+
+        //confirm public key after transfer
+    println!("confirm public key after transfer");
+        assert_eq!(ku_receive.s2_pub*o2,master_key_2.public.q);
+
+        //confirm public keys are the same
+    println!("confirm public keys are the same");
+        assert_eq!(master_key.public.q, master_key_2.public.q);        
+
+        // choose message to sign
+        let message = BigInt::from(2);
+
+        // start signing process
+        let (eph_key_gen_first_message_party_two, eph_comm_witness, eph_ec_key_pair_party2) =
+            MasterKey2::sign_first_message();
+
+        let sign_msg1 = SignMsg1 {
+            shared_key_id: new_shared_key_id,
+            eph_key_gen_first_message_party_two,
+        };
+
+        let path: &str = "ecdsa/sign/first";
+    println!("sign message: sign first");
+        let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
+            post_lb(&lockbox, path, &sign_msg1).unwrap();
+
+        let party_two_sign_message = master_key_2.sign_second_message(
+            &eph_ec_key_pair_party2,
+            eph_comm_witness.clone(),
+            &sign_party_one_first_message,
+            &message,
+        );
+
+        let msg = message.clone();
+
+        let sign_msg2 = SignMsg2 {
+            shared_key_id: new_shared_key_id,
+            sign_second_msg_request: SignSecondMsgRequest {
+                protocol: Protocol::Deposit,
+                message,
+                party_two_sign_message,
+            },
+        };
+
+        let path: &str = "ecdsa/sign/second";
+    println!("sign message: sign second");
+        let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
+
+        assert_eq!(der_signature.len(),2);
+        assert_eq!(der_signature[1].len(),33);
+
+        let sig = Signature::from_der_lax(&der_signature[0][..]).unwrap();
+        let sig_compact = sig.serialize_compact();
+
+        let r = BigInt::from_hex(&hex::encode(&sig_compact[0..32]));
+        let s = BigInt::from_hex(&hex::encode(&sig_compact[32..64]));
+
+        let _rec_pub = PublicKey::from_slice(&der_signature[1][..]).unwrap();
+        let pk_vec = master_key_2.public.q;
+    println!("public key for verification: {:?}", master_key.public);
+        let ver = verify(&r,&s,&pk_vec,&msg);
+
+    println!("final verify");
+        assert!(ver);
+
+    }
 }

@@ -1,0 +1,124 @@
+name: client
+version: "1.0"
+about: Command Line Interface for a minimalist decentralized crypto-currency wallet
+args:
+  - verbose:
+      short: v
+      multiple: true
+      help: Sets the level of verbosity
+subcommands:
+  - wallet:
+      about: Operation on wallet
+      version: "1.0"
+      args:
+        - new-address:
+              short: a
+              help: Generate a new address
+        - get-balance:
+              short: b
+              help: Total balance
+        - list-unspent:
+              short: u
+              help: List unspent transactions (tx hash)
+      subcommands:
+        - se-addr:
+            about: Generate a new state entity address
+            version: "1.0"
+        - deposit:
+            about: Deposit to State Entity
+            version: "1.0"
+            args:
+              - amount:
+                  short: a
+                  required: true
+                  value_name: amount
+                  help: Amount in Satoshis
+        - withdraw:
+            about: Withdraw from State Entity
+            version: "1.0"
+            args:
+              - id:
+                  short: i
+                  required: true
+                  value_name: StateChain ID
+                  help: ID of StateChain holding funds on State Entity
+        - transfer-sender:
+            about: Transfer StateChain - Send
+            version: "1.0"
+            args:
+              - id:
+                  short: i
+                  required: true
+                  value_name: StateChain ID
+                  help: ID of StateChain with funds on State Entity
+              - addr:
+                  short: a
+                  required: true
+                  value_name: Recipient Address
+                  help: State Entity Address for recipient
+        - transfer-receiver:
+            about: Transfer State Chain - Receive
+            version: "1.0"
+            args:
+              - message:
+                  short: m
+                  required: true
+                  value_name: message
+                  help: Transfer message from sender
+        - swap:
+            about: Perform Swap
+            version: "1.0"
+            args:
+              - state-chain-id:
+                  short: id
+                  required: true
+                  value_name: statechain_id
+                  help: State chain ID
+              - swap-size:
+                  short: s
+                  required: true
+                  value_name: swap_size
+                  help: Number of state chains in swap
+              - force-no-tor:
+                  short: f
+                  help: Run without changing tor identity
+        - send:
+            about: Send a transaction
+            version: "1.0"
+            args:
+              - to:
+                  short: t
+                  required: true
+                  value_name: to
+                  help: Receipient
+              - amount:
+                  short: a
+                  required: true
+                  value_name: amount
+                  help: Amount in BTC
+        - get-backup:
+            about: Get Backup Transaction Hex
+            version: "1.0"
+            args:
+              - id:
+                  short: id
+                  required: true
+                  value_name: StateChain ID
+                  help: ID of StateChain with funds on State Entity
+  - state-entity:
+      about: API calls to State Entity
+      version: "1.0"
+      args:
+      subcommands:
+        - fee-info:
+          short: Get State Entity's Fee information
+          help: State Entity Fees information
+        - get-statechain:
+            about: Get a State Chain's information
+            version: "1.0"
+            args:
+              - id:
+                  short: i
+                  required: true
+                  value_name: ID
+                  help: State Chain ID

@@ -57,10 +57,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "bech32"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdcf67bb7ba7797a081cd19009948ab533af7c355d5caf1d08c777582d351e9c"
+
+[[package]]
 name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
+
+[[package]]
+name = "bitcoin"
+version = "0.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aefc9be9f17185f4ebccae6575d342063f775924d57df0000edb1880c0fb7095"
+dependencies = [
+ "bech32",
+ "bitcoin_hashes",
+ "secp256k1 0.19.0",
+ "serde",
+]
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0aaf87b776808e26ae93289bc7d025092b6d909c193f0cdee0b3a86e7bd3c776"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bitflags"
@@ -281,7 +308,7 @@ source = "git+https://github.com/KZen-networks/curv?tag=v0.2.3#d6c575b5711cd3d1c
 dependencies = [
  "blake2b_simd",
  "digest",
- "hex",
+ "hex 0.3.2",
  "hmac",
  "rand 0.6.5",
  "rust-gmp 0.5.0 (git+https://github.com/KZen-networks/rust-gmp)",
@@ -300,7 +327,7 @@ source = "git+https://github.com/commerceblock/curv?tag=v0.2.7#9cf42f0b8baf49f07
 dependencies = [
  "blake2b_simd",
  "digest",
- "hex",
+ "hex 0.3.2",
  "hmac",
  "rand 0.6.5",
  "rust-gmp 0.5.0 (git+https://github.com/KZen-networks/rust-gmp)",
@@ -575,6 +602,12 @@ name = "hex"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "805026a5d0141ffc30abb3be3173848ad46a1b1664fe632428479619a3644d77"
+
+[[package]]
+name = "hex"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "644f9158b2f133fd50f5fb3242878846d9eb792e445c893805ff0e3824006e35"
 
 [[package]]
 name = "hmac"
@@ -1757,10 +1790,12 @@ dependencies = [
 name = "tests"
 version = "0.1.0"
 dependencies = [
+ "bitcoin",
  "centipede",
  "curv 0.2.7",
  "env_logger",
  "floating-duration",
+ "hex 0.4.2",
  "kms",
  "log",
  "multi-party-ecdsa",
@@ -1770,6 +1805,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serial_test",
+ "subtle 2.4.0",
  "time 0.2.24",
  "time-test",
  "uuid",

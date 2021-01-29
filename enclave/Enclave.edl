@@ -22,10 +22,10 @@ enclave {
     from "sgx_tstdc.edl" import *;
     trusted {
         /* define ECALLs here. */
-        public sgx_status_t create_sealed_secret_key([out, size=sealed_log_size]
+        public sgx_status_t create_sealed_random_bytes32([out, size=sealed_log_size]
             uint8_t* sealed_log, uint32_t sealed_log_size );
 
-        public sgx_status_t verify_sealed_secret_key([in, size=sealed_log_size]
+        public sgx_status_t verify_sealed_bytes32([in, size=sealed_log_size]
             uint8_t* sealed_log, uint32_t sealed_log_size);
 
         public sgx_status_t say_something([in, size=len] const uint8_t* some_string, size_t len);
@@ -34,13 +34,18 @@ enclave {
                                         size_t len,
                                         [out] uint8_t hash[32]);
 
+        public sgx_status_t create_sealed_random_fe([out, size=sealed_log_size]
+            uint8_t* sealed_log, uint32_t sealed_log_size );
+
+        public sgx_status_t verify_sealed_fe([in, size=sealed_log_size]
+            uint8_t* sealed_log, uint32_t sealed_log_size);
 
         public sgx_status_t sk_tweak_add_assign([in, size=sealed_log1_size]
             uint8_t* sealed_log1, uint32_t sealed_log1_size,
 	    [in, size=sealed_log2_size]
             uint8_t* sealed_log2, uint32_t sealed_log2_size);
 
-        public sgx_status_t sk_tweak_mul_assign([in, size=sealed_log1_size]
+ 	public sgx_status_t sk_tweak_mul_assign([in, size=sealed_log1_size]
             uint8_t* sealed_log1, uint32_t sealed_log1_size,
 	    [in, size=sealed_log2_size]
             uint8_t* sealed_log2, uint32_t sealed_log2_size);
@@ -51,6 +56,10 @@ enclave {
 
 
         public sgx_status_t first_message([in, size=8192] uint8_t* sealed_log_in,
+		       	    		  [out, size=8192] uint8_t* sealed_log_out,
+				          [out, size=256] uint8_t* plain_out);
+
+        public sgx_status_t first_message_transfer([in, size=8192] uint8_t* sealed_log_in,
 		       	    		  [out, size=8192] uint8_t* sealed_log_out,
 				          [out, size=256] uint8_t* plain_out);
 
@@ -70,6 +79,13 @@ enclave {
 			  [in, size=len] const uint8_t* sign_msg2,
 			  size_t len,	     
 			  [out, size=480000] uint8_t* plain_out);
+
+	public sgx_status_t keyupdate_first([in, size=8192] uint8_t* sealed_log_in,
+		       	  [out, size=8192] uint8_t* sealed_log_out,
+			  [in, size=len] const uint8_t* receiver_msg,
+			  size_t len,
+			  [out, size=8192] uint8_t* plain_out);
+
 	};
 };
 

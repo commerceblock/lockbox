@@ -250,7 +250,6 @@ pub struct TransferMsg4 {
 pub struct TransferMsg5 {
     pub new_shared_key_id: Uuid,
     pub s2_pub: GE,
-    pub theta: FE,
 }
 
 /// Data present if transfer is part of an atomic batch transfer
@@ -259,6 +258,31 @@ pub struct BatchData {
     pub id: Uuid,
     pub commitment: String, // Commitment to transfer input UTXO in case of protocol failure
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUSendMsg {        // Sent from server to lockbox
+    pub user_id: Uuid,
+    pub statechain_id: Uuid,
+    pub x1: FE,
+    pub t2: FE,
+    pub o2_pub: GE,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUReceiveMsg {      // Sent from lockbox back to server
+    pub s2_pub: GE,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUFinalize {        // Sent from server to lockbox
+    pub statechain_id: Uuid,
+    pub shared_key_id: Uuid,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KUAttest {      // Sent from lockbox back to server
+    pub statechain_id: Uuid,
+    pub attestation: String,
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -287,3 +311,4 @@ mod tests {
     }
 
 }
+

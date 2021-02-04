@@ -1155,6 +1155,9 @@ impl Enclave {
 	    Err(e) => return Err(LockboxError::Generic(e.to_string()).into()),
 	}
     }
+
+    //  pub fn dh_init_session() -> Result<> {
+    //  }
     
     pub fn say_something(&self, input_string: String) -> Result<String> {
      	let mut retval = sgx_status_t::SGX_SUCCESS;

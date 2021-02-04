@@ -33,6 +33,11 @@ extern crate num_bigint_dig;
 extern crate num_traits;
 extern crate rand;
 extern crate lazy_static;
+extern crate reqwest;
+extern crate floating_duration;
+
+extern crate sgx_types;
+extern crate sgx_urts;
 
 #[macro_use]
 extern crate serde_derive;
@@ -57,6 +62,7 @@ pub mod config;
 pub mod error;
 pub mod protocol;
 pub mod server;
+pub mod client;
 pub mod storage;
 pub mod enclave;
 pub mod attestation;
@@ -65,7 +71,7 @@ pub mod db;
 pub type Result<T> = std::result::Result<T, error::LockboxError>;
 
 use uuid::Uuid;
-use std::convert::AsRef;
+use std::convert::{From, AsRef};
 use std::fmt;
 
 #[derive(Clone, Debug)]
@@ -86,5 +92,11 @@ impl AsRef<[u8]> for Key {
 impl fmt::Display for Key {
      fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "({})", self.0)
+    }
+}
+
+impl From<u32> for Key {
+    fn from(item : u32) -> Self {
+	Self(Uuid::from_u128(item as u128))
     }
 }

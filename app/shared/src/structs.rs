@@ -283,6 +283,18 @@ pub struct KUAttest {      // Sent from lockbox back to server
     pub attestation: String,
 }
 
+//Attestation
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct DHMsg1 {
+    pub inner: Vec<u8>
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct DHMsg2 {
+    pub inner: Vec<u8>
+}
+
 
 #[cfg(test)]
 mod tests {

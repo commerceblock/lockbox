@@ -12,6 +12,7 @@ use rocket::{
     Request, Rocket,
 };
 use crate::enclave::Enclave;
+use crate::Key;
 
 use rocksdb::{DB, Options as DBOptions, ColumnFamilyDescriptor};
 
@@ -28,7 +29,6 @@ use std::sync::Mutex;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-
 pub struct Lockbox {
     pub config: Config,
     pub enclave: Enclave,
@@ -43,6 +43,10 @@ impl Lockbox
         let enclave = Enclave::new().expect("failed to start enclave");
 
 	let database = get_db(&config_rs);
+
+        let enclave_index = Key::from(config_rs.enclave.index);
+	
+//	database.put(
 	
         Ok(Self {
             config: config_rs,

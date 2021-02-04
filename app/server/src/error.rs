@@ -23,6 +23,8 @@ pub enum LockboxError {
     AuthError,
     /// DB error no ID found
     DBError(String),
+    /// Client error
+    ClientError(String)
 }
 
 impl From<String> for LockboxError {
@@ -50,6 +52,11 @@ impl From<ConfigError> for LockboxError {
     }
 }
 
+impl From<reqwest::Error> for LockboxError {
+    fn from(e: reqwest::Error) -> Self {
+        Self::ClientError(e.to_string())
+    }
+}
 
 impl fmt::Display for LockboxError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -57,6 +64,7 @@ impl fmt::Display for LockboxError {
             LockboxError::Generic(ref e) => write!(f, "Error: {}", e),
             LockboxError::AuthError => write!(f, "Authentication Error: User authorisation failed"),
             LockboxError::DBError(ref e) => write!(f, "DB Error: {}", e),
+	    LockboxError::ClientError(ref e) => write!(f, "Client Error: {}", e),
         }
     }
 }

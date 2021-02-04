@@ -32,6 +32,7 @@ extern crate tempdir;
 extern crate num_bigint_dig;
 extern crate num_traits;
 extern crate rand;
+extern crate lazy_static;
 
 #[macro_use]
 extern crate serde_derive;
@@ -58,6 +59,8 @@ pub mod protocol;
 pub mod server;
 pub mod storage;
 pub mod enclave;
+pub mod attestation;
+pub mod db;
 
 pub type Result<T> = std::result::Result<T, error::LockboxError>;
 

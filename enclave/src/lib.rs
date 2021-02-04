@@ -25,6 +25,7 @@
 extern crate sgx_types;
 extern crate sgx_tseal;
 extern crate sgx_tcrypto;
+extern crate sgx_tse;
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
@@ -84,11 +85,50 @@ use zk_paillier::zkproofs::{NICorrectKeyProof,
 use num_traits::{One, Pow};
 
 
+extern crate attestation;
+use attestation::types::*;
+use attestation::err::*;
+use attestation::func::*;
+
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_cbor;
 
 const SECURITY_BITS: usize = 256;
+
+//Local attestation
+fn verify_peer_enclave_trust(peer_enclave_identity: &sgx_dh_session_enclave_identity_t )-> u32 {
+
+    if peer_enclave_identity.isv_prod_id != 0 || peer_enclave_identity.attributes.flags & SGX_FLAGS_INITTED == 0 {
+        // || peer_enclave_identity->attributes.xfrm !=3)// || peer_enclave_identity->mr_signer != xx //TODO: To be hardcoded with values to check
+        ATTESTATION_STATUS::ENCLAVE_TRUST_ERROR as u32
+    } else {
+        ATTESTATION_STATUS::SUCCESS as u32
+    }
+}
+
+extern "C" {
+
+}
+
+#[no_mangle]
+pub extern "C" fn test_enclave_init() {
+    let cb = Callback{
+        verify: verify_peer_enclave_trust,
+    };
+    init(cb);
+}
+
+#[no_mangle]
+pub extern "C" fn test_create_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enclave_id_t) -> u32 {
+    create_session(src_enclave_id, dest_enclave_id) as u32
+}
+
+#[no_mangle]
+#[allow(unused_variables)]
+pub extern "C" fn test_close_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enclave_id_t) -> u32 {
+    close_session(src_enclave_id, dest_enclave_id) as u32
+}
 
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is
@@ -1197,6 +1237,16 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
     // Ocall to normal world for output
     println!("{}", &hello_string);
 
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C" fn get_self_report(p_report: &mut sgx_report_t) -> sgx_status_t {
+
+    let self_report = sgx_tse::rsgx_self_report();
+
+    *p_report = self_report;
+    
     sgx_status_t::SGX_SUCCESS
 }
 

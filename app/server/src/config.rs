@@ -7,6 +7,17 @@ use super::Result;
 use config_rs::{Config as ConfigRs, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::env;
+extern crate lazy_static;
+use lazy_static::lazy_static; // 1.4.0
+
+lazy_static! {
+    static ref CONFIG: Config = Config::load().unwrap();
+}
+
+pub fn get_config() -> Config {
+    (*CONFIG).clone()
+}
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 /// Storage specific config
@@ -44,7 +55,7 @@ impl Default for RocketConfig {
 }
 
 /// Config struct storing all StataChain Entity config
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     /// Log file location. If not present print to stdout
     pub log_file: String,

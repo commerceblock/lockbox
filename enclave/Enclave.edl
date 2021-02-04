@@ -20,8 +20,20 @@ enclave {
     from "sgx_stdio.edl" import *;
     from "sgx_backtrace.edl" import *;
     from "sgx_tstdc.edl" import *;
+    from "sgx_file.edl" import *;
+    include "sgx_report.h"
+    include "sgx_eid.h"
+    from "attestation/attestation.edl" import *;
+
     trusted {
-        /* define ECALLs here. */
+        /* define ECALLs here. */	
+
+	public void test_enclave_init();		
+
+	public uint32_t test_create_session(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
+
+	public uint32_t test_close_session(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
+
         public sgx_status_t create_sealed_random_bytes32([out, size=sealed_log_size]
             uint8_t* sealed_log, uint32_t sealed_log_size );
 
@@ -29,6 +41,8 @@ enclave {
             uint8_t* sealed_log, uint32_t sealed_log_size);
 
         public sgx_status_t say_something([in, size=len] const uint8_t* some_string, size_t len);
+
+        public sgx_status_t get_self_report([out]sgx_report_t* p_report);
 	
         public sgx_status_t calc_sha256([in, size=len] const uint8_t* input_str,
                                         size_t len,

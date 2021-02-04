@@ -10,6 +10,7 @@ ENV SGX_SDK=/opt/intel/sgxsdk \
     PKG_CONFIG_PATH=$SGX_SDK/pkgconfig \
     BINUTILS_PREFIX=/usr \
     LD_LIBRARY_PATH=$SGX_SDK/sdk_libs \
+    LOCKBOX_DB=/
     TESTS=$tests
 
 RUN set -x \

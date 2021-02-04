@@ -62,6 +62,37 @@ impl DerefMut for Enclave {
      }
 }
 
+
+#[derive(Clone)]
+pub struct SgxReport(sgx_report_t);
+
+impl Deref for SgxReport {
+    type Target = sgx_report_t;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/*
+impl Serialize for SgxReport {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer
+    {
+        // Any implementation of Serialize.
+    }
+}
+
+impl DeSerialize for SgxReport {
+    fn deserialize<D>(&self, deserializer: D) -> Result<Self, D::Error>
+    where D: Deserializer
+    {
+        // Any implementation of Serialize.
+    }
+}
+ */
+
+
+
 mod party_one_enc {
     use super::*;
 
@@ -1140,6 +1171,22 @@ impl Enclave {
        	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
     	}
     }
+
+    pub fn get_self_report(&self) -> Result<sgx_report_t> {
+     	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut ret_report: sgx_report_t = sgx_report_t::default();
+	
+     	let result = unsafe {
+            get_self_report(self.geteid(),
+			    &mut retval,
+			    &mut ret_report as *mut sgx_report_t)
+    	};
+	
+    	match result {
+            sgx_status_t::SGX_SUCCESS => Ok(ret_report),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+    	}
+    }
     
     pub fn get_random_sealed_log(&self) -> Result<[u8; 8192]> {
      	let sealed_log = [0; 8192];
@@ -1505,6 +1552,8 @@ extern {
     fn say_something(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
                      some_string: *const u8, len: usize) -> sgx_status_t;
 
+    fn get_self_report(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		       p_report: *mut sgx_report_t) -> sgx_status_t;
 
     fn create_sealed_random_bytes32(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
             sealed_log: * mut u8, sealed_log_size: u32 );
@@ -1595,6 +1644,13 @@ mod tests {
        let enc = Enclave::new().unwrap();
        let _ = enc.say_something("From test_say_something. ".to_string()).unwrap();
        enc.destroy();
+    }
+
+    #[test]
+    fn test_self_report() {
+	let enc = Enclave::new().unwrap();
+	let _report = enc.get_self_report().unwrap();
+	enc.destroy();
     }
 
     #[test]

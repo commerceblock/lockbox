@@ -20,8 +20,14 @@ use tempdir::TempDir;
 #[cfg(test)] 
 use uuid::Uuid;
 
+use crate::db::get_db;
+
+extern crate lazy_static;
+use lazy_static::lazy_static; // 1.4.0
+use std::sync::Mutex;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
 
 pub struct Lockbox {
     pub config: Config,
@@ -32,44 +38,16 @@ pub struct Lockbox {
 
 impl Lockbox
 {
-    pub fn load() -> Result<Lockbox> {
-        // Get config as defaults, Settings.toml and env vars
-        let config_rs = Config::load()?;
+    pub fn load(config_rs: Config) -> Result<Lockbox> {
 
         let enclave = Enclave::new().expect("failed to start enclave");
 
-	let path;
-	cfg_if::cfg_if! {
-	    if #[cfg(test)] {
-		let tempdir = TempDir::new(&format!("/tmp/{}",Uuid::new_v4().to_hyphenated())).unwrap();
-		path = tempdir.path();
-	    } else {
-		path = config_rs.storage.db_path.to_owned();
-	    }
-	}
-	
-	let mut db_opts = DBOptions::default();
-	db_opts.create_missing_column_families(true);
-	db_opts.create_if_missing(true);
-
-	let mut cf_opts = DBOptions::default();	
-	cf_opts.set_max_write_buffer_number(16);
-	let mut column_families = Vec::<ColumnFamilyDescriptor>::new();
-	column_families.push(ColumnFamilyDescriptor::new("ecdsa_first_message", cf_opts.clone()));
-	column_families.push(ColumnFamilyDescriptor::new("ecdsa_second_message", cf_opts.clone()));
-	column_families.push(ColumnFamilyDescriptor::new("ecdsa_sign_first", cf_opts.clone()));
-	column_families.push(ColumnFamilyDescriptor::new("ecdsa_sign_second", cf_opts.clone()));
-	column_families.push(ColumnFamilyDescriptor::new("ecdsa_keyupdate", cf_opts.clone()));
-
-	let database = match DB::open_cf_descriptors(&db_opts, path, column_families) {
-	    Ok(db) => db,
-	    Err(e) => { panic!("failed to open database: {:?}", e) }
-	};
+	let database = get_db(&config_rs);
 	
         Ok(Self {
             config: config_rs,
             enclave,
-	    database
+	    database,
         })
 
     }
@@ -91,11 +69,11 @@ fn not_found(req: &Request) -> String {
     format!("Unknown route '{}'.", req.uri())
 }
 
-pub fn get_server()-> Result<Rocket> {
-    let lbs = Lockbox::load()?;
+pub fn get_server(config_rs: Config)-> Result<Rocket> {
+    let mut lbs = Lockbox::load(config_rs)?;
 
     set_logging_config(&lbs.config.log_file);
-
+    
     let rocket_config = get_rocket_config(&lbs.config);
 
     let rock = rocket::custom(rocket_config)
@@ -115,6 +93,8 @@ pub fn get_server()-> Result<Rocket> {
             ],
         )
         .manage(lbs);
+
+
 
     Ok(rock)
 }
@@ -161,8 +141,10 @@ mod tests {
     pub use kms::ecdsa::two_party::*;                                                                                                      
     pub use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*; 
 
+    
     fn get_client() -> Client {
-        Client::new(get_server().expect("valid rocket instance")).expect("client")   
+	let config = crate::config::get_config();
+        Client::new(get_server(config).expect("valid rocket instance")).expect("client")   
     }
 
     #[test]
@@ -179,7 +161,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_first_message() {
-	let server = Lockbox::load().unwrap();
+	let config = crate::config::get_config();
+	let server = Lockbox::load(config).unwrap();
 	let shared_key_id = uuid::Uuid::new_v4();
 
 	let expected = 	shared_key_id;
@@ -193,8 +176,9 @@ mod tests {
 	use kms::ecdsa::two_party::*;
 	use curv::{BigInt, FE, elliptic::curves::traits::ECScalar};
 	use crate::shared_lib::structs::KeyGenMsg2;
-	    
-	let server = Lockbox::load().unwrap();
+
+	let config = crate::config::get_config();
+	let server = Lockbox::load(config).unwrap();
 	let shared_key_id = uuid::Uuid::new_v4();
 
 	

@@ -296,7 +296,6 @@ pub mod keygen {
 pub mod tests {
     use super::keygen::*;
     use super::*;
-    use serde_json;
 
     #[test]
     fn transaction() {
@@ -334,21 +333,14 @@ pub mod tests {
             &1000,
         )
         .unwrap();
-        println!("{}", serde_json::to_string_pretty(&tx_0).unwrap());
 
         // Compute sighash
         let sighash = tx_0.signature_hash(0, &addr.script_pubkey(), amount as u32);
         // Makes signature.
         let msg = Message::from_slice(&sighash[..]).unwrap();
-        let signature = secp.sign(&msg, &priv_key.key).serialize_der().to_vec();
+        let _signature = secp.sign(&msg, &priv_key.key).serialize_der().to_vec();
 
-        println!("signature: {:?}", signature);
-
-        let tx_k = tx_kickoff_build(tx_0.input.get(0).unwrap(), &addr, &amount).unwrap();
-        println!("{}", serde_json::to_string_pretty(&tx_k).unwrap());
-
-        // let tx_1 = tx_backup_build(&tx_k.input.get(0).unwrap(), &addr.to_string(), &amount).unwrap();
-        // println!("{}", serde_json::to_string_pretty(&tx_1).unwrap());
+        let _tx_k = tx_kickoff_build(tx_0.input.get(0).unwrap(), &addr, &amount).unwrap();
     }
 
     #[test]

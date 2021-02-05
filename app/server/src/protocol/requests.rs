@@ -55,3 +55,31 @@ where
     Ok(serde_json::from_str(value.as_str()).unwrap())
 }
 
+pub fn get_lb<V>(lockbox: &Lockbox, path: &str) -> Result<V>
+where
+    V: serde::de::DeserializeOwned,
+{
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    let start = Instant::now();
+
+    let mut b = lockbox
+        .client
+        .get(&format!("{}/{}", lockbox.endpoint, path));
+
+    // catch reqwest errors
+    let value = match b.send() {
+        Ok(v) => v.text().unwrap(),
+        Err(e) => return Err(LockboxError::from(e)),
+    };
+
+    info!("GET return value: {:?}", value);
+
+    info!("(req {}, took: {})", path, TimeFormat(start.elapsed()));
+
+    // catch State entity errors
+    if value.contains(&String::from("Error: ")) {
+        return Err(LockboxError::Generic(value));
+    }
+
+    Ok(serde_json::from_str(value.as_str()).unwrap())
+}

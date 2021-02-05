@@ -15,6 +15,9 @@ use uuid::Uuid;
 use crate::ecies;
 use crate::ecies::{Encryptable, SelfEncryptable};
 
+use std::mem::size_of;
+use std::convert::From;
+
 /// State Entity protocols
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum Protocol {
@@ -284,6 +287,18 @@ pub struct KUAttest {      // Sent from lockbox back to server
 }
 
 //Attestation
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct DHMsg0 {
+    pub inner: Vec<u8>
+}
+
+impl From<sgx_enclave_id_t> for DHMsg0 {
+    fn from(v: sgx_enclave_id_t) -> Self {
+	let inner = unsafe {std::slice::from_raw_parts(v as *const sgx_enclave_id_t as *const u8, size_of<sgx_enclave_id_t>()).to_vec()};
+	Self {inner}
+    }
+
+}
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct DHMsg1 {

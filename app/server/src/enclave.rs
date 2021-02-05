@@ -1079,7 +1079,7 @@ impl DerefMut for BigInt_sgx_w {
 impl From<&BigInt> for BigInt_sgx_w {
     fn from(item: &BigInt) -> Self {
 	let item_vec : Vec<u8> = item.into();
-	let inner = BigInt_sgx::from_signed_bytes_be(item_vec.as_slice());
+    let inner = BigInt_sgx::from_bytes_be(num_bigint_dig::Sign::Plus,item_vec.as_slice());
 	Self { inner }
     }
 }

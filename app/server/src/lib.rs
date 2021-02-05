@@ -69,16 +69,8 @@ use std::fmt;
 pub struct Key(Uuid);
 
 impl Key {
-    fn new() -> Self {
-	Self(Uuid::new_v4())
-    }
-
     fn from_uuid(id: &Uuid) -> Self {
 	Self(*id)
-    }
-    
-    fn inner(&self) -> Uuid {
-	self.0
     }
 }
 

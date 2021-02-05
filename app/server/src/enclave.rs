@@ -1,4 +1,3 @@
-
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
@@ -1096,8 +1095,17 @@ impl DerefMut for BigIntSgxW {
 
 impl From<&BigInt> for BigIntSgxW {
     fn from(item: &BigInt) -> Self {
-	  let item_vec : Vec<u8> = item.into();
-    let inner = BigInt_sgx::from_bytes_be(num_bigint_dig::Sign::Plus,item_vec.as_slice());
+	
+	let item_vec : Vec<u8> = item.into();
+	let sign;
+	if (item > &BigInt::zero()) {
+	    sign = num_bigint_dig::Sign::Plus;
+	} else if (item < &BigInt::zero()) {
+	    sign = num_bigint_dig::Sign::Minus;
+	} else {
+	    sign = num_bigint_dig::Sign::NoSign
+	};
+	let inner = BigIntSgx::from_bytes_be(sign,item_vec.as_slice());
 	Self { inner }
     }
 }

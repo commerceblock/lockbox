@@ -1401,13 +1401,10 @@ impl Enclave {
 	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
 
-	println!("converting KeyGenMsg2 to SGX");
 	let key_gen_msg2_sgx = &KeyGenMsg2SgxW::from(key_gen_msg_2).inner;
-	println!("converting KeyGenMsg2Sgx to string");
 	let msg_2_str = serde_json::to_string(key_gen_msg2_sgx).unwrap();
 	
 	let _result = unsafe{
-	    println!("doing second message");
 	    second_message(self.geteid(), &mut enclave_ret,
 			   sealed_log_in.as_mut_ptr() as *mut u8,
 			   sealed_log_out.as_mut_ptr() as *mut u8,
@@ -1479,12 +1476,9 @@ impl Enclave {
 	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
 
-	println!("converting signmsg2 to sgx");
 	let sign_msg2_sgx = SignMsg2SgxW::from(sign_msg2).inner;
-	println!("signmsg2_sgx to string");
 	let sign_msg2_str = serde_json::to_string(&sign_msg2_sgx).unwrap();
 
-	println!("sign second in enclave:");
 	let _result = unsafe {
 	    sign_second(self.geteid(), &mut enclave_ret,
 			sealed_log_in.as_mut_ptr() as *mut u8,
@@ -1496,7 +1490,6 @@ impl Enclave {
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
-		println!("sign_second success");
 		let c = plain_ret[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
@@ -1939,7 +1932,6 @@ mod tests {
         };
 	
 
-	println!("sign second:");
         let (_return_msg, _return_sealed) = enc.sign_second(&mut sign_first_sealed, &sign_msg2).unwrap();
 	
     }

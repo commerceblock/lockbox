@@ -19,6 +19,7 @@ case "$1" in
              export PKG_CONFIG_PATH=$SGX_SDK/pkgconfig
              export BINUTILS_PREFIX=/usr
              export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$SGX_SDK/sdk_libs
+             export LOCKBOX_DB_PATH=/tmp/lockbox
              /opt/lockbox/bin/server_exec &
              ;;
         *)

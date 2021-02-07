@@ -192,8 +192,6 @@ pub fn verify(r: &BigInt, s: &BigInt, pubkey: &GE, message: &BigInt) -> bool {
     let cond1 = rx_bytes.ct_eq(&u1_plus_u2_bytes).unwrap_u8() == 1;
     let cond2 = s < &(FE::q() - s.clone());
 
-    println!("verify - cond1: {}, cond2: {}", cond1, cond2);
-    
     if cond1 && cond2
     {
         return true
@@ -484,12 +482,9 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keyupdate/first";
-	println!("keyupdate first");
         let ku_receive: KUReceiveMsg = post_lb(&lockbox, path, &ku_send).unwrap();               
 
         let new_shared_key_id = Uuid::new_v4();
-
-        println!("{:?}", new_shared_key_id);
 
         let ku_send = KUFinalize {
             statechain_id,
@@ -497,7 +492,6 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keyupdate/second";
-	println!("keyupdate second");
         let ku_attest: KUAttest = post_lb(&lockbox, path, &ku_send).unwrap();
 
         assert_eq!(ku_attest.statechain_id,statechain_id);
@@ -509,7 +503,6 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keygen/first";
-	println!("gen new shared key - first message:");
         let (return_id_2, key_gen_first_msg_2): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1_2).unwrap();
 
         assert_eq!(return_id_2,new_shared_key_id);
@@ -523,7 +516,6 @@ mod tests {
         };
 
         let path: &str = "ecdsa/keygen/second";
-	println!("gen new shared key - second message:");
         let kg_party_one_second_message_2: party1::KeyGenParty1Message2 = post_lb(&lockbox, path, &key_gen_msg2_2).unwrap();
 
         let key_gen_second_message_2 = MasterKey2::key_gen_second_message(
@@ -544,11 +536,9 @@ mod tests {
         );
 
         //confirm public key after transfer
-	println!("confirm public key after transfer");
         assert_eq!(ku_receive.s2_pub*o2,master_key_2.public.q);
 
         //confirm public keys are the same
-	println!("confirm public keys are the same");
         assert_eq!(master_key.public.q, master_key_2.public.q);        
 
         // choose message to sign
@@ -564,7 +554,6 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/first";
-	println!("sign message: sign first");
         let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
             post_lb(&lockbox, path, &sign_msg1).unwrap();
 
@@ -587,7 +576,6 @@ mod tests {
         };
 
         let path: &str = "ecdsa/sign/second";
-	println!("sign message: sign second");
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
 
         assert_eq!(der_signature.len(),2);
@@ -601,10 +589,8 @@ mod tests {
 
         let _rec_pub = PublicKey::from_slice(&der_signature[1][..]).unwrap();
         let pk_vec = master_key_2.public.q;
-	println!("public key for verification: {:?}", master_key.public);
         let ver = verify(&r,&s,&pk_vec,&msg);
 
-	println!("final verify");
         assert!(ver);
 
     }

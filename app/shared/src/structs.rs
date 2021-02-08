@@ -18,6 +18,12 @@ use crate::ecies::{Encryptable, SelfEncryptable};
 use std::mem::size_of;
 use std::convert::From;
 
+extern crate sgx_types;
+extern crate sgx_urts;
+use self::sgx_types::*;
+
+big_array! { BigArray; }
+
 /// State Entity protocols
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
 pub enum Protocol {
@@ -288,28 +294,95 @@ pub struct KUAttest {      // Sent from lockbox back to server
 
 //Attestation
 #[derive(Serialize, Deserialize, Debug, Default)]
-pub struct DHMsg0 {
-    pub inner: Vec<u8>
+pub struct EnclaveIDMsg {
+    pub inner: sgx_enclave_id_t
 }
 
-impl From<sgx_enclave_id_t> for DHMsg0 {
+/*
+impl From<sgx_enclave_id_t> for EnclaveIDMsg {
     fn from(v: sgx_enclave_id_t) -> Self {
-	let inner = unsafe {std::slice::from_raw_parts(v as *const sgx_enclave_id_t as *const u8, size_of<sgx_enclave_id_t>()).to_vec()};
+	let inner = unsafe {std::slice::from_raw_parts(v as *const sgx_enclave_id_t as *const u8, size_of::<sgx_enclave_id_t>()).to_vec()};
 	Self {inner}
     }
 
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+
+impl Into<sgx_enclave_id_t> for EnclaveIDMsg {
+    fn into(self) -> sgx_enclave_id_t {
+	let result: &sgx_enclave_id_t = unsafe { &(self.inner) as &sgx_enclave_id_t };
+	*result
+    }
+
+}
+ */
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_dh_msg1_t")]
+struct DHMsg1Def {
+    #[serde(with = "EC256PublicDef")]
+    pub g_a: sgx_ec256_public_t,
+    #[serde(with = "TargetInfoDef")]
+    pub target: sgx_target_info_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_ec256_public_t")]
+struct EC256PublicDef {
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub gx: [uint8_t; SGX_ECP256_KEY_SIZE],
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub gy: [uint8_t; SGX_ECP256_KEY_SIZE],
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_target_info_t")]
+struct TargetInfoDef {
+    #[serde(with = "MeasurementDef")]
+    pub mr_enclave: sgx_measurement_t,
+    #[serde(with = "AttributesDef")]
+    pub attributes: sgx_attributes_t,
+    pub reserved1: [uint8_t; SGX_TARGET_INFO_RESERVED1_BYTES],
+    pub config_svn: sgx_config_svn_t,
+    pub misc_select: sgx_misc_select_t,
+    pub reserved2: [uint8_t; SGX_TARGET_INFO_RESERVED2_BYTES],
+    #[serde(with = "BigArray")]
+    pub config_id: sgx_config_id_t,
+    #[serde(with = "BigArray")]
+    pub reserved3: [uint8_t; SGX_TARGET_INFO_RESERVED3_BYTES],
+}
+
+//impl_struct! {
+    #[derive(Serialize, Deserialize)]
+    #[serde(remote = "sgx_measurement_t")]
+    pub struct MeasurementDef {
+	#[serde(serialize_with = "<[_]>::serialize")]
+        pub m: [uint8_t; SGX_HASH_SIZE],
+    }
+//}
+
+
+
+impl_struct! {
+    #[derive(Serialize, Deserialize)]
+    #[serde(remote = "sgx_attributes_t")]
+    pub struct AttributesDef {
+        pub flags: uint64_t,
+        pub xfrm: uint64_t,
+    }
+}
+
+#[derive(Serialize, Deserialize, Default)]
 pub struct DHMsg1 {
-    pub inner: Vec<u8>
+    #[serde(with = "DHMsg1Def")]
+    pub inner: sgx_dh_msg1_t,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct DHMsg2 {
+//    pub inner: sgx_dh_msg2_t,
     pub inner: Vec<u8>
 }
-
 
 #[cfg(test)]
 mod tests {

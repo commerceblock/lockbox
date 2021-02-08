@@ -2811,6 +2811,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-big-array"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14f791855a30ea300749cd42f29761707665a2166c8550be67adbfeb78c62195"
+dependencies = [
+ "serde 1.0.123",
+ "serde_derive 1.0.123",
+]
+
+[[package]]
 name = "serde_cbor"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3040,6 +3050,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sgx_urts"
+version = "1.1.3"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
+dependencies = [
+ "libc",
+ "sgx_types",
+]
+
+[[package]]
 name = "sha2"
 version = "0.8.0"
 source = "git+https://github.com/mesalock-linux/rustcrypto-hashes-sgx?tag=sgx_1.1.3#54ac4af765ec6b424add4e7559e82328bd052060"
@@ -3140,8 +3159,11 @@ dependencies = [
  "rocket",
  "rocket_contrib",
  "serde 1.0.123",
+ "serde-big-array",
  "serde_derive 1.0.123",
  "serde_json 1.0.61",
+ "sgx_types",
+ "sgx_urts",
  "tor-stream",
  "uuid 0.8.2",
 ]

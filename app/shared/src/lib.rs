@@ -22,9 +22,14 @@ extern crate multi_party_ecdsa;
 extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
+#[macro_use]
+extern crate serde_big_array;
 
 #[cfg(test)]
 extern crate mockito;
+
+extern crate sgx_types;
+extern crate sgx_urts;
 
 pub mod mocks;
 

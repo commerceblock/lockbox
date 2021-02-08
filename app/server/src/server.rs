@@ -94,6 +94,7 @@ pub fn get_server(config_rs: Config)-> Result<Rocket> {
 		ecdsa::keyupdate_second,
 		transfer::transfer_sender,
                 transfer::transfer_receiver,
+		attestation::enclave_id,
             ],
         )
         .manage(lbs);

@@ -44,6 +44,10 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 extern crate serde_cbor;
+#[macro_use]
+extern crate serde_big_array;
+
+big_array! { BigArray; }
 
 extern crate mockall;
 #[cfg(test)]

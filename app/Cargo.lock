@@ -3949,6 +3949,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-big-array"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14f791855a30ea300749cd42f29761707665a2166c8550be67adbfeb78c62195"
+dependencies = [
+ "serde 1.0.123",
+ "serde_derive",
+]
+
+[[package]]
 name = "serde-hjson"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4092,10 +4102,12 @@ dependencies = [
  "env_logger",
  "error-chain",
  "failure",
+ "floating-duration",
  "hex 0.4.2",
  "jsonwebtoken",
  "kms 0.1.2",
  "kms 0.1.3",
+ "lazy_static",
  "log 0.4.14",
  "log4rs",
  "mockall",
@@ -4109,12 +4121,14 @@ dependencies = [
  "paillier 0.3.5",
  "paillier 0.3.6",
  "rand 0.7.3",
+ "reqwest",
  "rocket",
  "rocket_contrib",
  "rocksdb",
  "rusoto_core 0.45.0",
  "rusoto_dynamodb 0.45.0",
  "serde 1.0.123",
+ "serde-big-array",
  "serde_cbor",
  "serde_derive",
  "serde_dynamodb",
@@ -4227,8 +4241,11 @@ dependencies = [
  "rocket",
  "rocket_contrib",
  "serde 1.0.123",
+ "serde-big-array",
  "serde_derive",
  "serde_json",
+ "sgx_types",
+ "sgx_urts",
  "tor-stream",
  "uuid 0.8.2",
 ]

@@ -131,7 +131,7 @@ pub fn close_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_encl
     ATTESTATION_STATUS::from_repr(ret as u32).unwrap()
 }
 
-fn session_request_safe(dh_msg1: &mut sgx_dh_msg1_t, session_ptr: &mut usize) -> ATTESTATION_STATUS {
+fn session_request_safe(src_enclave_id: sgx_enclave_id_t, dh_msg1: &mut sgx_dh_msg1_t, session_ptr: &mut usize) -> ATTESTATION_STATUS {
 
     let mut responder = SgxDhResponder::init_session();
 
@@ -152,7 +152,7 @@ fn session_request_safe(dh_msg1: &mut sgx_dh_msg1_t, session_ptr: &mut usize) ->
 
 //Handle the request from Source Enclave for a session
 #[no_mangle]
-pub extern "C" fn session_request(dh_msg1: *mut sgx_dh_msg1_t, session_ptr: *mut usize) -> ATTESTATION_STATUS {
+pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t, dh_msg1: *mut sgx_dh_msg1_t, session_ptr: *mut usize) -> ATTESTATION_STATUS {
     unsafe {
         session_request_safe(src_enclave_id, &mut *dh_msg1, &mut *session_ptr)
     }

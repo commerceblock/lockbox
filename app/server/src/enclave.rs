@@ -1,11 +1,11 @@
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
+extern crate sgx_tdh;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
-use crate::shared_lib::structs::{KeyGenMsg2, SignMsg1, SignMsg2, Protocol,
-				 SignSecondMsgRequest, KUSendMsg, KUReceiveMsg};
+use crate::shared_lib::structs::*;
 
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey};
@@ -39,6 +39,7 @@ use zk_paillier_client::zkproofs::EncryptedPairs as EncryptedPairsSgx;
 use zk_paillier_client::zkproofs::Proof as ProofSgx;
 use zk_paillier_client::zkproofs::range_proof::Response as ResponseSgx;
 pub use zk_paillier_client::zkproofs::CompositeDLogProof as CompositeDLogProofSgx;
+use self::sgx_tdh::{SgxDhMsg1, SgxDhMsg2, SgxDhMsg3, SgxDhInitiator, SgxDhResponder};
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -1183,6 +1184,22 @@ impl Enclave {
     	}
     }
 
+    pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut dhmsg1 = SgxDhMsg1::default();
+	let mut session_ptr: usize = 0;
+	
+     	let result = unsafe {
+            session_request(self.geteid(),
+			    &mut retval,
+			    id_msg.inner,
+			    &mut dhmsg1,
+			    session_ptr);
+    	};
+	
+	Ok(DHMsg1::default())
+    }
+    
     pub fn get_self_report(&self) -> Result<sgx_report_t> {
      	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut ret_report: sgx_report_t = sgx_report_t::default();
@@ -1629,6 +1646,11 @@ extern {
 		  len: usize,
 		  plain_out: *mut u8,
     );
+
+
+    fn session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+				src_enclave_id: sgx_enclave_id_t, dh_msg1: *mut sgx_dh_msg1_t,
+				session_pointer: usize);
 
 }
 

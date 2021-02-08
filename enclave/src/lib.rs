@@ -95,9 +95,6 @@ fn verify_peer_enclave_trust(peer_enclave_identity: &sgx_dh_session_enclave_iden
     }
 }
 
-extern "C" {
-
-}
 
 #[no_mangle]
 pub extern "C" fn test_enclave_init() {
@@ -116,6 +113,33 @@ pub extern "C" fn test_create_session(src_enclave_id: sgx_enclave_id_t, dest_enc
 #[allow(unused_variables)]
 pub extern "C" fn test_close_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enclave_id_t) -> u32 {
     close_session(src_enclave_id, dest_enclave_id) as u32
+}
+
+fn session_request_safe(src_enclave_id: sgx_enclave_id_t, dh_msg1: &mut sgx_dh_msg1_t, session_ptr: &mut usize) -> ATTESTATION_STATUS {
+
+    let mut responder = SgxDhResponder::init_session();
+
+    let status = responder.gen_msg1(dh_msg1);
+    if status.is_err() {
+        return ATTESTATION_STATUS::INVALID_SESSION;
+    }
+
+    let mut session_info = DhSessionInfo::default();
+    session_info.enclave_id = src_enclave_id;
+    session_info.session.session_status = DhSessionStatus::InProgress(responder);
+
+    let ptr = Box::into_raw(Box::new(session_info));
+    *session_ptr = ptr as * mut _ as usize;
+
+    ATTESTATION_STATUS::SUCCESS
+}
+
+//Handle the request from Source Enclave for a session
+#[no_mangle]
+pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t, dh_msg1: *mut sgx_dh_msg1_t, session_ptr: *mut usize) -> ATTESTATION_STATUS {
+    unsafe {
+        session_request_safe(src_enclave_id, &mut *dh_msg1, &mut *session_ptr)
+    }
 }
 
 // A sample struct to show the usage of serde + seal

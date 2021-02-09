@@ -478,10 +478,16 @@ pub struct DHMsg1 {
     pub inner: sgx_dh_msg1_t,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct DHMsg2 {
-//    pub inner: sgx_dh_msg2_t,
-    pub inner: Vec<u8>
+    #[serde(with = "DHMsg2Def")]
+    pub inner: sgx_dh_msg2_t,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct DHMsg3 {
+    #[serde(with = "DHMsg3Def")]
+    pub inner: sgx_dh_msg3_t,
 }
 
 #[cfg(test)]

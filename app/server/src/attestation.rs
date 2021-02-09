@@ -11,7 +11,7 @@ use std::convert::TryInto;
 
 use std::fmt;
 
-use crate::shared_lib::structs::{DHMsg1, DHMsg2, EnclaveIDMsg};
+use crate::shared_lib::structs::{DHMsg1, DHMsg2, DHMsg3, EnclaveIDMsg};
 
 use crate::server::Lockbox;
 
@@ -28,6 +28,8 @@ fn session_request_ocall(
     dest_enclave_id: sgx_enclave_id_t,
     dh_msg1: *mut sgx_dh_msg1_t) -> sgx_status_t {
 
+    println!("Entering session_request_ocall");
+    
     let config = config::get_config();
 
     let db = get_db_read_only(&config);
@@ -57,8 +59,22 @@ fn session_request_ocall(
 	*dh_msg1 = inner;
     }
     
-    println!("Entering session_request_ocall");
     //    unsafe {sgx_init_quote(ret_ti, ret_gid)}
     sgx_status_t::SGX_SUCCESS
 }
 
+#[no_mangle]
+extern "C"
+fn exchange_report_ocall(dh_msg2: *mut sgx_dh_msg2_t,
+                         dh_msg3: *mut sgx_dh_msg3_t) -> sgx_status_t {
+    println!("Entering exchange_report_ocall");
+
+    let client_dest = client::get_client_dest();
+    
+    let response: DHMsg3 = match post_lb(&client_dest, "attestation/exchange_report", &DHMsg2{inner: unsafe{ *dh_msg2 }}) {
+	Ok(r) => r,
+	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+        };
+
+    sgx_status_t::SGX_SUCCESS
+}

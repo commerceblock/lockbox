@@ -30,13 +30,14 @@ use err::*;
 
 
 extern {
-    pub fn session_request_ocall(ret: *mut u32,
+    pub fn session_request_ocall(
                                  dh_msg1: *mut sgx_dh_msg1_t) -> sgx_status_t;
-}
 
-//    pub fn exchange_report_ocall(ret: *mut u32,
-//                                 dh_msg2: *mut sgx_dh_msg2_t,
-//                                 dh_msg3: *mut sgx_dh_msg3_t) -> sgx_status_t;
+
+    pub fn exchange_report_ocall(ret: *mut u32,
+                                 dh_msg2: *mut sgx_dh_msg2_t,
+                                 dh_msg3: *mut sgx_dh_msg3_t) -> sgx_status_t;
+}
 /*
     pub fn end_session_ocall(ret: *mut u32,
                              src_enclave_id:sgx_enclave_id_t,
@@ -72,7 +73,7 @@ pub fn create_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enc
 
     let mut initiator: SgxDhInitiator = SgxDhInitiator::init_session();
 
-    let status = unsafe { session_request_ocall(&mut ret, &mut dh_msg1) };
+    let status = unsafe { session_request_ocall(&mut dh_msg1) };
     if status != sgx_status_t::SGX_SUCCESS {
         return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
     }

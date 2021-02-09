@@ -33,13 +33,11 @@ extern {
     pub fn session_request_ocall(ret: *mut u32,
                                  dh_msg1: *mut sgx_dh_msg1_t) -> sgx_status_t;
 }
-/*
-    pub fn exchange_report_ocall(ret: *mut u32,
-                                 src_enclave_id: sgx_enclave_id_t,
-                                 dest_enclave_id: sgx_enclave_id_t,
-                                 dh_msg2: *mut sgx_dh_msg2_t,
-                                 dh_msg3: *mut sgx_dh_msg3_t) -> sgx_status_t;
 
+//    pub fn exchange_report_ocall(ret: *mut u32,
+//                                 dh_msg2: *mut sgx_dh_msg2_t,
+//                                 dh_msg3: *mut sgx_dh_msg3_t) -> sgx_status_t;
+/*
     pub fn end_session_ocall(ret: *mut u32,
                              src_enclave_id:sgx_enclave_id_t,
                              dest_enclave_id:sgx_enclave_id_t) -> sgx_status_t;
@@ -90,7 +88,7 @@ pub fn create_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enc
 
     let mut dh_msg3_raw = sgx_dh_msg3_t::default();
     let status = sgx_status_t::SGX_SUCCESS;
-    //unsafe { exchange_report_ocall(&mut ret, src_enclave_id, dest_enclave_id, &mut dh_msg2, &mut dh_msg3_raw as *mut sgx_dh_msg3_t) };
+//    unsafe { exchange_report_ocall(&mut ret, src_enclave_id, dest_enclave_id, &mut dh_msg2, &mut dh_msg3_raw as *mut sgx_dh_msg3_t) };
     if status != sgx_status_t::SGX_SUCCESS {
         return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
     }

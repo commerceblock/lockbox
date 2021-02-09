@@ -22,7 +22,10 @@ extern crate sgx_types;
 extern crate sgx_urts;
 use self::sgx_types::*;
 
-big_array! { BigArray; }
+big_array! {
+    BigArray;
+    +42,
+}
 
 /// State Entity protocols
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
@@ -325,6 +328,103 @@ struct DHMsg1Def {
     #[serde(with = "TargetInfoDef")]
     pub target: sgx_target_info_t,
 }
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_dh_msg2_t")]
+struct DHMsg2Def {
+    #[serde(with = "EC256PublicDef")]
+    pub g_b: sgx_ec256_public_t,
+    #[serde(with = "ReportDef")]
+    pub report: sgx_report_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub cmac: [uint8_t; SGX_DH_MAC_SIZE],
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_dh_msg3_body_t")]
+struct DHMsg3BodyDef {
+    #[serde(with = "ReportDef")]
+    pub report: sgx_report_t,
+    pub additional_prop_length: uint32_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub additional_prop: [uint8_t; 0],
+}
+
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_dh_msg3_t")]
+pub struct DHMsg3Def {
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub cmac: [uint8_t; SGX_DH_MAC_SIZE],
+    #[serde(with = "DHMsg3BodyDef")]
+    pub msg3_body: sgx_dh_msg3_body_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_report_t")]
+pub struct ReportDef {
+    #[serde(with = "ReportBodyDef")]
+    pub body: sgx_report_body_t,
+    #[serde(with = "KeyIDDef")]
+    pub key_id: sgx_key_id_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub mac: sgx_mac_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_key_id_t")]
+pub struct KeyIDDef {
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub id: [uint8_t; SGX_KEYID_SIZE],
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_report_body_t")]
+pub struct ReportBodyDef {
+    #[serde(with = "CpuSvnDef")]
+    pub cpu_svn: sgx_cpu_svn_t,
+    pub misc_select: sgx_misc_select_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub reserved1: [uint8_t; SGX_REPORT_BODY_RESERVED1_BYTES],
+    pub isv_ext_prod_id: sgx_isvext_prod_id_t,
+    #[serde(with = "AttributesDef")]
+    pub attributes: sgx_attributes_t,
+    #[serde(with = "MeasurementDef")]
+    pub mr_enclave: sgx_measurement_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub reserved2: [uint8_t; SGX_REPORT_BODY_RESERVED2_BYTES],
+    #[serde(with = "MeasurementDef")]
+    pub mr_signer: sgx_measurement_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub reserved3: [uint8_t; SGX_REPORT_BODY_RESERVED3_BYTES],
+    #[serde(with = "BigArray")]
+    pub config_id: sgx_config_id_t,
+    pub isv_prod_id: sgx_prod_id_t,
+    pub isv_svn: sgx_isv_svn_t,
+    pub config_svn: sgx_config_svn_t,
+    #[serde(with = "BigArray")]
+    pub reserved4: [uint8_t; SGX_REPORT_BODY_RESERVED4_BYTES],
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub isv_family_id: sgx_isvfamily_id_t,
+    #[serde(with = "ReportDataDef")]
+    pub report_data: sgx_report_data_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_report_data_t")]
+pub struct ReportDataDef {
+    #[serde(with = "BigArray")]
+    pub d: [uint8_t; SGX_REPORT_DATA_SIZE],
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_cpu_svn_t")]
+pub struct CpuSvnDef {
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub svn: [uint8_t; SGX_CPUSVN_SIZE],
+}
+
+
 
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "sgx_ec256_public_t")]

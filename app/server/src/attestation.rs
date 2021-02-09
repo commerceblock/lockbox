@@ -26,7 +26,7 @@ extern "C"
 fn session_request_ocall(
     src_enclave_id: sgx_enclave_id_t,
     dest_enclave_id: sgx_enclave_id_t,
-    dh_msg1: *const sgx_dh_msg1_t) -> sgx_status_t {
+    dh_msg1: *mut sgx_dh_msg1_t) -> sgx_status_t {
 
     let config = config::get_config();
 
@@ -52,6 +52,11 @@ fn session_request_ocall(
 	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
 
+    let inner = response.inner;
+    unsafe{
+	*dh_msg1 = inner;
+    }
+    
     println!("Entering session_request_ocall");
     //    unsafe {sgx_init_quote(ret_ti, ret_gid)}
     sgx_status_t::SGX_SUCCESS

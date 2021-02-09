@@ -115,6 +115,7 @@ pub extern "C" fn test_close_session(src_enclave_id: sgx_enclave_id_t, dest_encl
     close_session(src_enclave_id, dest_enclave_id) as u32
 }
 
+/*
 fn session_request_safe(src_enclave_id: sgx_enclave_id_t, dh_msg1: &mut sgx_dh_msg1_t, session_ptr: &mut usize) -> ATTESTATION_STATUS {
 
     let mut responder = SgxDhResponder::init_session();
@@ -141,6 +142,7 @@ pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t, dh_msg1: *mu
         session_request_safe(src_enclave_id, &mut *dh_msg1, &mut *session_ptr)
     }
 }
+ */
 
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is

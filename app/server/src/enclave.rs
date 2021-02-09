@@ -1,7 +1,6 @@
 use std::ops::{Deref, DerefMut};
 extern crate sgx_types;
 extern crate sgx_urts;
-extern crate sgx_tdh;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
@@ -39,7 +38,6 @@ use zk_paillier_client::zkproofs::EncryptedPairs as EncryptedPairsSgx;
 use zk_paillier_client::zkproofs::Proof as ProofSgx;
 use zk_paillier_client::zkproofs::range_proof::Response as ResponseSgx;
 pub use zk_paillier_client::zkproofs::CompositeDLogProof as CompositeDLogProofSgx;
-use self::sgx_tdh::{SgxDhMsg1, SgxDhMsg2, SgxDhMsg3, SgxDhInitiator, SgxDhResponder};
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -1186,14 +1184,14 @@ impl Enclave {
 
     pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let mut dhmsg1 = SgxDhMsg1::default();
+	let mut dhmsg1 = DHMsg1::default();
 	let mut session_ptr: usize = 0;
 	
      	let result = unsafe {
-            session_request(self.geteid(),
+            Enclave_session_request(self.geteid(),
 			    &mut retval,
 			    id_msg.inner,
-			    &mut dhmsg1,
+			    &mut dhmsg1.inner,
 			    session_ptr);
     	};
 	
@@ -1648,7 +1646,7 @@ extern {
     );
 
 
-    fn session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    fn Enclave_session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 				src_enclave_id: sgx_enclave_id_t, dh_msg1: *mut sgx_dh_msg1_t,
 				session_pointer: usize);
 

@@ -30,7 +30,8 @@ enclave {
 
 	public void test_enclave_init();		
 
-        public uint32_t session_request(sgx_enclave_id_t src_enclave_id, [out] sgx_dh_msg1_t *dh_msg1, [out] size_t* session_ptr);	
+        public uint32_t session_request(sgx_enclave_id_t src_enclave_id);
+	//, [out] sgx_dh_msg1_t *dh_msg1, [out] size_t* session_ptr);	
 
 	public uint32_t test_create_session(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
 

@@ -19,7 +19,10 @@ type LB = Lockbox;
 
 /// Lockbox Attestation protocol trait
 pub trait Attestation {
-    fn session_request(&self, transfer_msg1: &EnclaveIDMsg) -> Result<DHMsg1>;
+    fn session_request(&self, enclave_id_msg: &EnclaveIDMsg) -> Result<DHMsg1>;
+    fn exchange_report(&self, dh_msg_2: &DHMsg2) -> Result<DHMsg3>;
+    fn end_session(&self) -> Result<()>;
+    fn enclave_id(&self) -> EnclaveIDMsg;
 }
 
 #[post("/attestation/session_request", format = "json", data = "<enclave_id_msg>")]
@@ -33,22 +36,59 @@ pub fn session_request(
     }
 }
 
+#[post("/attestation/exchange_report", format = "json", data = "<dh_msg_2>")]
+pub fn exchange_report(
+    lockbox: State<Lockbox>,
+    dh_msg_2: Json<DHMsg2>,
+) -> Result<Json<DHMsg3>> {
+    match lockbox.exchange_report(&dh_msg_2) {
+        Ok(r) => Ok(Json(r)),
+        Err(e) => Err(e),
+    }
+}
+
 #[get("/attestation/enclave_id")]
 pub fn enclave_id(
     lockbox: State<Lockbox>,
 ) -> Result<Json<EnclaveIDMsg>> {
-    Ok(Json(EnclaveIDMsg { inner: lockbox.enclave.geteid() }))
+    Ok(Json(lockbox.enclave_id()))
 }
 
+#[get("/attestation/end_session")]
+pub fn end_session(
+    lockbox: State<Lockbox>,
+) -> Result<()> {
+    match lockbox.end_session() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
 
 impl Attestation for Lockbox{
     fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
 	self.enclave.say_something(String::from("doing session request"));
 	
-	//	match self.enclave.session_request(id_msg) {
-//	    Ok(r) => Ok(r),
-//	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
-	//	}
-	Ok(DHMsg1::default())
+	match self.enclave.session_request(id_msg) {
+	    Ok(r) => Ok(r),
+	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
+	}
+//	Ok(DHMsg1::default())
     }
+
+    fn exchange_report(&self, dh_msg_2: &DHMsg2) -> Result<DHMsg3> {
+	self.enclave.say_something(String::from("doing exchange report"));
+
+	Ok(DHMsg3::default())
+    }
+    
+    fn end_session(&self) -> Result<()> {
+	self.enclave.say_something(String::from("doing end session"));
+	
+	Ok(())
+    }
+
+    fn enclave_id(&self) -> EnclaveIDMsg {
+        EnclaveIDMsg { inner: self.enclave.geteid() }
+    }
+
 }

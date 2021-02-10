@@ -12,6 +12,7 @@ use rocket::{
     Request, Rocket,
 };
 use crate::enclave::Enclave;
+use crate::protocol::attestation::Attestation;
 use crate::Key;
 
 use rocksdb::{DB, Options as DBOptions, ColumnFamilyDescriptor};
@@ -137,7 +138,8 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared_lib::structs::{KeyGenMsg1, Protocol};
+    use shared_lib::structs::{KeyGenMsg1, Protocol, EnclaveIDMsg,
+    DHMsg1, DHMsg2, DHMsg3};
     use crate::protocol::ecdsa::Ecdsa;
     use rocket::{
 	http::Status,
@@ -231,4 +233,21 @@ mod tests {
 	
     }
 
+    #[test]
+    #[serial]
+    fn test_attestation() {
+	let config = crate::config::get_config();
+	let server = Lockbox::load(config).unwrap();
+
+	let eid_msg = server.enclave_id();
+	
+	let msg1 = server.session_request(&eid_msg).unwrap();
+
+	let msg2 = DHMsg2::default();
+
+	let msg3 = server.exchange_report(&msg2).unwrap();
+
+	server.end_session().unwrap();
+	
+    }
 }

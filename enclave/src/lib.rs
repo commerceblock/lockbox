@@ -26,6 +26,8 @@ extern crate sgx_types;
 extern crate sgx_tseal;
 extern crate sgx_tcrypto;
 extern crate sgx_tse;
+extern crate sgx_tdh;
+use sgx_tdh::{SgxDhMsg1, SgxDhMsg2, SgxDhMsg3, SgxDhInitiator, SgxDhResponder};
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
@@ -115,8 +117,12 @@ pub extern "C" fn test_close_session(src_enclave_id: sgx_enclave_id_t, dest_encl
     close_session(src_enclave_id, dest_enclave_id) as u32
 }
 
-/*
-fn session_request_safe(src_enclave_id: sgx_enclave_id_t, dh_msg1: &mut sgx_dh_msg1_t, session_ptr: &mut usize) -> ATTESTATION_STATUS {
+
+fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
+			dh_msg1: &mut sgx_dh_msg1_t
+//    , session_ptr: &mut usize
+) -> ATTESTATION_STATUS {
+
 
     let mut responder = SgxDhResponder::init_session();
 
@@ -129,20 +135,28 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t, dh_msg1: &mut sgx_dh_m
     session_info.enclave_id = src_enclave_id;
     session_info.session.session_status = DhSessionStatus::InProgress(responder);
 
-    let ptr = Box::into_raw(Box::new(session_info));
-    *session_ptr = ptr as * mut _ as usize;
+//    let ptr = Box::into_raw(Box::new(session_info));
+//    *session_ptr = ptr as * mut _ as usize;
 
     ATTESTATION_STATUS::SUCCESS
 }
 
+
 //Handle the request from Source Enclave for a session
 #[no_mangle]
-pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t, dh_msg1: *mut sgx_dh_msg1_t, session_ptr: *mut usize) -> ATTESTATION_STATUS {
+pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
+				  dh_msg1: *mut sgx_dh_msg1_t,
+//				  session_ptr: *mut usize
+)
+				  -> ATTESTATION_STATUS {
     unsafe {
-        session_request_safe(src_enclave_id, &mut *dh_msg1, &mut *session_ptr)
+        session_request_safe(src_enclave_id, &mut *dh_msg1
+			     //, &mut *session_ptr
+	)
     }
+//    ATTESTATION_STATUS::SUCCESS
 }
- */
+ 
 
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is

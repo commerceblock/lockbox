@@ -78,3 +78,15 @@ fn exchange_report_ocall(dh_msg2: *mut sgx_dh_msg2_t,
 
     sgx_status_t::SGX_SUCCESS
 }
+
+#[no_mangle]
+extern "C"
+fn end_session_ocall() -> sgx_status_t {
+
+    let client_dest = client::get_client_dest();
+
+    match get_lb::<()>(&client_dest, "attestation/end_session") {
+	Ok(_) =>  sgx_status_t::SGX_SUCCESS,
+	Err(_) =>  sgx_status_t::SGX_ERROR_UNEXPECTED,
+    }
+}

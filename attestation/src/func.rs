@@ -30,20 +30,15 @@ use err::*;
 
 
 extern {
-    pub fn session_request_ocall(
-                                 dh_msg1: *mut sgx_dh_msg1_t) -> sgx_status_t;
+    pub fn session_request_ocall(dh_msg1: *mut sgx_dh_msg1_t) -> sgx_status_t;
 
 
-    pub fn exchange_report_ocall(ret: *mut u32,
-                                 dh_msg2: *mut sgx_dh_msg2_t,
+    pub fn exchange_report_ocall(dh_msg2: *mut sgx_dh_msg2_t,
                                  dh_msg3: *mut sgx_dh_msg3_t) -> sgx_status_t;
+
+    pub fn end_session_ocall() -> sgx_status_t;
 }
-/*
-    pub fn end_session_ocall(ret: *mut u32,
-                             src_enclave_id:sgx_enclave_id_t,
-                             dest_enclave_id:sgx_enclave_id_t) -> sgx_status_t;
-}
- */
+
 
 static CALLBACK_FN: AtomicPtr<()> = AtomicPtr::new(0 as * mut ());
 
@@ -130,6 +125,7 @@ pub fn close_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_encl
     ATTESTATION_STATUS::from_repr(ret as u32).unwrap()
 }
 
+/*
 fn session_request_safe(src_enclave_id: sgx_enclave_id_t, dh_msg1: &mut sgx_dh_msg1_t, session_ptr: &mut usize) -> ATTESTATION_STATUS {
 
     let mut responder = SgxDhResponder::init_session();
@@ -156,6 +152,7 @@ pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t, dh_msg1: *mu
         session_request_safe(src_enclave_id, &mut *dh_msg1, &mut *session_ptr)
     }
 }
+ */
 
 #[allow(unused_variables)]
 fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t, dh_msg2: &mut sgx_dh_msg2_t , dh_msg3: &mut sgx_dh_msg3_t, session_info: &mut DhSessionInfo) -> ATTESTATION_STATUS {

@@ -1186,14 +1186,18 @@ impl Enclave {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut dhmsg1 = DHMsg1::default();
 	let mut session_ptr: usize = 0;
+	let src_enclave_id = id_msg.inner;
+	let mut dhmsg1_inner = dhmsg1.inner;
+
 	
      	let result = unsafe {
-            Enclave_session_request(self.geteid(),
+            session_request(self.geteid(),
 			    &mut retval,
-			    id_msg.inner,
-			    &mut dhmsg1.inner,
-			    session_ptr);
+			    src_enclave_id,
+			    &mut dhmsg1_inner,)
+		//	    session_ptr);
     	};
+	
 	
 	Ok(DHMsg1::default())
     }
@@ -1646,9 +1650,10 @@ extern {
     );
 
 
-    fn Enclave_session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-				src_enclave_id: sgx_enclave_id_t, dh_msg1: *mut sgx_dh_msg1_t,
-				session_pointer: usize);
+    fn session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    		       src_enclave_id: sgx_enclave_id_t,
+		       dh_msg1: *mut sgx_dh_msg1_t,);
+    //				session_pointer: usize);
 
 }
 

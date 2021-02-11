@@ -1184,22 +1184,57 @@ impl Enclave {
 
     pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let mut dhmsg1 = DHMsg1::default();
+	let mut dh_msg1 = [0u8;1500];
+
 	let mut session_ptr: usize = 0;
 	let src_enclave_id = id_msg.inner;
-	let mut dhmsg1_inner = dhmsg1.inner;
-
 	
      	let result = unsafe {
             session_request(self.geteid(),
 			    &mut retval,
 			    src_enclave_id,
-			    &mut dhmsg1_inner,)
-		//	    session_ptr);
+			    dh_msg1.as_mut_ptr() as *mut u8)
+//			    session_ptr.as_mut_ptr());
     	};
+
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  => {
+		let c = dh_msg1[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		let nc = nc_str.parse::<usize>().unwrap();
+		let size_str = std::str::from_utf8(&dh_msg1[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let msg_str = std::str::from_utf8(&dh_msg1[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		let dh_msg1 : DHMsg1  = serde_json::from_str(&msg_str).unwrap();
+		Ok(dh_msg1)
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
+	}
+    }
+
+    pub fn exchange_report(&self, ep_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<DHMsg3> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+
+	let mut dh_msg3 = DHMsg3::default();
+	let mut session_ptr: usize = ep_msg.session_ptr;
+	let src_enclave_id = ep_msg.src_enclave_id;
+	let mut dh_msg2 = &ep_msg.dh_msg2;
+
+
+	/*
+     	let result = unsafe {
+            exchange_report(self.geteid(),
+			    &mut retval,
+			    src_enclave_id,
+			    &mut dhmsg1_inner,
+			    session_ptr);
+    	};
+	 */
 	
-	
-	Ok(DHMsg1::default())
+	Ok(DHMsg3::default())
     }
     
     pub fn get_self_report(&self) -> Result<sgx_report_t> {
@@ -1652,9 +1687,18 @@ extern {
 
     fn session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
     		       src_enclave_id: sgx_enclave_id_t,
-		       dh_msg1: *mut sgx_dh_msg1_t,);
-    //				session_pointer: usize);
+    		       dh_msg1: *mut u8);
+//		       dh_msg1: *mut u8,
+//		       len: usize);
+    //,
+//    		       session_pointer: *mut usize);
 
+    fn exchange_report(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		       src_enclave_id: sgx_enclave_id_t, dh_msg2: *const sgx_dh_msg2_t,
+		       dh_msg3: *mut sgx_dh_msg3_t);
+	//, session_ptr: usize);
+
+//    public uint32_t end_session(sgx_enclave_id_t src_enclave_id, [user_check]size_t* session_ptr);
 }
 
 #[cfg(test)]

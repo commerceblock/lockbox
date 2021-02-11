@@ -301,6 +301,13 @@ pub struct EnclaveIDMsg {
     pub inner: sgx_enclave_id_t
 }
 
+#[derive(Serialize, Deserialize, Default)]
+pub struct ExchangeReportMsg {
+    pub src_enclave_id: sgx_enclave_id_t,
+    pub dh_msg2: DHMsg2,
+    pub session_ptr: usize,
+}
+
 /*
 impl From<sgx_enclave_id_t> for EnclaveIDMsg {
     fn from(v: sgx_enclave_id_t) -> Self {
@@ -349,7 +356,6 @@ struct DHMsg3BodyDef {
     #[serde(serialize_with = "<[_]>::serialize")]
     pub additional_prop: [uint8_t; 0],
 }
-
 
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "sgx_dh_msg3_t")]

@@ -11,7 +11,7 @@ use std::convert::TryInto;
 
 use std::fmt;
 
-use crate::shared_lib::structs::{DHMsg1, DHMsg2, DHMsg3, EnclaveIDMsg};
+use crate::shared_lib::structs::{DHMsg1, DHMsg2, DHMsg3, EnclaveIDMsg, ExchangeReportMsg};
 
 use crate::server::Lockbox;
 
@@ -28,7 +28,7 @@ fn session_request_ocall(
     dest_enclave_id: sgx_enclave_id_t,
     dh_msg1: *mut sgx_dh_msg1_t) -> sgx_status_t {
 
-    println!("Entering session_request_ocall");
+    println!("Entering session_request_ocall\n");
     
     let config = config::get_config();
 
@@ -67,14 +67,29 @@ fn session_request_ocall(
 extern "C"
 fn exchange_report_ocall(dh_msg2: *mut sgx_dh_msg2_t,
                          dh_msg3: *mut sgx_dh_msg3_t) -> sgx_status_t {
-    println!("Entering exchange_report_ocall");
+    println!("Entering exchange_report_ocall\n");
 
     let client_dest = client::get_client_dest();
-    
-    let response: DHMsg3 = match post_lb(&client_dest, "attestation/exchange_report", &DHMsg2{inner: unsafe{ *dh_msg2 }}) {
+    let client_src = client::get_client_src();
+
+    let enclave_id_msg = match get_lb::<EnclaveIDMsg>(&client_src, "attestation/enclave/id") {
 	Ok(r) => r,
 	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
-        };
+    };
+
+    
+    let er_msg = ExchangeReportMsg {
+	src_enclave_id: enclave_id_msg.inner,
+	dh_msg2: unsafe{DHMsg2{ inner: *dh_msg2 }},
+	session_ptr: 0
+    };
+    
+    let response: DHMsg3 = match post_lb(&client_dest, "attestation/exchange_report", &er_msg) {
+	Ok(r) => r,
+	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+
+//    dh_msg3 = response.as_ptr();
 
     sgx_status_t::SGX_SUCCESS
 }

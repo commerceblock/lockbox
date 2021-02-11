@@ -5,6 +5,7 @@
 pub use super::super::Result;
 extern crate shared_lib;
 use shared_lib::{state_chain::*, structs::*};
+use shared_lib::structs::ExchangeReportMsg;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
@@ -20,7 +21,7 @@ type LB = Lockbox;
 /// Lockbox Attestation protocol trait
 pub trait Attestation {
     fn session_request(&self, enclave_id_msg: &EnclaveIDMsg) -> Result<DHMsg1>;
-    fn exchange_report(&self, dh_msg_2: &DHMsg2) -> Result<DHMsg3>;
+    fn exchange_report(&self, er_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<DHMsg3>;
     fn end_session(&self) -> Result<()>;
     fn enclave_id(&self) -> EnclaveIDMsg;
 }
@@ -36,12 +37,12 @@ pub fn session_request(
     }
 }
 
-#[post("/attestation/exchange_report", format = "json", data = "<dh_msg_2>")]
+#[post("/attestation/exchange_report", format = "json", data = "<er_msg>")]
 pub fn exchange_report(
     lockbox: State<Lockbox>,
-    dh_msg_2: Json<DHMsg2>,
+    er_msg: Json<ExchangeReportMsg>,
 ) -> Result<Json<DHMsg3>> {
-    match lockbox.exchange_report(&dh_msg_2) {
+    match lockbox.exchange_report(&er_msg) {
         Ok(r) => Ok(Json(r)),
         Err(e) => Err(e),
     }
@@ -75,7 +76,7 @@ impl Attestation for Lockbox{
 //	Ok(DHMsg1::default())
     }
 
-    fn exchange_report(&self, dh_msg_2: &DHMsg2) -> Result<DHMsg3> {
+    fn exchange_report(&self, er_msg: &ExchangeReportMsg) -> Result<DHMsg3> {
 	self.enclave.say_something(String::from("doing exchange report"));
 
 	Ok(DHMsg3::default())

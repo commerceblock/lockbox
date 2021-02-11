@@ -139,7 +139,7 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 mod tests {
     use super::*;
     use shared_lib::structs::{KeyGenMsg1, Protocol, EnclaveIDMsg,
-    DHMsg1, DHMsg2, DHMsg3};
+    DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
     use crate::protocol::ecdsa::Ecdsa;
     use rocket::{
 	http::Status,
@@ -245,7 +245,13 @@ mod tests {
 
 	let msg2 = DHMsg2::default();
 
-	let msg3 = server.exchange_report(&msg2).unwrap();
+	let er_msg = ExchangeReportMsg {
+	    src_enclave_id: server.enclave_id().inner,
+	    dh_msg2: msg2,
+	    session_ptr: 0,
+	};
+	
+	let msg3 = server.exchange_report(&er_msg).unwrap();
 
 	server.end_session().unwrap();
 	

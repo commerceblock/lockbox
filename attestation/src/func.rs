@@ -152,7 +152,6 @@ pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t, dh_msg1: *mu
         session_request_safe(src_enclave_id, &mut *dh_msg1, &mut *session_ptr)
     }
 }
- */
 
 #[allow(unused_variables)]
 fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t, dh_msg2: &mut sgx_dh_msg2_t , dh_msg3: &mut sgx_dh_msg3_t, session_info: &mut DhSessionInfo) -> ATTESTATION_STATUS {
@@ -214,3 +213,4 @@ pub extern "C" fn end_session(src_enclave_id: sgx_enclave_id_t, session_ptr: *mu
     let _ = unsafe { Box::from_raw(session_ptr as *mut DhSessionInfo) };
     ATTESTATION_STATUS::SUCCESS
 }
+ */

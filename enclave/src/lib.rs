@@ -140,9 +140,8 @@ pub extern "C" fn test_close_session(src_enclave_id: sgx_enclave_id_t, dest_encl
 
 
 fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
-			dh_msg1: &mut [u8;1500] 
-    //,
-//			session_ptr: &mut usize
+			dh_msg1: &mut [u8;1500] ,
+			session_ptr: &mut usize
 ) -> ATTESTATION_STATUS {
 
     let mut responder = SgxDhResponder::init_session();
@@ -157,8 +156,6 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 
     match serde_json::to_string(& DHMsg1 { inner: dh_msg1_inner } ) {
 	Ok(v) => {
-//	    b = v.into_bytes();
-	    //	    *dh_msg1 = v.into_bytes().as_slice();
 	    let len = v.len();
 	    println!("msg1 length: {}", len);
 	    let mut v_sized=format!("{}", len);
@@ -176,7 +173,7 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
     session_info.session.session_status = DhSessionStatus::InProgress(responder);
 
     let ptr = Box::into_raw(Box::new(session_info));
-//    *session_ptr = ptr as * mut _ as usize;
+    *session_ptr = ptr as * mut _ as usize;
 
     ATTESTATION_STATUS::SUCCESS
 }
@@ -185,20 +182,19 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 //Handle the request from Source Enclave for a session
 #[no_mangle]
 pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
-				  dh_msg1: &mut [u8;1500] 
-//				  session_ptr: *mut usize
-)
+				  dh_msg1: &mut [u8;1500], 
+				  session_ptr: *mut usize)
 				  -> ATTESTATION_STATUS {        
     unsafe {
-        session_request_safe(src_enclave_id, dh_msg1,
-			     //, &mut *session_ptr
-	)
+        session_request_safe(src_enclave_id, dh_msg1, &mut *session_ptr)
     }
 }
 
 #[allow(unused_variables)]
-fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t, dh_msg2_str: *const u8 , msg2_len: usize, dh_msg3_arr: &mut [u8;1300]
-//			, session_info: &mut DhSessionInfo
+fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
+			dh_msg2_str: *const u8 , msg2_len: usize,
+			dh_msg3_arr: &mut [u8;1300],
+//			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
 
     let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };

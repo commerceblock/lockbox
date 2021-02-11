@@ -1182,7 +1182,7 @@ impl Enclave {
     	}
     }
 
-    pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
+    pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<(DHMsg1, usize)> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut dh_msg1 = [0u8;1500];
 
@@ -1193,8 +1193,8 @@ impl Enclave {
             session_request(self.geteid(),
 			    &mut retval,
 			    src_enclave_id,
-			    dh_msg1.as_mut_ptr() as *mut u8)
-//			    session_ptr.as_mut_ptr());
+			    dh_msg1.as_mut_ptr() as *mut u8,
+			    &mut session_ptr);
     	};
 
 
@@ -1208,7 +1208,7 @@ impl Enclave {
 		let size = size_str.parse::<usize>().unwrap();
 		let msg_str = std::str::from_utf8(&dh_msg1[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let dh_msg1 : DHMsg1  = serde_json::from_str(&msg_str).unwrap();
-		Ok(dh_msg1)
+		Ok((dh_msg1, session_ptr))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
 	}
@@ -1699,11 +1699,11 @@ extern {
 
     fn session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
     		       src_enclave_id: sgx_enclave_id_t,
-    		       dh_msg1: *mut u8);
+    		       dh_msg1: *mut u8,
 //		       dh_msg1: *mut u8,
 //		       len: usize);
     //,
-//    		       session_pointer: *mut usize);
+    		       session_pointer: *mut usize);
 
     fn exchange_report(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		       src_enclave_id: sgx_enclave_id_t, dh_msg2: *const u8,

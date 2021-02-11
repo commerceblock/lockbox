@@ -20,7 +20,7 @@ type LB = Lockbox;
 
 /// Lockbox Attestation protocol trait
 pub trait Attestation {
-    fn session_request(&self, enclave_id_msg: &EnclaveIDMsg) -> Result<DHMsg1>;
+    fn session_request(&self, enclave_id_msg: &EnclaveIDMsg) -> Result<(DHMsg1, usize)>;
     fn exchange_report(&self, er_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<DHMsg3>;
     fn end_session(&self) -> Result<()>;
     fn enclave_id(&self) -> EnclaveIDMsg;
@@ -30,7 +30,7 @@ pub trait Attestation {
 pub fn session_request(
     lockbox: State<Lockbox>,
     enclave_id_msg: Json<EnclaveIDMsg>,
-) -> Result<Json<DHMsg1>> {
+) -> Result<Json<(DHMsg1, usize)>> {
     match lockbox.session_request(&enclave_id_msg) {
         Ok(r) => Ok(Json(r)),
         Err(e) => Err(e),
@@ -66,14 +66,13 @@ pub fn end_session(
 }
 
 impl Attestation for Lockbox{
-    fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
+    fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<(DHMsg1, usize)> {
 	self.enclave.say_something(String::from("doing session request"));
 	
 	match self.enclave.session_request(id_msg) {
 	    Ok(r) => Ok(r),
 	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
 	}
-//	Ok(DHMsg1::default())
     }
 
     fn exchange_report(&self, er_msg: &ExchangeReportMsg) -> Result<DHMsg3> {

@@ -45,7 +45,6 @@ extern crate subtle;
 #[macro_use]
 extern crate serde_big_array;
 
-//use shared::structs::{DHMsg1};
 use secp256k1::Secp256k1;
 use sgx_types::*;
 use sgx_tcrypto::*;  
@@ -168,19 +167,18 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 	    let mut v_bytes=v_sized.into_bytes();
 	    v_bytes.resize(1500,0);
 	    *dh_msg1 = v_bytes.as_slice().try_into().unwrap();
-	    ATTESTATION_STATUS::SUCCESS
 	},
-	Err(_) => ATTESTATION_STATUS::INVALID_SESSION
-    }
+	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+    };
     
-//    let mut session_info = DhSessionInfo::default();
-//    session_info.enclave_id = src_enclave_id;
-//    session_info.session.session_status = DhSessionStatus::InProgress(responder);
+    let mut session_info = DhSessionInfo::default();
+    session_info.enclave_id = src_enclave_id;
+    session_info.session.session_status = DhSessionStatus::InProgress(responder);
 
-//    let ptr = Box::into_raw(Box::new(session_info));
+    let ptr = Box::into_raw(Box::new(session_info));
 //    *session_ptr = ptr as * mut _ as usize;
 
-
+    ATTESTATION_STATUS::SUCCESS
 }
 
 
@@ -199,43 +197,60 @@ pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
 }
 
 #[allow(unused_variables)]
-fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t, dh_msg2: &mut sgx_dh_msg2_t , dh_msg3: &mut sgx_dh_msg3_t, session_info: &mut DhSessionInfo) -> ATTESTATION_STATUS {
+fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t, dh_msg2_str: *const u8 , msg2_len: usize, dh_msg3_arr: &mut [u8;1300]
+//			, session_info: &mut DhSessionInfo
+) -> ATTESTATION_STATUS {
 
+    let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
+    
+    let dh_msg2 = match std::str::from_utf8(&str_slice) {
+	Ok(v) =>{
+	    match serde_json::from_str::<DHMsg2>(v){
+		Ok(v) => v.inner,
+		Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+	    }
+	},
+	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+    };
 
     let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
     let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
 
-    let mut responder = match session_info.session.session_status {
-        DhSessionStatus::InProgress(res) => {res},
-        _ => {
-            return ATTESTATION_STATUS::INVALID_SESSION;
-        }
-    };
+//    let mut responder = match session_info.session.session_status {
+//        DhSessionStatus::InProgress(res) => {res},
+//        _ => {
+//            return ATTESTATION_STATUS::INVALID_SESSION;
+//        }
+//    };
 
-    let mut dh_msg3_r = SgxDhMsg3::default();
-    let status = responder.proc_msg2(dh_msg2, &mut dh_msg3_r, &mut dh_aek.key, &mut initiator_identity);
-    if status.is_err() {
-        return ATTESTATION_STATUS::ATTESTATION_ERROR;
-    }
+//    let mut dh_msg3_r = SgxDhMsg3::default();
+//    let status = responder.proc_msg2(dh_msg2, &mut dh_msg3_r, &mut dh_aek.key, &mut initiator_identity);
+//    if status.is_err() {
+//        return ATTESTATION_STATUS::ATTESTATION_ERROR;
+//    }
 
-    unsafe{ dh_msg3_r.to_raw_dh_msg3_t(dh_msg3, (dh_msg3.msg3_body.additional_prop_length as usize + mem::size_of::<sgx_dh_msg3_t>() ) as u32); };
+//    unsafe{ dh_msg3_r.to_raw_dh_msg3_t(dh_msg3, (dh_msg3.msg3_body.additional_prop_length as usize + mem::size_of::<sgx_dh_msg3_t>() ) as u32); };
 
-    let cb = get_callback();
-    if cb.is_some() {
-        let ret = (cb.unwrap().verify)(&initiator_identity);
-        if ret != ATTESTATION_STATUS::SUCCESS as u32 {
-            return ATTESTATION_STATUS::INVALID_SESSION;
-        }
-    }
+//    let cb = get_callback();
+//    if cb.is_some() {
+//        let ret = (cb.unwrap().verify)(&initiator_identity);
+//        if ret != ATTESTATION_STATUS::SUCCESS as u32 {
+//            return ATTESTATION_STATUS::INVALID_SESSION;
+//        }
+//    }
 
-    session_info.session.session_status = DhSessionStatus::Active(dh_aek);
+  //  session_info.session.session_status = DhSessionStatus::Active(dh_aek);
 
     ATTESTATION_STATUS::SUCCESS
 }
 //Verify Message 2, generate Message3 and exchange Message 3 with Source Enclave
 #[no_mangle]
-pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t, dh_msg2: *mut sgx_dh_msg2_t , dh_msg3: *mut sgx_dh_msg3_t, session_ptr: *mut usize) -> ATTESTATION_STATUS {
-
+pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
+				  dh_msg2_str: *const u8, msg2_len: usize,
+				  dh_msg3_arr: &mut [u8;1300]
+				  //, session_ptr: *mut usize
+) -> ATTESTATION_STATUS {
+    
     /*
     if rsgx_raw_is_outside_enclave(session_ptr as * const u8, mem::size_of::<DhSessionInfo>()) {
         return ATTESTATION_STATUS::INVALID_PARAMETER;
@@ -244,7 +259,8 @@ pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t, dh_msg2: *mu
      */
     
     unsafe {
-        exchange_report_safe(src_enclave_id, &mut *dh_msg2, &mut *dh_msg3, &mut *(session_ptr as *mut DhSessionInfo))
+        exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr)
+	    //, &mut *(session_ptr as *mut DhSessionInfo))
     }
 }
 
@@ -278,43 +294,79 @@ struct RandDataSerializable {
     vec: Vec<u8>,
 }
 
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct DHMsg1 {
-    #[serde(with = "DHMsg1Def")]
-    pub inner: sgx_dh_msg1_t,
-}
-
-/*
-#[derive(Serialize, Deserialize, Default)]
-pub struct DHMsg2 {
-    #[serde(with = "DHMsg2Def")]
-    pub inner: sgx_dh_msg2_t,
-}
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct DHMsg3 {
-    #[serde(with = "DHMsg3Def")]
-    pub inner: sgx_dh_msg3_t,
-}
- */
-
 #[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_dh_msg1_t")]
-struct DHMsg1Def {
+#[serde(remote = "sgx_dh_msg2_t")]
+struct DHMsg2Def {
     #[serde(with = "EC256PublicDef")]
-    pub g_a: sgx_ec256_public_t,
-    #[serde(with = "TargetInfoDef")]
-    pub target: sgx_target_info_t,
+    pub g_b: sgx_ec256_public_t,
+    #[serde(with = "ReportDef")]
+    pub report: sgx_report_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub cmac: [uint8_t; SGX_DH_MAC_SIZE],
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_ec256_public_t")]
-struct EC256PublicDef {
+#[serde(remote = "sgx_report_t")]
+pub struct ReportDef {
+    #[serde(with = "ReportBodyDef")]
+    pub body: sgx_report_body_t,
+    #[serde(with = "KeyIDDef")]
+    pub key_id: sgx_key_id_t,
     #[serde(serialize_with = "<[_]>::serialize")]
-    pub gx: [uint8_t; SGX_ECP256_KEY_SIZE],
+    pub mac: sgx_mac_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_key_id_t")]
+pub struct KeyIDDef {
     #[serde(serialize_with = "<[_]>::serialize")]
-    pub gy: [uint8_t; SGX_ECP256_KEY_SIZE],
+    pub id: [uint8_t; SGX_KEYID_SIZE],
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_report_body_t")]
+pub struct ReportBodyDef {
+    #[serde(with = "CpuSvnDef")]
+    pub cpu_svn: sgx_cpu_svn_t,
+    pub misc_select: sgx_misc_select_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub reserved1: [uint8_t; SGX_REPORT_BODY_RESERVED1_BYTES],
+    pub isv_ext_prod_id: sgx_isvext_prod_id_t,
+    #[serde(with = "AttributesDef")]
+    pub attributes: sgx_attributes_t,
+    #[serde(with = "MeasurementDef")]
+    pub mr_enclave: sgx_measurement_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub reserved2: [uint8_t; SGX_REPORT_BODY_RESERVED2_BYTES],
+    #[serde(with = "MeasurementDef")]
+    pub mr_signer: sgx_measurement_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub reserved3: [uint8_t; SGX_REPORT_BODY_RESERVED3_BYTES],
+    #[serde(with = "BigArray")]
+    pub config_id: sgx_config_id_t,
+    pub isv_prod_id: sgx_prod_id_t,
+    pub isv_svn: sgx_isv_svn_t,
+    pub config_svn: sgx_config_svn_t,
+    #[serde(with = "BigArray")]
+    pub reserved4: [uint8_t; SGX_REPORT_BODY_RESERVED4_BYTES],
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub isv_family_id: sgx_isvfamily_id_t,
+    #[serde(with = "ReportDataDef")]
+    pub report_data: sgx_report_data_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_report_data_t")]
+pub struct ReportDataDef {
+    #[serde(with = "BigArray")]
+    pub d: [uint8_t; SGX_REPORT_DATA_SIZE],
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_cpu_svn_t")]
+pub struct CpuSvnDef {
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub svn: [uint8_t; SGX_CPUSVN_SIZE],
 }
 
 #[derive(Serialize, Deserialize)]
@@ -334,12 +386,16 @@ struct TargetInfoDef {
     pub reserved3: [uint8_t; SGX_TARGET_INFO_RESERVED3_BYTES],
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_measurement_t")]
-pub struct MeasurementDef {
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub m: [uint8_t; SGX_HASH_SIZE],
-}
+//impl_struct! {
+    #[derive(Serialize, Deserialize)]
+    #[serde(remote = "sgx_measurement_t")]
+    pub struct MeasurementDef {
+	#[serde(serialize_with = "<[_]>::serialize")]
+        pub m: [uint8_t; SGX_HASH_SIZE],
+    }
+//}
+
+
 
 impl_struct! {
     #[derive(Serialize, Deserialize)]
@@ -348,6 +404,62 @@ impl_struct! {
         pub flags: uint64_t,
         pub xfrm: uint64_t,
     }
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct DHMsg1 {
+    #[serde(with = "DHMsg1Def")]
+    pub inner: sgx_dh_msg1_t,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct DHMsg2 {
+    #[serde(with = "DHMsg2Def")]
+    pub inner: sgx_dh_msg2_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_dh_msg3_body_t")]
+struct DHMsg3BodyDef {
+    #[serde(with = "ReportDef")]
+    pub report: sgx_report_t,
+    pub additional_prop_length: uint32_t,
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub additional_prop: [uint8_t; 0],
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_dh_msg3_t")]
+pub struct DHMsg3Def {
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub cmac: [uint8_t; SGX_DH_MAC_SIZE],
+    #[serde(with = "DHMsg3BodyDef")]
+    pub msg3_body: sgx_dh_msg3_body_t,
+}
+
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct DHMsg3 {
+    #[serde(with = "DHMsg3Def")]
+    pub inner: sgx_dh_msg3_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_dh_msg1_t")]
+struct DHMsg1Def {
+    #[serde(with = "EC256PublicDef")]
+    pub g_a: sgx_ec256_public_t,
+    #[serde(with = "TargetInfoDef")]
+    pub target: sgx_target_info_t,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "sgx_ec256_public_t")]
+struct EC256PublicDef {
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub gx: [uint8_t; SGX_ECP256_KEY_SIZE],
+    #[serde(serialize_with = "<[_]>::serialize")]
+    pub gy: [uint8_t; SGX_ECP256_KEY_SIZE],
 }
 
 #[derive(Serialize, Deserialize, Debug)]

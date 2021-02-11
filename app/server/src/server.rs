@@ -244,14 +244,18 @@ mod tests {
 	let msg1 = server.session_request(&eid_msg).unwrap();
 
 	let msg2 = DHMsg2::default();
-
+	let msg3 = DHMsg3::default();
+	println!("msg2: {}, msg3: {}", serde_json::to_string(&msg2).unwrap().len()
+		 , serde_json::to_string(&msg3).unwrap().len());
+	
+	
 	let er_msg = ExchangeReportMsg {
 	    src_enclave_id: server.enclave_id().inner,
 	    dh_msg2: msg2,
 	    session_ptr: 0,
 	};
 	
-	let msg3 = server.exchange_report(&er_msg).unwrap();
+//	let msg3 = server.exchange_report(&er_msg).unwrap();
 
 	server.end_session().unwrap();
 	

@@ -79,7 +79,10 @@ impl Attestation for Lockbox{
     fn exchange_report(&self, er_msg: &ExchangeReportMsg) -> Result<DHMsg3> {
 	self.enclave.say_something(String::from("doing exchange report"));
 
-	Ok(DHMsg3::default())
+	match self.enclave.exchange_report(er_msg) {
+	    Ok(r) => Ok(r),
+	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
+	}
     }
     
     fn end_session(&self) -> Result<()> {

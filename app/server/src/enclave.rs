@@ -1182,6 +1182,20 @@ impl Enclave {
     	}
     }
 
+    pub fn test_create_session(&self) -> Result<()> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let result = unsafe {
+	    test_create_session(self.geteid(), &mut retval)
+	};
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  => Ok(()),
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - test_create_session - {}!", retval.as_str())).into()),
+	}
+	
+    }
+
     pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<(DHMsg1, usize)> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut dh_msg1 = [0u8;1500];
@@ -1229,8 +1243,8 @@ impl Enclave {
 			    src_enclave_id,
 			    dh_msg2_str.as_ptr() as * const u8,
 			    dh_msg2_str.len(),
-			    dh_msg3_arr.as_mut_ptr() as *mut u8)
-//			    session_ptr);
+			    dh_msg3_arr.as_mut_ptr() as *mut u8,
+			    &mut session_ptr);
     	};
 
 	match retval {
@@ -1619,6 +1633,9 @@ impl Enclave {
 }
 
 extern {
+    fn test_create_session(eid: sgx_enclave_id_t, retval: *mut sgx_status_t)
+			   -> sgx_status_t;
+    
     fn say_something(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
                      some_string: *const u8, len: usize) -> sgx_status_t;
 
@@ -1700,16 +1717,13 @@ extern {
     fn session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
     		       src_enclave_id: sgx_enclave_id_t,
     		       dh_msg1: *mut u8,
-//		       dh_msg1: *mut u8,
-//		       len: usize);
-    //,
     		       session_pointer: *mut usize);
 
     fn exchange_report(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		       src_enclave_id: sgx_enclave_id_t, dh_msg2: *const u8,
 		       msg2_len: size_t,
-		       dh_msg3: *mut u8);
-	//, session_ptr: usize);
+		       dh_msg3: *mut u8,
+		       session_ptr: *mut usize);
 
 //    public uint32_t end_session(sgx_enclave_id_t src_enclave_id, [user_check]size_t* session_ptr);
 }

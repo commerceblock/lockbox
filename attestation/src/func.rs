@@ -58,7 +58,7 @@ fn get_callback() -> Option<&'static Callback>{
     unsafe { Some( &* ptr ) }
 }
 
-pub fn create_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enclave_id_t) -> ATTESTATION_STATUS {
+pub fn create_session() -> ATTESTATION_STATUS {
 
     let mut dh_msg1: SgxDhMsg1 = SgxDhMsg1::default(); //Diffie-Hellman Message 1
     let mut dh_msg2: SgxDhMsg2 = SgxDhMsg2::default(); //Diffie-Hellman Message 2
@@ -115,10 +115,10 @@ pub fn create_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enc
     ATTESTATION_STATUS::SUCCESS
 }
 
-pub fn close_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enclave_id_t) -> ATTESTATION_STATUS {
+pub fn close_session() -> ATTESTATION_STATUS {
     let mut ret = 0;
     let status = sgx_status_t::SGX_SUCCESS;
-	//unsafe { end_session_ocall(&mut ret, src_enclave_id, dest_enclave_id) };
+//	unsafe { end_session_ocall(&mut ret) };
     if status != sgx_status_t::SGX_SUCCESS {
         return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
     }

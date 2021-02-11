@@ -32,6 +32,7 @@ fn session_request_ocall(
     
     let config = config::get_config();
 
+    println!("...getting db...\n");
     let db = get_db_read_only(&config);
     
     //let client_src = client::get_client_src();
@@ -39,6 +40,7 @@ fn session_request_ocall(
     let client_dest = client::get_client_dest();
     let client_src = client::get_client_src();
 
+    println!("...getting src enclave id...\n");
     let enclave_id_msg = match get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave/id") {
 	Ok(r) => r,
 	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
@@ -48,7 +50,8 @@ fn session_request_ocall(
 //    let inner_slice: &[u8] = unsafe { std::slice::from_raw_parts(dh_msg1 as *const sgx_dh_msg1_t as *const u8, 576) };
 //    let dh_msg1_ser = DHMsg1{ inner: inner_slice.to_vec() };
    
-    
+
+    println!("...requesting ssession...\n");
     let response: DHMsg1 = match post_lb(&client_src, "attestation/session_request", &enclave_id_msg) {
 	Ok(r) => r,
 	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
@@ -58,7 +61,7 @@ fn session_request_ocall(
     unsafe{
 	*dh_msg1 = inner;
     }
-    
+    println!("...success\n");
     //    unsafe {sgx_init_quote(ret_ti, ret_gid)}
     sgx_status_t::SGX_SUCCESS
 }

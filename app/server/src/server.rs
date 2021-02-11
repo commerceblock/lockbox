@@ -139,7 +139,8 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 mod tests {
     use super::*;
     use shared_lib::structs::{KeyGenMsg1, Protocol, EnclaveIDMsg,
-    DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
+			      DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
+    
     use crate::protocol::ecdsa::Ecdsa;
     use rocket::{
 	http::Status,
@@ -236,28 +237,47 @@ mod tests {
     #[test]
     #[serial]
     fn test_attestation() {
+
+	
+
 	let config = crate::config::get_config();
 	let server = Lockbox::load(config).unwrap();
+	server.enclave.test_create_session().unwrap();
 
-	let eid_msg = server.enclave_id();
+//	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+//	let eid_msg = server.enclave_id();
+
+//	let result = unsafe {
+//	    test_create_session(eid_msg.inner, &mut retval)
+//	};
+
+	/*
+
 	
-	let msg1 = server.session_request(&eid_msg).unwrap();
+	let (msg1, session_ptr) = server.session_request(&eid_msg).unwrap();
 
-	let msg2 = DHMsg2::default();
-	let msg3 = DHMsg3::default();
-	println!("msg2: {}, msg3: {}", serde_json::to_string(&msg2).unwrap().len()
-		 , serde_json::to_string(&msg3).unwrap().len());
+	let mut initiator: SgxDhInitiator = SgxDhInitiator::init_session();
+
+	let mut dh_msg2_inner = SgxDhMsg2::default();
+	
+	initiator.proc_msg1(&msg1.inner, &mut dh_msg2_inner).unwrap();
+	
+	let msg2 = DHMsg2{ inner: dh_msg2_inner };
+//	let msg3 = DHMsg3::default();
+//	println!("msg2: {}, msg3: {}", serde_json::to_string(&msg2).unwrap().len()
+	//		 , serde_json::to_string(&msg3).unwrap().len());
 	
 	
 	let er_msg = ExchangeReportMsg {
 	    src_enclave_id: server.enclave_id().inner,
 	    dh_msg2: msg2,
-	    session_ptr: 0,
+	    session_ptr: session_ptr,
 	};
 	
-//	let msg3 = server.exchange_report(&er_msg).unwrap();
+	let msg3 = server.exchange_report(&er_msg).unwrap();
 
 	server.end_session().unwrap();
-	
+*/	
     }
 }

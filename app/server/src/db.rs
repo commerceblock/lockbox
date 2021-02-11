@@ -19,14 +19,14 @@ pub fn get_db_read_only(config_rs: &Config) -> DB {
 pub fn get_db_write_opt(config_rs: &Config, readonly: bool) -> DB {
     
     let path;
-    cfg_if::cfg_if! {
-	if #[cfg(test)] {
-	    let tempdir = TempDir::new(&format!("/tmp/{}",Uuid::new_v4().to_hyphenated())).unwrap();
-	    path = tempdir.path();
-	} else {
+//    cfg_if::cfg_if! {
+//	if #[cfg(test)] {
+//	    let tempdir = TempDir::new(&format!("/tmp/{}",Uuid::new_v4().to_hyphenated())).unwrap();
+//	    path = tempdir.path();
+//	} else {
 	    path = config_rs.storage.db_path.to_owned();
-	}
-    }
+//	}
+  //  }
     
     let mut db_opts = DBOptions::default();
     db_opts.create_missing_column_families(true);

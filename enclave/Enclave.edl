@@ -36,13 +36,13 @@ enclave {
 
 	public uint32_t exchange_report(sgx_enclave_id_t src_enclave_id,
 	       [in, size=msg2_len] const uint8_t* msg2_str, size_t msg2_len,	 
-	       [out] sgx_dh_msg3_t *dh_msg3
-	       //, [user_check]size_t* session_ptr
+	       [out] sgx_dh_msg3_t *dh_msg3,
+	       [user_check]size_t* session_ptr
 	       );
 
-	public uint32_t test_create_session(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
+	public uint32_t test_create_session();
 
-	public uint32_t test_close_session(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
+	public uint32_t test_close_session();
 
         public sgx_status_t create_sealed_random_bytes32([out, size=sealed_log_size]
             uint8_t* sealed_log, uint32_t sealed_log_size );

@@ -27,7 +27,9 @@ extern crate sgx_tseal;
 extern crate sgx_tcrypto;
 extern crate sgx_tse;
 extern crate sgx_tdh;
+extern crate sgx_trts;
 use sgx_tdh::{SgxDhMsg1, SgxDhMsg2, SgxDhMsg3, SgxDhInitiator, SgxDhResponder};
+use sgx_trts::trts::{rsgx_raw_is_outside_enclave, rsgx_lfence};
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
@@ -128,14 +130,14 @@ pub extern "C" fn test_enclave_init() {
 }
 
 #[no_mangle]
-pub extern "C" fn test_create_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enclave_id_t) -> u32 {
-    create_session(src_enclave_id, dest_enclave_id) as u32
+pub extern "C" fn test_create_session() -> u32 {
+    create_session() as u32
 }
 
 #[no_mangle]
 #[allow(unused_variables)]
-pub extern "C" fn test_close_session(src_enclave_id: sgx_enclave_id_t, dest_enclave_id: sgx_enclave_id_t) -> u32 {
-    close_session(src_enclave_id, dest_enclave_id) as u32
+pub extern "C" fn test_close_session() -> u32 {
+    close_session() as u32
 }
 
 
@@ -194,7 +196,7 @@ pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
 fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 			dh_msg2_str: *const u8 , msg2_len: usize,
 			dh_msg3_arr: &mut [u8;1300],
-//			session_info: &mut DhSessionInfo
+			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
 
     let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
@@ -212,30 +214,32 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
     let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
     let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
 
-//    let mut responder = match session_info.session.session_status {
-//        DhSessionStatus::InProgress(res) => {res},
-//        _ => {
-//            return ATTESTATION_STATUS::INVALID_SESSION;
-//        }
-//    };
+    let mut responder = match session_info.session.session_status {
+        DhSessionStatus::InProgress(res) => {res},
+        _ => {
+            return ATTESTATION_STATUS::INVALID_SESSION;
+        }
+    };
 
-//    let mut dh_msg3_r = SgxDhMsg3::default();
-//    let status = responder.proc_msg2(dh_msg2, &mut dh_msg3_r, &mut dh_aek.key, &mut initiator_identity);
-//    if status.is_err() {
-//        return ATTESTATION_STATUS::ATTESTATION_ERROR;
-//    }
+    let mut dh_msg3_r = SgxDhMsg3::default();
+    let status = responder.proc_msg2(&dh_msg2, &mut dh_msg3_r, &mut dh_aek.key, &mut initiator_identity);
+    if status.is_err() {
+        return ATTESTATION_STATUS::ATTESTATION_ERROR;
+    }
 
+//    let dh_msg3 = SgxDhMsg3::default();
+    
 //    unsafe{ dh_msg3_r.to_raw_dh_msg3_t(dh_msg3, (dh_msg3.msg3_body.additional_prop_length as usize + mem::size_of::<sgx_dh_msg3_t>() ) as u32); };
 
-//    let cb = get_callback();
-//    if cb.is_some() {
-//        let ret = (cb.unwrap().verify)(&initiator_identity);
-//        if ret != ATTESTATION_STATUS::SUCCESS as u32 {
-//            return ATTESTATION_STATUS::INVALID_SESSION;
-//        }
-//    }
+    let cb = get_callback();
+    if cb.is_some() {
+        let ret = (cb.unwrap().verify)(&initiator_identity);
+        if ret != ATTESTATION_STATUS::SUCCESS as u32 {
+            return ATTESTATION_STATUS::INVALID_SESSION;
+        }
+    }
 
-  //  session_info.session.session_status = DhSessionStatus::Active(dh_aek);
+    session_info.session.session_status = DhSessionStatus::Active(dh_aek);
 
     ATTESTATION_STATUS::SUCCESS
 }
@@ -243,20 +247,19 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 #[no_mangle]
 pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
 				  dh_msg2_str: *const u8, msg2_len: usize,
-				  dh_msg3_arr: &mut [u8;1300]
-				  //, session_ptr: *mut usize
+				  dh_msg3_arr: &mut [u8;1300],
+				  session_ptr: *mut usize
 ) -> ATTESTATION_STATUS {
     
-    /*
+
     if rsgx_raw_is_outside_enclave(session_ptr as * const u8, mem::size_of::<DhSessionInfo>()) {
         return ATTESTATION_STATUS::INVALID_PARAMETER;
     }
     rsgx_lfence();
-     */
+
     
     unsafe {
-        exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr)
-	    //, &mut *(session_ptr as *mut DhSessionInfo))
+        exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr, &mut *(session_ptr as *mut DhSessionInfo))
     }
 }
 

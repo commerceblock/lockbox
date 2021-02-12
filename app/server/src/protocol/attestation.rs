@@ -52,6 +52,7 @@ pub fn exchange_report(
 pub fn enclave_id(
     lockbox: State<Lockbox>,
 ) -> Result<Json<EnclaveIDMsg>> {
+    println!("...getting enclave id...");
     Ok(Json(lockbox.enclave_id()))
 }
 
@@ -91,6 +92,7 @@ impl Attestation for Lockbox{
     }
 
     fn enclave_id(&self) -> EnclaveIDMsg {
+	println!("...calling enclave.geteid()...");
         EnclaveIDMsg { inner: self.enclave.geteid() }
     }
 

@@ -1185,6 +1185,8 @@ impl Enclave {
     pub fn test_create_session(&self) -> Result<()> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
+	println!("Enclave trait - doing test_create_session");
+	
 	let result = unsafe {
 	    test_create_session(self.geteid(), &mut retval)
 	};

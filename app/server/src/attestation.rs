@@ -40,10 +40,14 @@ fn session_request_ocall(
     let client_dest = client::get_client_dest();
     let client_src = client::get_client_src();
 
+    
     println!("...getting src enclave id...\n");
-    let enclave_id_msg = match get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave/id") {
+    let enclave_id_msg = match get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave_id") {
 	Ok(r) => r,
-	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+	Err(e) => {
+	    println!("error: {}", &e.to_string());
+	    return sgx_status_t::SGX_ERROR_UNEXPECTED;
+	},
     };
 
 

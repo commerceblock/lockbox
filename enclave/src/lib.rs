@@ -131,6 +131,7 @@ pub extern "C" fn test_enclave_init() {
 
 #[no_mangle]
 pub extern "C" fn test_create_session() -> u32 {
+    println!("Enclave: test create session\n");
     create_session() as u32
 }
 

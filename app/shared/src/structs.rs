@@ -305,7 +305,7 @@ pub struct EnclaveIDMsg {
 pub struct ExchangeReportMsg {
     pub src_enclave_id: sgx_enclave_id_t,
     pub dh_msg2: DHMsg2,
-    pub session_ptr: usize,
+//    pub session_ptr: usize,
 }
 
 /*

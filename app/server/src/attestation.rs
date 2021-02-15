@@ -59,12 +59,12 @@ fn session_request_ocall(
 
 
     println!("...requesting session...\n");
-    let response: (DHMsg1, usize) = match post_lb(&client_src, "attestation/session_request", &enclave_id_msg) {
+    let response: DHMsg1 = match post_lb(&client_src, "attestation/session_request", &enclave_id_msg) {
 	Ok(r) => r,
 	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
 
-    let inner = response.0.inner;
+    let inner = response.inner;
     unsafe{
 	*dh_msg1 = inner;
     }
@@ -90,9 +90,11 @@ fn exchange_report_ocall(dh_msg2: *mut sgx_dh_msg2_t,
     
     let er_msg = ExchangeReportMsg {
 	src_enclave_id: enclave_id_msg.inner,
-	dh_msg2: unsafe{DHMsg2{ inner: *dh_msg2 }},
-	session_ptr: 0
+	dh_msg2: unsafe{DHMsg2{ inner: *dh_msg2 }}
     };
+    //,
+//	session_ptr: 0
+  //  };
     
     let response: DHMsg3 = match post_lb(&client_dest, "attestation/exchange_report", &er_msg) {
 	Ok(r) => r,

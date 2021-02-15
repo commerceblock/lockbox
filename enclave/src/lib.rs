@@ -107,6 +107,7 @@ static CALLBACK_FN: AtomicPtr<()> = AtomicPtr::new(0 as * mut ());
 lazy_static!{
     static ref INITIATOR: Mutex<SgxDhInitiator> = Mutex::new(SgxDhInitiator::init_session());
     static ref RESPONDER: Mutex<SgxDhResponder> = Mutex::new(SgxDhResponder::init_session());
+    static ref SESSIONINFO: Mutex<DhSessionInfo> = Mutex::new(DhSessionInfo::default());
 }
 
 big_array! {
@@ -222,8 +223,9 @@ pub fn create_session() -> ATTESTATION_STATUS {
 
 
 fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
-			dh_msg1: &mut [u8;1500] ,
-			session_ptr: &mut usize
+			dh_msg1: &mut [u8;1500]
+    //,
+//			session_ptr: &mut usize
 ) -> ATTESTATION_STATUS {
 
     println!("enclave:session_request_safe - init session/n");
@@ -256,30 +258,37 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
     };
 
     println!("enclave:session_request_safe - get session info.../n");
-    let mut session_info = DhSessionInfo::default();
-    session_info.enclave_id = src_enclave_id;
-    session_info.session.session_status = match RESPONDER.lock() {
-	Ok(r) => DhSessionStatus::InProgress(*r.deref()),
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-    };
 
-    let ptr = Box::into_raw(Box::new(session_info));
-    *session_ptr = ptr as * mut _ as usize;
-
-    println!("enclave:session_request_safe - finished./n");
-    ATTESTATION_STATUS::SUCCESS
+    match SESSIONINFO.lock() {
+	Ok(mut session_info) => {
+	    session_info.enclave_id = src_enclave_id;
+	    session_info.session.session_status = match RESPONDER.lock() {
+		Ok(r) => DhSessionStatus::InProgress(*r.deref()),
+		Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+		    
+	    };
+	    println!("enclave:session_request_safe - finished./n");
+	    ATTESTATION_STATUS::SUCCESS
+//	    let ptr = Box::into_raw(Box::new(session_info));
+//	    *session_ptr = ptr as * mut _ as usize;
+	},
+	Err(_) => ATTESTATION_STATUS::INVALID_SESSION,
+    }
+    
 }
 
 
 //Handle the request from Source Enclave for a session
 #[no_mangle]
 pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
-				  dh_msg1: &mut [u8;1500], 
-				  session_ptr: *mut usize)
+				  dh_msg1: &mut [u8;1500])
+	//, 
+	//			  session_ptr: *mut usize)
 				  -> ATTESTATION_STATUS {
     println!("enclave:session_request/n");
     unsafe {
-        session_request_safe(src_enclave_id, dh_msg1, &mut *session_ptr)
+        session_request_safe(src_enclave_id, dh_msg1)
+	    //, &mut *session_ptr)
     }
 }
 
@@ -404,8 +413,9 @@ pub extern "C" fn proc_msg3(dh_msg3_str: *const u8 , msg3_len: usize)
 #[allow(unused_variables)]
 fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 			dh_msg2_str: *const u8 , msg2_len: usize,
-			dh_msg3_arr: &mut [u8;1300],
-			session_info: &mut DhSessionInfo
+			dh_msg3_arr: &mut [u8;1500]
+//			,
+//			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
 
     println!("exchange report self/n");
@@ -426,18 +436,25 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
     let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
 
     println!("responder /n");
-    let mut responder = match session_info.session.session_status {
-        DhSessionStatus::InProgress(res) => {res},
-        _ => {
-            return ATTESTATION_STATUS::INVALID_SESSION;
-        }
+    let mut dh_msg3_r  = match SESSIONINFO.lock() {
+	Ok(mut session_info) => {
+	    let mut responder = match session_info.session.session_status {
+		DhSessionStatus::InProgress(res) => {res},
+		_ => {
+		    return ATTESTATION_STATUS::INVALID_SESSION;
+		}
+	    };
+
+	    let mut result = SgxDhMsg3::default();
+	    let status = responder.proc_msg2(&dh_msg2, &mut result, &mut dh_aek.key, &mut initiator_identity);
+	    if status.is_err() {
+		return ATTESTATION_STATUS::ATTESTATION_ERROR;
+	    }
+	    result
+	},
+	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
-    let mut dh_msg3_r = SgxDhMsg3::default();
-    let status = responder.proc_msg2(&dh_msg2, &mut dh_msg3_r, &mut dh_aek.key, &mut initiator_identity);
-    if status.is_err() {
-        return ATTESTATION_STATUS::ATTESTATION_ERROR;
-    }
 
     let raw_len = dh_msg3_r.calc_raw_sealed_data_size();
     let mut dh_msg3_inner = sgx_dh_msg3_t::default();
@@ -452,7 +469,7 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	    v_sized=format!("{}{}", v_sized.len(), v_sized);
 	    v_sized.push_str(&v);
 	    let mut v_bytes=v_sized.into_bytes();
-	    v_bytes.resize(1300,0);
+	    v_bytes.resize(1500,0);
 	    *dh_msg3_arr = v_bytes.as_slice().try_into().unwrap();
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
@@ -463,6 +480,8 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
     
 //    unsafe{ dh_msg3_r.to_raw_dh_msg3_t(dh_msg3, (dh_msg3.msg3_body.additional_prop_length as usize + mem::size_of::<sgx_dh_msg3_t>() ) as u32); };
 
+    println!("get callback...");
+    
     let cb = get_callback();
     if cb.is_some() {
         let ret = (cb.unwrap().verify)(&initiator_identity);
@@ -471,45 +490,61 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         }
     }
 
-    session_info.session.session_status = DhSessionStatus::Active(dh_aek);
-
-    ATTESTATION_STATUS::SUCCESS
+    println!("update sessionm info...");
+    match SESSIONINFO.lock() {
+	Ok(mut session_info) => {session_info
+				 .session.session_status = DhSessionStatus::Active(dh_aek);
+				 println!("update session info finished.");
+				 ATTESTATION_STATUS::SUCCESS},
+	Err(_) => ATTESTATION_STATUS::INVALID_SESSION,
+    }
 }
 //Verify Message 2, generate Message3 and exchange Message 3 with Source Enclave
 #[no_mangle]
 pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
 				  dh_msg2_str: *const u8, msg2_len: usize,
-				  dh_msg3_arr: &mut [u8;1300],
-				  session_ptr: *mut usize
+				  dh_msg3_arr: &mut [u8;1500]
+	//,
+	//			  session_ptr: *mut usize
 ) -> ATTESTATION_STATUS {
     
 
 //    if rsgx_raw_is_outside_enclave(session_ptr as * const u8, mem::size_of::<DhSessionInfo>()) {
 //        return ATTESTATION_STATUS::INVALID_PARAMETER;
 //    }
-//    rsgx_lfence();
+    rsgx_lfence();
 
     
     unsafe {
-        exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr, &mut *(session_ptr as *mut DhSessionInfo))
+        exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr)
+	    //, &mut *(session_ptr as *mut DhSessionInfo))
     }
 }
 
 //Respond to the request from the Source Enclave to close the session
 #[no_mangle]
 #[allow(unused_variables)]
-pub extern "C" fn end_session(src_enclave_id: sgx_enclave_id_t, session_ptr: *mut usize) -> ATTESTATION_STATUS {
+pub extern "C" fn end_session(src_enclave_id: sgx_enclave_id_t)
+   // , session_ptr: *mut usize)
+        -> ATTESTATION_STATUS {
 
     /*
     if rsgx_raw_is_outside_enclave(session_ptr as * const u8, mem::size_of::<DhSessionInfo>()) {
         return ATTESTATION_STATUS::INVALID_PARAMETER;
     }
-    rsgx_lfence();
      */
+    rsgx_lfence();
     
-    let _ = unsafe { Box::from_raw(session_ptr as *mut DhSessionInfo) };
+    
+    //    let _ = unsafe { Box::from_raw(session_ptr as *mut DhSessionInfo) };
 
-    ATTESTATION_STATUS::SUCCESS
+    match SESSIONINFO.lock() {
+	Ok(mut session_info) => {
+	    *session_info = DhSessionInfo::default();
+	    ATTESTATION_STATUS::SUCCESS
+	},
+	Err(_) => ATTESTATION_STATUS::INVALID_SESSION
+    }
 }
 
 

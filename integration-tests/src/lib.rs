@@ -634,7 +634,7 @@ mod tests {
 	println!("enclave id: {:?}", enclave_id_msg);
 
 	println!("...requesting session...\n");
-	let (dhmsg1, session_ptr): (DHMsg1, usize) = post_lb(&lockbox, "attestation/session_request", &enclave_id_msg).unwrap();
+	let dhmsg1: DHMsg1 = post_lb(&lockbox, "attestation/session_request", &enclave_id_msg).unwrap();
 
 	println!("...proc_msg1...\n");
 	let dh_msg2: DHMsg2 = post_lb(&lockbox, "attestation/proc_msg1", &dhmsg1).unwrap();
@@ -642,7 +642,6 @@ mod tests {
 	let rep_msg = ExchangeReportMsg {
 	    src_enclave_id: enclave_id_msg.inner,
 	    dh_msg2,
-	    session_ptr,
 	};
 	
 	let dh_msg3: DHMsg3 = post_lb(&lockbox, "attestation/exchange_report", &rep_msg).unwrap();

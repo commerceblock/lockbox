@@ -20,7 +20,7 @@ type LB = Lockbox;
 
 /// Lockbox Attestation protocol trait
 pub trait Attestation {
-    fn session_request(&self, enclave_id_msg: &EnclaveIDMsg) -> Result<(DHMsg1, usize)>;
+    fn session_request(&self, enclave_id_msg: &EnclaveIDMsg) -> Result<DHMsg1>;
     fn proc_msg1(&self, dh_msg1: &DHMsg1) -> Result<DHMsg2>;
     fn exchange_report(&self, er_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<DHMsg3>;
     fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<()>;
@@ -57,7 +57,7 @@ pub fn init_session(
 pub fn session_request(
     lockbox: State<Lockbox>,
     enclave_id_msg: Json<EnclaveIDMsg>,
-) -> Result<Json<(DHMsg1, usize)>> {
+) -> Result<Json<DHMsg1>> {
     match lockbox.session_request(&enclave_id_msg) {
         Ok(r) => Ok(Json(r)),
         Err(e) => Err(e),
@@ -116,7 +116,7 @@ pub fn end_session(
 }
 
 impl Attestation for Lockbox{
-    fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<(DHMsg1, usize)> {
+    fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
 	self.enclave.say_something(String::from("doing session request"));
 	
 	match self.enclave.session_request(id_msg) {

@@ -25,7 +25,7 @@ use uuid::Uuid;
 use crate::db::get_db;
 
 extern crate lazy_static;
-use lazy_static::lazy_static; // 1.4.0
+use lazy_static::lazy_static; 
 use std::sync::Mutex;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -46,8 +46,6 @@ impl Lockbox
 	let database = get_db(&config_rs);
 
         let enclave_index = Key::from(config_rs.enclave.index);
-	
-//	database.put(
 	
         Ok(Self {
             config: config_rs,
@@ -96,11 +94,15 @@ pub fn get_server(config_rs: Config)-> Result<Rocket> {
 		transfer::transfer_sender,
                 transfer::transfer_receiver,
 		attestation::enclave_id,
+		attestation::session_request,
+		attestation::exchange_report,
+		attestation::end_session,
+		attestation::test_create_session,
+		attestation::proc_msg1,
+		attestation::proc_msg3,
             ],
         )
         .manage(lbs);
-
-
 
     Ok(rock)
 }
@@ -140,6 +142,7 @@ mod tests {
     use super::*;
     use shared_lib::structs::{KeyGenMsg1, Protocol, EnclaveIDMsg,
 			      DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
+    use crate::client;
     
     use crate::protocol::ecdsa::Ecdsa;
     use rocket::{
@@ -234,6 +237,8 @@ mod tests {
 	
     }
 
+    use crate::protocol::requests::{post_lb, get_lb};
+    
     #[test]
     #[serial]
     fn test_attestation() {
@@ -242,7 +247,13 @@ mod tests {
 
 	let config = crate::config::get_config();
 	let server = Lockbox::load(config).unwrap();
-	server.enclave.test_create_session().unwrap();
+
+	let client_dest = client::get_client_dest();
+	
+	println!("...getting src enclave id 0...\n");
+	let enclave_id_msg = get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave_id").unwrap();
+		
+	//server.enclave.test_create_session().unwrap();
 
 //	let mut retval = sgx_status_t::SGX_SUCCESS;
 

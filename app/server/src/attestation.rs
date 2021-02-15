@@ -19,7 +19,7 @@ use super::Result;
 
 use rocket_contrib::json::Json;
 
-use rocket::State;
+use rocket::{State, http::Status};
 
 #[no_mangle]
 extern "C"
@@ -28,8 +28,8 @@ fn session_request_ocall(
     dest_enclave_id: sgx_enclave_id_t,
     dh_msg1: *mut sgx_dh_msg1_t) -> sgx_status_t {
 
-    println!("Entering session_request_ocall\n");
-    
+    println!("\nEntering session request ocall\n");
+
     let config = config::get_config();
 
     println!("...getting db...\n");
@@ -37,10 +37,13 @@ fn session_request_ocall(
     
     //let client_src = client::get_client_src();
 
-    let client_dest = client::get_client_dest();
-    let client_src = client::get_client_src();
-
+    let url: &str = "http://0.0.0.0:8000";
+    let client_src = client::Lockbox::new(url.to_string());
+    let client_dest = client::Lockbox::new(url.to_string());
     
+//    let client_dest = client::get_client_dest();
+//    let client_src = client::get_client_src();
+
     println!("...getting src enclave id...\n");
     let enclave_id_msg = match get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave_id") {
 	Ok(r) => r,
@@ -49,19 +52,19 @@ fn session_request_ocall(
 	    return sgx_status_t::SGX_ERROR_UNEXPECTED;
 	},
     };
-
+    println!("...enclave id: {}\n", enclave_id_msg.inner);
 
 //    let inner_slice: &[u8] = unsafe { std::slice::from_raw_parts(dh_msg1 as *const sgx_dh_msg1_t as *const u8, 576) };
 //    let dh_msg1_ser = DHMsg1{ inner: inner_slice.to_vec() };
-   
 
-    println!("...requesting ssession...\n");
-    let response: DHMsg1 = match post_lb(&client_src, "attestation/session_request", &enclave_id_msg) {
+
+    println!("...requesting session...\n");
+    let response: (DHMsg1, usize) = match post_lb(&client_src, "attestation/session_request", &enclave_id_msg) {
 	Ok(r) => r,
 	Err(e) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
 
-    let inner = response.inner;
+    let inner = response.0.inner;
     unsafe{
 	*dh_msg1 = inner;
     }

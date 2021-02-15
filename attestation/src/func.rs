@@ -58,6 +58,7 @@ fn get_callback() -> Option<&'static Callback>{
     unsafe { Some( &* ptr ) }
 }
 
+/*
 pub fn create_session() -> ATTESTATION_STATUS {
 
     let mut dh_msg1: SgxDhMsg1 = SgxDhMsg1::default(); //Diffie-Hellman Message 1
@@ -67,6 +68,7 @@ pub fn create_session() -> ATTESTATION_STATUS {
     let mut ret = 0;
 
     let mut initiator: SgxDhInitiator = SgxDhInitiator::init_session();
+
 
     let status = unsafe { session_request_ocall(&mut dh_msg1) };
     if status != sgx_status_t::SGX_SUCCESS {
@@ -114,6 +116,7 @@ pub fn create_session() -> ATTESTATION_STATUS {
 
     ATTESTATION_STATUS::SUCCESS
 }
+ */
 
 pub fn close_session() -> ATTESTATION_STATUS {
     let mut ret = 0;
@@ -124,6 +127,7 @@ pub fn close_session() -> ATTESTATION_STATUS {
     }
     ATTESTATION_STATUS::from_repr(ret as u32).unwrap()
 }
+
 
 /*
 fn session_request_safe(src_enclave_id: sgx_enclave_id_t, dh_msg1: &mut sgx_dh_msg1_t, session_ptr: &mut usize) -> ATTESTATION_STATUS {

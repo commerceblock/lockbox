@@ -1165,6 +1165,20 @@ impl Enclave {
 
     //  pub fn dh_init_session() -> Result<> {
     //  }
+
+    pub fn test_create_session(&self) -> Result<()> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let result = unsafe {
+            test_create_session(self.geteid(),
+				&mut retval)
+    	};
+
+	match result {
+            sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+    	}
+    }
     
     pub fn say_something(&self, input_string: String) -> Result<String> {
      	let mut retval = sgx_status_t::SGX_SUCCESS;
@@ -1182,21 +1196,8 @@ impl Enclave {
     	}
     }
 
-    pub fn test_create_session(&self) -> Result<()> {
-	let mut retval = sgx_status_t::SGX_SUCCESS;
-
-	println!("Enclave trait - doing test_create_session");
-	
-	let result = unsafe {
-	    test_create_session(self.geteid(), &mut retval)
-	};
-
-	match retval {
-	    sgx_status_t::SGX_SUCCESS  => Ok(()),
-	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - test_create_session - {}!", retval.as_str())).into()),
-	}
-	
-    }
+    
+    
 
     pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<(DHMsg1, usize)> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
@@ -1204,7 +1205,25 @@ impl Enclave {
 
 	let mut session_ptr: usize = 0;
 	let src_enclave_id = id_msg.inner;
+
+	println!("enclave trait - doing say something");
 	
+	let mut input_string = String::from("enclave - session request say something");
+     	let result = unsafe {
+            say_something(self.geteid(),
+			  &mut retval,
+			  input_string.as_ptr() as * const u8,
+			  input_string.len())
+    	};
+
+	println!("enclave trait - finished doing say something");
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  =>(),
+	    _ => return Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - say something {}!", retval.as_str())).into()),
+	};
+	
+	println!("enclave trait - doing session request");
      	let result = unsafe {
             session_request(self.geteid(),
 			    &mut retval,
@@ -1212,13 +1231,15 @@ impl Enclave {
 			    dh_msg1.as_mut_ptr() as *mut u8,
 			    &mut session_ptr);
     	};
-
+	println!("enclave trait - finished doing session request");
 
 	match retval {
 	    sgx_status_t::SGX_SUCCESS  => {
+		println!("dh_msg1: {:?}\n", dh_msg1);
 		let c = dh_msg1[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
+		println!("nc_str: {}\n", nc_str);
 		let nc = nc_str.parse::<usize>().unwrap();
 		let size_str = std::str::from_utf8(&dh_msg1[1..(nc+1)]).unwrap();
 		let size = size_str.parse::<usize>().unwrap();
@@ -1226,7 +1247,7 @@ impl Enclave {
 		let dh_msg1 : DHMsg1  = serde_json::from_str(&msg_str).unwrap();
 		Ok((dh_msg1, session_ptr))
 	    },
-	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed -  session_request {}!", retval.as_str())).into()),
 	}
     }
 
@@ -1261,6 +1282,55 @@ impl Enclave {
 		let dh_msg3 : DHMsg3  = serde_json::from_str(&msg_str).unwrap();
 		Ok(dh_msg3)
 	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
+	}
+    }
+    
+    pub fn proc_msg1(&self, dh_msg1: &DHMsg1) -> Result<DHMsg2> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+
+	let mut dh_msg2_arr = [0u8;1700];
+	let dh_msg1_str = serde_json::to_string(dh_msg1).unwrap();
+
+     	let result = unsafe {
+            proc_msg1(self.geteid(),
+		      &mut retval,
+		      dh_msg1_str.as_ptr() as * const u8,
+		      dh_msg1_str.len(),
+		      dh_msg2_arr.as_mut_ptr() as *mut u8);
+    	};
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  => {
+		let c = dh_msg2_arr[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		let nc = nc_str.parse::<usize>().unwrap();
+		let size_str = std::str::from_utf8(&dh_msg2_arr[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let msg_str = std::str::from_utf8(&dh_msg2_arr[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		let dh_msg2 : DHMsg2  = serde_json::from_str(&msg_str).unwrap();
+		Ok(dh_msg2)
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
+	}
+    }
+
+    pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<()> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let dh_msg3_str = serde_json::to_string(dh_msg3).unwrap();
+
+     	let result = unsafe {
+            proc_msg3(self.geteid(),
+		      &mut retval,
+		      dh_msg3_str.as_ptr() as * const u8,
+		      dh_msg3_str.len())
+    	};
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  => Ok(()),
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
 	}
     }
@@ -1637,6 +1707,10 @@ impl Enclave {
 extern {
     fn test_create_session(eid: sgx_enclave_id_t, retval: *mut sgx_status_t)
 			   -> sgx_status_t;
+
+    fn init_session(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    		    p_report: *mut sgx_report_t)
+			   -> sgx_status_t;
     
     fn say_something(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
                      some_string: *const u8, len: usize) -> sgx_status_t;
@@ -1727,6 +1801,16 @@ extern {
 		       dh_msg3: *mut u8,
 		       session_ptr: *mut usize);
 
+    fn proc_msg1(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		 dh_msg1: *const u8,
+		 msg1_len: size_t,
+		 dh_msg2: *mut u8);
+
+    fn proc_msg3(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		 dh_msg3: *const u8,
+		 msg3_len: size_t);
+
+    
 //    public uint32_t end_session(sgx_enclave_id_t src_enclave_id, [user_check]size_t* session_ptr);
 }
 
@@ -2033,7 +2117,20 @@ mod tests {
         let (_return_msg, _return_sealed) = enc.sign_second(&mut sign_first_sealed, &sign_msg2).unwrap();
 	
     }
-    
+
+
+    #[test]
+    fn test_session_request() {
+	let enc = Enclave::new().unwrap();
+	let id_msg = EnclaveIDMsg{ inner: enc.geteid() };
+	enc.session_request(&id_msg).unwrap();
+    }
+
+    #[test]
+    fn test_test_create_session() {
+	let enc = Enclave::new().unwrap();
+	enc.test_create_session().unwrap();
+    }
 }
 
 

@@ -16,6 +16,7 @@ extern crate zk_paillier;
 extern crate bitcoin;
 extern crate subtle;
 extern crate hex;
+extern crate shared_lib;
 
 use uuid::Uuid;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
@@ -31,6 +32,7 @@ use reqwest::Error as ReqwestError;
 use bitcoin::secp256k1::{Signature, PublicKey, Message, Secp256k1};
 use subtle::ConstantTimeEq;
 use std::env;
+use shared_lib::structs::{EnclaveIDMsg, DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
 
 pub struct Lockbox {
     pub client: reqwest::blocking::Client,
@@ -173,6 +175,30 @@ where
 	    Err(CError::Generic(format!("Error derserialising POST response: {}: {}", value.as_str(), e)))
 	}
     }
+}
+
+pub fn get_lb<V>(lockbox: &Lockbox, path: &str) -> Result<V>
+where
+    V: serde::de::DeserializeOwned,
+{
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let mut b = lockbox
+        .client
+        .get(&format!("{}/{}", lockbox.endpoint, path));
+
+    // catch reqwest errors
+    let value = match b.send() {
+        Ok(v) => v.text().unwrap(),
+        Err(e) => return Err(CError::from(e)),
+    };
+
+    // catch State entity errors
+    if value.contains(&String::from("Error: ")) {
+        return Err(CError::Generic(value));
+    }
+
+    Ok(serde_json::from_str(value.as_str()).unwrap())
 }
 
 // verify 2P ECDSA signature
@@ -594,4 +620,38 @@ mod tests {
         assert!(ver);
 
     }
+
+
+    #[test]
+    fn test_dh() {
+        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
+	
+        let lockbox = Lockbox::new(lockbox_url.to_string());
+
+	println!("...getting src enclave id...\n");
+	let enclave_id_msg = get_lb::<EnclaveIDMsg>(&lockbox, "attestation/enclave_id").unwrap();
+
+	println!("enclave id: {:?}", enclave_id_msg);
+
+	println!("...requesting session...\n");
+	let (dhmsg1, session_ptr): (DHMsg1, usize) = post_lb(&lockbox, "attestation/session_request", &enclave_id_msg).unwrap();
+
+	println!("...proc_msg1...\n");
+	let dh_msg2: DHMsg2 = post_lb(&lockbox, "attestation/proc_msg1", &dhmsg1).unwrap();
+
+	let rep_msg = ExchangeReportMsg {
+	    src_enclave_id: enclave_id_msg.inner,
+	    dh_msg2,
+	    session_ptr,
+	};
+	
+	let dh_msg3: DHMsg3 = post_lb(&lockbox, "attestation/exchange_report", &rep_msg).unwrap();
+
+	println!("...proc_msg3...\n");
+	let res: () = post_lb(&lockbox, "attestation/proc_msg3", &dh_msg3).unwrap();
+	
+//	println!("...test create session...\n");
+//	get_lb::<()>(&lockbox, "attestation/test_create_session").unwrap();
+    }
+	
 }

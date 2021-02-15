@@ -46,6 +46,7 @@ extern crate zk_paillier;
 extern crate subtle;
 #[macro_use]
 extern crate serde_big_array;
+extern crate lazy_static;
 
 use secp256k1::Secp256k1;
 use sgx_types::*;
@@ -87,6 +88,9 @@ use attestation::err::*;
 use attestation::func::*;
 
 use std::boxed::Box;
+use lazy_static::lazy_static;
+
+use std::sync::SgxMutex as Mutex;
 
 #[macro_use]
 extern crate serde_derive;
@@ -95,6 +99,15 @@ extern crate serde_cbor;
 const SECURITY_BITS: usize = 256;
 
 static CALLBACK_FN: AtomicPtr<()> = AtomicPtr::new(0 as * mut ());
+
+
+
+//Using lazy_static in order to be able to use a heap-allocated
+//static variable requiring runtime executed code
+lazy_static!{
+    static ref INITIATOR: Mutex<SgxDhInitiator> = Mutex::new(SgxDhInitiator::init_session());
+    static ref RESPONDER: Mutex<SgxDhResponder> = Mutex::new(SgxDhResponder::init_session());
+}
 
 big_array! {
     BigArray;
@@ -135,10 +148,76 @@ pub extern "C" fn test_create_session() -> u32 {
     create_session() as u32
 }
 
+
 #[no_mangle]
 #[allow(unused_variables)]
 pub extern "C" fn test_close_session() -> u32 {
     close_session() as u32
+}
+
+
+pub fn create_session() -> ATTESTATION_STATUS {
+
+    let mut dh_msg1: SgxDhMsg1 = SgxDhMsg1::default(); //Diffie-Hellman Message 1
+    let mut dh_msg2: SgxDhMsg2 = SgxDhMsg2::default(); //Diffie-Hellman Message 2
+    let mut dh_aek: sgx_align_key_128bit_t = sgx_align_key_128bit_t::default(); // Session Key
+    let mut responder_identity: sgx_dh_session_enclave_identity_t = sgx_dh_session_enclave_identity_t::default();
+    let mut ret = 0;
+
+
+    let status = unsafe { session_request_ocall(&mut dh_msg1) };
+    if status != sgx_status_t::SGX_SUCCESS {
+        return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
+    }
+    let err = ATTESTATION_STATUS::from_repr(ret).unwrap();
+    if err != ATTESTATION_STATUS::SUCCESS{
+        return err;
+    }
+
+    let status = match INITIATOR.lock() {
+	Ok(mut r) => r.proc_msg1(&dh_msg1, &mut dh_msg2),
+	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
+    };
+    
+    if status.is_err() {
+        return ATTESTATION_STATUS::ATTESTATION_ERROR;
+    }
+
+    let mut dh_msg3_raw = sgx_dh_msg3_t::default();
+    let status = sgx_status_t::SGX_SUCCESS;
+//    unsafe { exchange_report_ocall(&mut ret, src_enclave_id, dest_enclave_id, &mut dh_msg2, &mut dh_msg3_raw as *mut sgx_dh_msg3_t) };
+    if status != sgx_status_t::SGX_SUCCESS {
+        return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
+    }
+    if ret != ATTESTATION_STATUS::SUCCESS as u32 {
+        return ATTESTATION_STATUS::from_repr(ret).unwrap();
+    }
+
+    let dh_msg3_raw_len = mem::size_of::<sgx_dh_msg3_t>() as u32 + dh_msg3_raw.msg3_body.additional_prop_length;
+    let dh_msg3 = unsafe{ SgxDhMsg3::from_raw_dh_msg3_t(&mut dh_msg3_raw, dh_msg3_raw_len ) };
+    if dh_msg3.is_none() {
+        return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
+    }
+    let dh_msg3 = dh_msg3.unwrap();
+
+    let status = match INITIATOR.lock() {
+	Ok(mut r) => r.proc_msg3(&dh_msg3, &mut dh_aek.key, &mut responder_identity),
+	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR,
+    };
+    
+    if status.is_err() {
+        return ATTESTATION_STATUS::ATTESTATION_ERROR;
+    }
+
+    let cb = get_callback();
+    if cb.is_some() {
+        let ret = (cb.unwrap().verify)(&responder_identity);
+        if ret != ATTESTATION_STATUS::SUCCESS as u32{
+            return ATTESTATION_STATUS::INVALID_SESSION;
+        }
+    }
+
+    ATTESTATION_STATUS::SUCCESS
 }
 
 
@@ -147,16 +226,21 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 			session_ptr: &mut usize
 ) -> ATTESTATION_STATUS {
 
-    let mut responder = SgxDhResponder::init_session();
+    println!("enclave:session_request_safe - init session/n");
 
     let mut dh_msg1_inner = SgxDhMsg1::default();
+
+    println!("enclave:session_request_safe - gen msg 1/n");
+    let status = match RESPONDER.lock(){
+	Ok(mut r) => r.gen_msg1(&mut dh_msg1_inner),
+	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+    };
     
-    let status = responder.gen_msg1(&mut dh_msg1_inner);
     if status.is_err() {
         return ATTESTATION_STATUS::INVALID_SESSION;
     }
 
-
+    println!("enclave:session_request_safe - serialize msg1.../n");
     match serde_json::to_string(& DHMsg1 { inner: dh_msg1_inner } ) {
 	Ok(v) => {
 	    let len = v.len();
@@ -170,14 +254,19 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
-    
+
+    println!("enclave:session_request_safe - get session info.../n");
     let mut session_info = DhSessionInfo::default();
     session_info.enclave_id = src_enclave_id;
-    session_info.session.session_status = DhSessionStatus::InProgress(responder);
+    session_info.session.session_status = match RESPONDER.lock() {
+	Ok(r) => DhSessionStatus::InProgress(*r.deref()),
+	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+    };
 
     let ptr = Box::into_raw(Box::new(session_info));
     *session_ptr = ptr as * mut _ as usize;
 
+    println!("enclave:session_request_safe - finished./n");
     ATTESTATION_STATUS::SUCCESS
 }
 
@@ -187,9 +276,128 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
 				  dh_msg1: &mut [u8;1500], 
 				  session_ptr: *mut usize)
-				  -> ATTESTATION_STATUS {        
+				  -> ATTESTATION_STATUS {
+    println!("enclave:session_request/n");
     unsafe {
         session_request_safe(src_enclave_id, dh_msg1, &mut *session_ptr)
+    }
+}
+
+fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
+		  dh_msg2: &mut [u8;1700]
+) -> ATTESTATION_STATUS {
+
+    let str_slice = unsafe { slice::from_raw_parts(dh_msg1_str, msg1_len) };
+
+    let dh_msg1 = match std::str::from_utf8(&str_slice) {
+        Ok(v) =>{
+            match serde_json::from_str::<DHMsg1>(v){
+                Ok(v) => v.inner,
+                Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+            }
+        },
+        Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+    };
+
+    let mut dh_msg2_inner: SgxDhMsg2 = SgxDhMsg2::default(); //Diffie-Hellman Message 2
+    
+    let status = match INITIATOR.lock() {
+	Ok(mut r) => r.proc_msg1(&dh_msg1, &mut dh_msg2_inner),
+	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
+    };
+
+    if status.is_err() {
+        return ATTESTATION_STATUS::ATTESTATION_ERROR;
+    }
+
+    println!("enclave:proc_msg1 - serialize msg2.../n");
+    match serde_json::to_string(& DHMsg2 { inner: dh_msg2_inner } ) {
+	Ok(v) => {
+	    let len = v.len();
+	    println!("msg2 length: {}", len);
+	    let mut v_sized=format!("{}", len);
+	    v_sized=format!("{}{}", v_sized.len(), v_sized);
+	    v_sized.push_str(&v);
+	    let mut v_bytes=v_sized.into_bytes();
+	    v_bytes.resize(1700,0);
+	    *dh_msg2 = v_bytes.as_slice().try_into().unwrap();
+	},
+	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+    };
+
+    println!("enclave:proc_msg1_safe - finished./n");
+    ATTESTATION_STATUS::SUCCESS
+}
+
+
+//Handle the request from Source Enclave for a session
+#[no_mangle]
+pub extern "C" fn proc_msg1(dh_msg1_str: *const u8 , msg1_len: usize,
+                           dh_msg2: &mut [u8;1700])
+				  -> ATTESTATION_STATUS {
+    println!("enclave:proc_msg1/n");
+
+    unsafe {
+        proc_msg1_safe(dh_msg1_str, msg1_len, dh_msg2)
+    }
+}
+
+fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize) -> ATTESTATION_STATUS {
+
+    let str_slice = unsafe { slice::from_raw_parts(dh_msg3_str, msg3_len) };
+
+    let mut dh_msg3_raw = match std::str::from_utf8(&str_slice) {
+        Ok(v) =>{
+            match serde_json::from_str::<DHMsg3>(v){
+                Ok(v) => v.inner,
+                Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+            }
+        },
+        Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+    };
+
+    let mut dh_aek: sgx_align_key_128bit_t = sgx_align_key_128bit_t::default(); // Session Key
+    let mut responder_identity: sgx_dh_session_enclave_identity_t = sgx_dh_session_enclave_identity_t::default();
+
+
+    let dh_msg3_raw_len = mem::size_of::<sgx_dh_msg3_t>() as u32 + dh_msg3_raw.msg3_body.additional_prop_length;
+    let dh_msg3 = unsafe{ SgxDhMsg3::from_raw_dh_msg3_t(&mut dh_msg3_raw, dh_msg3_raw_len ) };
+    if dh_msg3.is_none() {
+        return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
+    }
+    let dh_msg3 = dh_msg3.unwrap();
+    
+    
+    let status = match INITIATOR.lock() {
+	Ok(mut r) => r.proc_msg3(&dh_msg3, &mut dh_aek.key, &mut responder_identity),
+	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR,
+    };
+    
+    if status.is_err() {
+        return ATTESTATION_STATUS::ATTESTATION_ERROR;
+    }
+
+    let cb = get_callback();
+    if cb.is_some() {
+        let ret = (cb.unwrap().verify)(&responder_identity);
+        if ret != ATTESTATION_STATUS::SUCCESS as u32{
+            return ATTESTATION_STATUS::INVALID_SESSION;
+        }
+    }
+    
+    println!("enclave:proc_msg3_safe - finished./n");
+    ATTESTATION_STATUS::SUCCESS
+}
+
+
+//Handle the request from Source Enclave for a session
+#[no_mangle]
+pub extern "C" fn proc_msg3(dh_msg3_str: *const u8 , msg3_len: usize)
+				  -> ATTESTATION_STATUS {
+    println!("enclave:proc_msg3/n");
+
+    unsafe {
+        proc_msg3_safe(dh_msg3_str, msg3_len)
     }
 }
 
@@ -200,8 +408,10 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
 
-    let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
+    println!("exchange report self/n");
     
+    let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
+    println!("deser msg2/n");
     let dh_msg2 = match std::str::from_utf8(&str_slice) {
 	Ok(v) =>{
 	    match serde_json::from_str::<DHMsg2>(v){
@@ -211,10 +421,11 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
-
+    println!("finished deser msg2/n");
     let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
     let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
 
+    println!("responder /n");
     let mut responder = match session_info.session.session_status {
         DhSessionStatus::InProgress(res) => {res},
         _ => {
@@ -228,6 +439,26 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
 
+    let raw_len = dh_msg3_r.calc_raw_sealed_data_size();
+    let mut dh_msg3_inner = sgx_dh_msg3_t::default();
+    let _ = unsafe{ dh_msg3_r.to_raw_dh_msg3_t(&mut dh_msg3_inner, raw_len ) };
+
+
+    match serde_json::to_string(& DHMsg3 { inner: dh_msg3_inner } ) {
+	Ok(v) => {
+	    let len = v.len();
+	    println!("msg3 length: {}", len);
+	    let mut v_sized=format!("{}", len);
+	    v_sized=format!("{}{}", v_sized.len(), v_sized);
+	    v_sized.push_str(&v);
+	    let mut v_bytes=v_sized.into_bytes();
+	    v_bytes.resize(1300,0);
+	    *dh_msg3_arr = v_bytes.as_slice().try_into().unwrap();
+	},
+	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+    };
+
+    
 //    let dh_msg3 = SgxDhMsg3::default();
     
 //    unsafe{ dh_msg3_r.to_raw_dh_msg3_t(dh_msg3, (dh_msg3.msg3_body.additional_prop_length as usize + mem::size_of::<sgx_dh_msg3_t>() ) as u32); };
@@ -253,10 +484,10 @@ pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
 ) -> ATTESTATION_STATUS {
     
 
-    if rsgx_raw_is_outside_enclave(session_ptr as * const u8, mem::size_of::<DhSessionInfo>()) {
-        return ATTESTATION_STATUS::INVALID_PARAMETER;
-    }
-    rsgx_lfence();
+//    if rsgx_raw_is_outside_enclave(session_ptr as * const u8, mem::size_of::<DhSessionInfo>()) {
+//        return ATTESTATION_STATUS::INVALID_PARAMETER;
+//    }
+//    rsgx_lfence();
 
     
     unsafe {

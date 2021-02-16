@@ -41,6 +41,7 @@ pub fn get_db_write_opt(config_rs: &Config, readonly: bool) -> DB {
     column_families.push(ColumnFamilyDescriptor::new("ecdsa_sign_second", cf_opts.clone()));
     column_families.push(ColumnFamilyDescriptor::new("ecdsa_keyupdate", cf_opts.clone()));
     column_families.push(ColumnFamilyDescriptor::new("enclave_id", cf_opts.clone()));
+    column_families.push(ColumnFamilyDescriptor::new("enclave_key", cf_opts.clone()));
     
     if readonly{
 	/*

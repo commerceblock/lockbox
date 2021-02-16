@@ -1,5 +1,4 @@
 
-
 pub use super::super::Result;
 
 use crate::error::LockboxError;
@@ -69,8 +68,8 @@ impl Ecdsa for Lockbox {
 	
 	let (key_gen_first_mess, sealed_secrets) =
 	    if key_gen_msg1.protocol == Protocol::Deposit {
-		let mut rsd1 = self.enclave.get_random_sealed_fe_log().unwrap();
-		match self.enclave.first_message(&mut rsd1) {
+		let mut rsd1 = self.enclave().get_random_sealed_fe_log().unwrap();
+		match self.enclave().first_message(&mut rsd1) {
 		    Ok(x) => x,
 		    Err(e) => return Err(LockboxError::Generic(format!("generating first message: {}", e)))
 		}
@@ -78,7 +77,7 @@ impl Ecdsa for Lockbox {
 		let cf_ku = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
 		match self.get_sealed_secrets(cf_ku, &key_gen_msg1.shared_key_id){
 		    Ok(mut sealed_in) =>{
-			match self.enclave.first_message_transfer(&mut sealed_in.0) {
+			match self.enclave().first_message_transfer(&mut sealed_in.0) {
 			    Ok(x) => x,
 			    Err(e) => return Err(LockboxError::Generic(format!("{}", e))),
 			}
@@ -100,7 +99,7 @@ impl Ecdsa for Lockbox {
 	let cf_out = &self.database.cf_handle("ecdsa_second_message").unwrap();
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &key_gen_msg2.shared_key_id)?;
 	
-	match self.enclave.second_message(&mut sealed_secrets, &key_gen_msg2) {
+	match self.enclave().second_message(&mut sealed_secrets, &key_gen_msg2) {
 	    Ok(x) => {
 		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		Ok(Some(x.0))
@@ -114,7 +113,7 @@ impl Ecdsa for Lockbox {
 	let cf_out = &self.database.cf_handle("ecdsa_sign_first").unwrap();
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg1.shared_key_id)?;
 	
-	match self.enclave.sign_first(&mut sealed_secrets, &sign_msg1) {
+	match self.enclave().sign_first(&mut sealed_secrets, &sign_msg1) {
 	    Ok(x) => {
 		match x {
 		    Some(x) => {
@@ -135,7 +134,7 @@ impl Ecdsa for Lockbox {
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg2.shared_key_id)?;
 	
 
-	match self.enclave.sign_second(&mut sealed_secrets, &sign_msg2) {
+	match self.enclave().sign_second(&mut sealed_secrets, &sign_msg2) {
 	    Ok(x) => {
 		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		return Ok(Some(x.0))
@@ -149,7 +148,7 @@ impl Ecdsa for Lockbox {
 	let cf_out = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
 	let (mut sealed_secrets, _user_db_key) = self.get_sealed_secrets(cf_in, &receiver_msg.user_id)?;
 
-	match self.enclave.keyupdate_first(&mut sealed_secrets, &receiver_msg) {
+	match self.enclave().keyupdate_first(&mut sealed_secrets, &receiver_msg) {
 	    Ok(x) => {
 		let statechain_db_key = Key::from_uuid(&receiver_msg.statechain_id);
 		self.database.put_cf(cf_out, statechain_db_key, &x.1)?;

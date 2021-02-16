@@ -1,3 +1,6 @@
+
+    
+
 //! Lockbox Attestation
 //!
 //! Lockbox Attestation protocol trait and implementation.
@@ -9,12 +12,16 @@ use shared_lib::structs::ExchangeReportMsg;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
+use crate::enclave::ec_key_sealed;
 
 use bitcoin::Transaction;
 use rocket::State;
 use rocket_contrib::json::Json;
 use uuid::Uuid;
 use curv::FE;
+
+use std::convert::TryInto;
+use crate::Key;
 
 type LB = Lockbox;
 
@@ -28,6 +35,8 @@ pub trait Attestation {
     fn test_create_session(&self) -> Result<()>;
 //    fn init_session(&self) -> Result<()>;
     fn enclave_id(&self) -> EnclaveIDMsg;
+    fn put_enclave_key(&self, db_key: &Key, sealed_log: ec_key_sealed) -> Result<()>;
+    fn get_enclave_key(&self, db_key: &Key) -> Result<Option<ec_key_sealed>>;
 }
 
 #[get("/attestation/test_create_session")]
@@ -117,36 +126,36 @@ pub fn end_session(
 
 impl Attestation for Lockbox{
     fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
-	self.enclave.say_something(String::from("doing session request"));
+	self.enclave().say_something(String::from("doing session request"));
 	
-	match self.enclave.session_request(id_msg) {
+	match self.enclave().session_request(id_msg) {
 	    Ok(r) => Ok(r),
 	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
 	}
     }
 
     fn exchange_report(&self, er_msg: &ExchangeReportMsg) -> Result<DHMsg3> {
-	self.enclave.say_something(String::from("doing exchange report"));
+	self.enclave().say_something(String::from("doing exchange report"));
 
-	match self.enclave.exchange_report(er_msg) {
+	match self.enclave().exchange_report(er_msg) {
 	    Ok(r) => Ok(r),
 	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
 	}
     }
     
     fn end_session(&self) -> Result<()> {
-	self.enclave.say_something(String::from("doing end session"));
+	self.enclave().say_something(String::from("doing end session"));
 	
 	Ok(())
     }
 
     fn enclave_id(&self) -> EnclaveIDMsg {
 	println!("...calling enclave.geteid()...");
-        EnclaveIDMsg { inner: self.enclave.geteid() }
+        EnclaveIDMsg { inner: self.enclave().geteid() }
     }
 
     fn test_create_session(&self) -> Result<()> {
-	match self.enclave.test_create_session() {
+	match self.enclave().test_create_session() {
 	    Ok(r) => {
 		Ok(())
 	    },
@@ -155,7 +164,7 @@ impl Attestation for Lockbox{
     }
     
     fn proc_msg1(&self, dh_msg1: &DHMsg1) -> Result<DHMsg2> {
-	match self.enclave.proc_msg1(dh_msg1) {
+	match self.enclave().proc_msg1(dh_msg1) {
 	    Ok(r) => {
 		Ok(r)
 	    },
@@ -164,11 +173,46 @@ impl Attestation for Lockbox{
     }
 
     fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<()> {
-	match self.enclave.proc_msg3(dh_msg3) {
-	    Ok(r) => {
+	match self.enclave_mut().proc_msg3(dh_msg3) {
+	    Ok(sealed_log) => {
+
+		let key_id = dh_msg3.inner.msg3_body.report.key_id.id;
+		let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
+		let db_key = Key::from_uuid(&key_uuid.build());
+		self.put_enclave_key(&db_key, sealed_log)?;
 		Ok(())
 	    },
 	    Err(e) => Err(LockboxError::Generic(format!("proc_msg3: {}",e))),
+	}
+    }
+
+    fn put_enclave_key(&self, db_key: &Key, sealed_log: ec_key_sealed) -> Result<()> {
+	let cf = match self.database.cf_handle("enclave_key"){
+	    Some(x) => x,
+	    None => return Err(LockboxError::Generic(String::from("enclave_key not found"))),
+	};
+	match self.database.put_cf(cf, db_key, &sealed_log){
+	    Ok(_) => {
+		self.enclave_mut().set_ec_key(Some(sealed_log));
+		Ok(())
+	    },
+	    Err(e) => Err(LockboxError::Generic(format!("{}",e))),
+	}
+
+    }
+
+    fn get_enclave_key(&self, db_key: &Key) -> Result<Option<ec_key_sealed>> {
+	let cf = &self.database.cf_handle("enclave_key").unwrap();
+	match self.database.get_cf(cf, db_key){
+	    Ok(Some(x)) => match x.try_into() {
+		Ok(x) => {
+		    self.enclave_mut().set_ec_key(Some(x));
+		    Ok(*self.enclave().get_ec_key())
+		},
+		Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
+	    },
+	    Ok(None) => Ok(None),
+	    Err(e) => Err(e.into()),
 	}
     }
 

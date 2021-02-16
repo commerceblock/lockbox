@@ -27,12 +27,15 @@ use crate::db::get_db;
 extern crate lazy_static;
 use lazy_static::lazy_static; 
 use std::sync::Mutex;
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+
+use std::convert::TryInto;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 pub struct Lockbox {
     pub config: Config,
-    pub enclave: Enclave,
+    pub enclave: RwLock<Enclave>,
     pub database: DB,
 }
 
@@ -41,18 +44,37 @@ impl Lockbox
 {
     pub fn load(config_rs: Config) -> Result<Lockbox> {
 
-        let enclave = Enclave::new().expect("failed to start enclave");
+        let enclave = RwLock::new(Enclave::new().expect("failed to start enclave"));
 
 	let database = get_db(&config_rs);
-
-        let enclave_index = Key::from(config_rs.enclave.index);
-	
-        Ok(Self {
+		
+        let lb = Self {
             config: config_rs,
             enclave,
 	    database,
-        })
+        };
 
+	//Get the enclave id from the enclave
+	let report = lb.enclave().get_self_report().unwrap();
+	let key_id = report.body.mr_enclave.m;
+	println!("enclave key id 1: {:?}", key_id);
+        let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
+        let db_key = Key::from_uuid(&key_uuid.build());
+	println!("enclave key id 2: {}", db_key);
+
+	//Get the sealed enclave key from the database and store it in the enclave struct
+	lb.get_enclave_key(&db_key).unwrap();
+
+	Ok(lb)
+    }
+
+    pub fn enclave(&self) -> RwLockReadGuard<Enclave> {
+	self.enclave.read().unwrap()
+    }
+
+    pub fn enclave_mut(&self) -> RwLockWriteGuard<Enclave> {
+	let mut lock = self.enclave.write().expect("locking enclave to write");
+	lock
     }
 }
 
@@ -245,13 +267,13 @@ mod tests {
 
 	
 
-	let config = crate::config::get_config();
-	let server = Lockbox::load(config).unwrap();
-
-	let client_dest = client::get_client_dest();
+//	let config = crate::config::get_config();
+//	let server = Lockbox::load(config).unwrap();
+//
+//	let client_dest = client::get_client_dest();
 	
-	println!("...getting src enclave id 0...\n");
-	let enclave_id_msg = get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave_id").unwrap();
+//	println!("...getting src enclave id 0...\n");
+//	let enclave_id_msg = get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave_id").unwrap();
 		
 	//server.enclave.test_create_session().unwrap();
 

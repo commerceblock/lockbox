@@ -45,7 +45,8 @@ enclave {
 	       //	       [user_check]size_t* session_ptr
 	       //	       );
 
-        public uint32_t proc_msg3([in, size=msg3_len] const uint8_t* msg3_str, size_t msg3_len);
+        public uint32_t proc_msg3([in, size=msg3_len] const uint8_t* msg3_str, size_t msg3_len,
+	       [out, size=592] uint8_t* sealed_log);
 
 	public uint32_t test_create_session();
 

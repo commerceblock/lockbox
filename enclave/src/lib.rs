@@ -145,7 +145,7 @@ pub extern "C" fn test_enclave_init() {
 
 #[no_mangle]
 pub extern "C" fn test_create_session() -> u32 {
-    println!("Enclave: test create session\n");
+//    println!("Enclave: test create session\n");
     create_session() as u32
 }
 
@@ -209,7 +209,7 @@ pub fn create_session() -> ATTESTATION_STATUS {
     if status.is_err() {
         return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
-
+    
     let cb = get_callback();
     if cb.is_some() {
         let ret = (cb.unwrap().verify)(&responder_identity);
@@ -228,7 +228,7 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 //			session_ptr: &mut usize
 ) -> ATTESTATION_STATUS {
 
-    println!("enclave:session_request_safe - init session/n");
+//    println!("enclave:session_request_safe - init session/n");
 
     let mut dh_msg1_inner = SgxDhMsg1::default();
 
@@ -351,7 +351,7 @@ pub extern "C" fn proc_msg1(dh_msg1_str: *const u8 , msg1_len: usize,
     }
 }
 
-fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize) -> ATTESTATION_STATUS {
+fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log: * mut u8) -> ATTESTATION_STATUS {
 
     let str_slice = unsafe { slice::from_raw_parts(dh_msg3_str, msg3_len) };
 
@@ -393,6 +393,27 @@ fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize) -> ATTESTATION_STATU
             return ATTESTATION_STATUS::INVALID_SESSION;
         }
     }
+
+    println!("key: {:?}", dh_aek.key);
+
+    let sealable = match SgxSealable::try_from(dh_aek.key){
+	Ok(x) => x,
+        Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
+    };
+
+    let sealed_data = match sealable.to_sealed(){
+        Ok(x) => x,
+	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
+    };
+
+    println!("sealed key length: {}", SgxSealedData::<SgxSealable>::
+	     calc_raw_sealed_data_size(sealed_data.get_add_mac_txt_len(),
+				       sealed_data.get_encrypt_txt_len()));
+    
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, 592);
+    if opt.is_none() {
+	return ATTESTATION_STATUS::ATTESTATION_ERROR;
+    }
     
     println!("enclave:proc_msg3_safe - finished./n");
     ATTESTATION_STATUS::SUCCESS
@@ -401,12 +422,12 @@ fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize) -> ATTESTATION_STATU
 
 //Handle the request from Source Enclave for a session
 #[no_mangle]
-pub extern "C" fn proc_msg3(dh_msg3_str: *const u8 , msg3_len: usize)
+pub extern "C" fn proc_msg3(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log: * mut u8)
 				  -> ATTESTATION_STATUS {
     println!("enclave:proc_msg3/n");
 
     unsafe {
-        proc_msg3_safe(dh_msg3_str, msg3_len)
+        proc_msg3_safe(dh_msg3_str, msg3_len, sealed_log)
     }
 }
 
@@ -559,6 +580,7 @@ struct RandDataSerializable {
     rand: [u8; 16],
     vec: Vec<u8>,
 }
+
 
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "sgx_dh_msg2_t")]
@@ -987,6 +1009,40 @@ impl TryFrom<RandDataSerializable> for SgxSealable {
 }
 
 impl TryFrom<SgxSealable> for RandDataSerializable {
+    type Error = sgx_status_t;
+    fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
+
+	match serde_cbor::from_slice(&item){
+	    Ok(v) => Ok(v),
+	    Err(_e) => {
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	    }
+	}
+    }
+}
+
+//#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+//struct SessionKey {
+//    inner: sgx_key_128bit_t
+//}
+
+impl TryFrom<sgx_key_128bit_t> for SgxSealable {
+    type Error = sgx_status_t;
+    fn try_from(item: sgx_key_128bit_t) -> Result<Self, Self::Error> {
+	let encoded_vec = match serde_cbor::to_vec(&item){
+	    Ok(v) => v,
+	    Err(e) => {
+		println!("error: {:?}",e);
+		return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+
+	    }
+	};
+	let res = Self{inner: encoded_vec};
+	Ok(res)
+    }
+}
+
+impl TryFrom<SgxSealable> for sgx_key_128bit_t {
     type Error = sgx_status_t;
     fn try_from(item: SgxSealable) -> Result<Self, Self::Error> {
 

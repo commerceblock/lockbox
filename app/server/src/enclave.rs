@@ -43,8 +43,13 @@ static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+//Shared encryption key for enclaves
+pub const EC_KEY_SEALED_SIZE: usize = 592;
+pub type ec_key_sealed = [u8; EC_KEY_SEALED_SIZE];
+
 pub struct Enclave {
-    inner: SgxEnclave
+    inner: SgxEnclave,
+    ec_key: Option<ec_key_sealed>
 }
 
 impl Deref for Enclave {
@@ -1158,11 +1163,19 @@ impl Enclave {
                        		 &mut launch_token,
                        		 &mut launch_token_updated,
                        		 &mut misc_attr){
-	    Ok(v) => Ok(Self{inner:v}),
+	    Ok(v) => Ok(Self{inner:v, ec_key: None}),
 	    Err(e) => return Err(LockboxError::Generic(e.to_string()).into()),
 	}
     }
 
+    pub fn get_ec_key(&self) -> &Option<ec_key_sealed> {
+	&self.ec_key
+    }
+
+    pub fn set_ec_key(&mut self, key: Option<ec_key_sealed>) {
+	self.ec_key = key;
+    }
+    
     //  pub fn dh_init_session() -> Result<> {
     //  }
 
@@ -1319,7 +1332,8 @@ impl Enclave {
 	}
     }
 
-    pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<()> {
+    pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<[u8; 592]> {
+	let mut sealed_log = [0; 592];
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
 	let dh_msg3_str = serde_json::to_string(dh_msg3).unwrap();
@@ -1328,11 +1342,12 @@ impl Enclave {
             proc_msg3(self.geteid(),
 		      &mut retval,
 		      dh_msg3_str.as_ptr() as * const u8,
-		      dh_msg3_str.len())
+		      dh_msg3_str.len(),
+		      sealed_log.as_ptr() as * mut u8)
     	};
 
 	match retval {
-	    sgx_status_t::SGX_SUCCESS  => Ok(()),
+	    sgx_status_t::SGX_SUCCESS  => Ok(sealed_log),
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
 	}
     }
@@ -1812,7 +1827,8 @@ extern {
 
     fn proc_msg3(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		 dh_msg3: *const u8,
-		 msg3_len: size_t);
+		 msg3_len: size_t,
+		 sealed_log: *mut u8);
 
     
 //    public uint32_t end_session(sgx_enclave_id_t src_enclave_id, [user_check]size_t* session_ptr);
@@ -2122,7 +2138,7 @@ mod tests {
 	
     }
 
-
+/*
     #[test]
     fn test_session_request() {
 	let enc = Enclave::new().unwrap();
@@ -2135,6 +2151,7 @@ mod tests {
 	let enc = Enclave::new().unwrap();
 	enc.test_create_session().unwrap();
     }
+*/
 }
 
 

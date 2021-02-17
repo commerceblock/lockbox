@@ -2475,31 +2475,110 @@ pub extern "C" fn first_message_transfer(sealed_log_in: * mut u8, sealed_log_out
 pub extern "C" fn test_sc_encrypt_unencrypt() -> sgx_status_t {
 
     let test_vec = test_vec();
+    match encrypt(&test_vec) {
+	Ok(ed) => {
+	    match (*test_vec.as_slice() == *(ed.payload_data.encrypt)) {
+		false => (),
+		true => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+	    };
+	    let ud = match unencrypt(&ed) {
+		Ok(ud) => ud,
+		Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+	    };
+	    match (*test_vec.as_slice() == *(ud.decrypt)) {
+		true => sgx_status_t::SGX_SUCCESS,
+		false => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+		
+	    }
+	}
+	,
+	Err(ret) => return ret
+    }
+}
+
+fn encrypt(encrypt: &Vec<u8>) -> SgxResult<EncryptedData> {
     match ECKEY.lock() {
 	Ok(mut k) => {
-	    match EncryptedData::try_from(&[0;0], &test_vec.as_slice(), &[0;0], &mut k){
-		Ok(ed) => {
-		    match (*test_vec.as_slice() == *(ed.payload_data.encrypt)) {
-			false => (),
-			true => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-		    };
-		    let ud = match ed.unencrypt(&mut k) {
-			Ok(ud) => ud,
-			Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-		    };
-		    match (*test_vec.as_slice() == *(ud.decrypt)) {
-			true => sgx_status_t::SGX_SUCCESS,
-			false => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-			
-		    }
-		}
-		,
-		Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	    EncryptedData::try_from(&[0;0], &encrypt.as_slice(), &[0;0], &mut k)
+	},
+	Err(_) => Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+    }
+}
+
+fn unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
+    match ECKEY.lock() {
+	Ok(mut k) => {
+	    encrypt.unencrypt(&mut k) 
+	},
+	Err(_) => Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+    }
+}
+
+
+#[no_mangle]
+pub extern "C" fn test_encrypt_to_out(sealed_log_out: &mut [u8;64] ) -> sgx_status_t {
+
+    let test_vec = test_vec();
+
+    match encrypt(&test_vec) {
+	Ok(ed) => {
+	    let ser_str = match serde_json::to_string(&ed){
+		Ok(v) => v,
+		Err(e) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+	    };
+	    
+	    let len = ser_str.len();
+	    let mut plain_str_sized=format!("{}", len);
+	    plain_str_sized=format!("{}{}", plain_str_sized.len(),plain_str_sized);
+	    plain_str_sized.push_str(&ser_str);
+	    
+	    let mut plain_bytes=plain_str_sized.into_bytes();
+	    plain_bytes.resize(64,0);
+	    
+	    *sealed_log_out = match plain_bytes.as_slice().try_into(){
+		Ok(x) => x,
+		Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
 	    }
 	},
-	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     }
+    
+    sgx_status_t::SGX_SUCCESS
+}
 
+#[no_mangle]
+pub extern "C" fn test_in_to_decrypt(data_in: *const u8, data_len: usize) -> sgx_status_t 
+{
+    let str_slice = unsafe { slice::from_raw_parts(data_in, data_len)};
+
+    let encrypted_data_str = match std::str::from_utf8(&str_slice) {
+	Ok(r) => r,
+	Err(e) => {
+	    let _ = io::stdout().write(format!("error: {:?}", e).as_str().as_bytes());
+	    println!("error: {:?}", e);
+	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	}
+    };
+
+    let encrypted_data: EncryptedData = match serde_json::from_str(&encrypted_data_str){
+        Ok(r) => r,
+        Err(e) => {
+	    let _ = io::stdout().write(format!("error: {:?}", e).as_str().as_bytes());
+	    println!("error: {:?}", e);
+	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	}
+    };
+
+    match unencrypt(&encrypted_data) {
+	Ok(ud) => {
+	    match (*test_vec().as_slice() == *(ud.decrypt)) {
+		true => sgx_status_t::SGX_SUCCESS,
+		false => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+		
+	    }
+	},
+	Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    }
 }
 
 
@@ -2508,11 +2587,6 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
 
     let (key_gen_first_message, comm_witness, ec_key_pair) =
 	KeyGenFirstMsg::create_commitments_with_fixed_secret_share(*secret_share);
-
-    let key_gen_first_message_str = match serde_json::to_string(&key_gen_first_message){
-	Ok(v) => v,
-	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-    };
 
     //------
 
@@ -2554,6 +2628,11 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
     };
      */
     //======
+
+    let key_gen_first_message_str = match serde_json::to_string(&key_gen_first_message){
+	Ok(v) => v,
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    };
 
     let len = key_gen_first_message_str.len();
     let mut plain_str_sized=format!("{}", len);

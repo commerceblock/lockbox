@@ -33,6 +33,10 @@ enclave {
 
 	public uint32_t test_sc_encrypt_unencrypt();
 
+	public uint32_t test_encrypt_to_out([out, size=64] uint8_t* encrypt_out);
+
+	public uint32_t test_in_to_decrypt([in, size=data_len] uint8_t* data_in, size_t data_len);
+
         public uint32_t session_request(sgx_enclave_id_t src_enclave_id,
 	[out, size=1500] uint8_t* dh_msg1);
 	//, [out] size_t* session_ptr);

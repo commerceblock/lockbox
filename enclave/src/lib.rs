@@ -100,8 +100,6 @@ const SECURITY_BITS: usize = 256;
 
 static CALLBACK_FN: AtomicPtr<()> = AtomicPtr::new(0 as * mut ());
 
-
-
 //Using lazy_static in order to be able to use a heap-allocated
 //static variable requiring runtime executed code
 lazy_static!{
@@ -114,6 +112,10 @@ lazy_static!{
 big_array! {
     BigArray;
     +42,
+}
+
+fn test_vec() -> Vec<u8>{
+    vec![2,44,55,66,23,45,67,3,22,144,67]
 }
 
 //Local attestation
@@ -702,7 +704,7 @@ impl EncryptedData {
 	Ok(enc_data)
     }
     
-    pub fn unseal(&self, encrypt_key: &mut sgx_align_key_128bit_t) -> SgxResult<UnencryptedData> {
+    pub fn unencrypt(&self, encrypt_key: &mut sgx_align_key_128bit_t) -> SgxResult<UnencryptedData> {
 	//
         // code that calls sgx_unseal_data commonly does some sanity checks
         // related to plain_text_offset.  We add fence here since we don't
@@ -2469,6 +2471,38 @@ pub extern "C" fn first_message_transfer(sealed_log_in: * mut u8, sealed_log_out
     first_message_common(&mut secret_share, sealed_log_out, key_gen_first_msg)
 }
 
+#[no_mangle]
+pub extern "C" fn test_sc_encrypt_unencrypt() -> sgx_status_t {
+
+    let test_vec = test_vec();
+    match ECKEY.lock() {
+	Ok(mut k) => {
+	    match EncryptedData::try_from(&[0;0], &test_vec.as_slice(), &[0;0], &mut k){
+		Ok(ed) => {
+		    match (*test_vec.as_slice() == *(ed.payload_data.encrypt)) {
+			false => (),
+			true => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+		    };
+		    let ud = match ed.unencrypt(&mut k) {
+			Ok(ud) => ud,
+			Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+		    };
+		    match (*test_vec.as_slice() == *(ud.decrypt)) {
+			true => sgx_status_t::SGX_SUCCESS,
+			false => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+			
+		    }
+		}
+		,
+		Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	    }
+	},
+	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    }
+
+}
+
+
 fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
                                 key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
 
@@ -2480,8 +2514,8 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-
     //------
+    /*
     let first_message_sealed = FirstMessageSealed { comm_witness, ec_key_pair };
     
     let sealable = match SgxSealable::try_from(first_message_sealed.clone()){
@@ -2498,7 +2532,9 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
     if opt.is_none() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
+
     //-----
+    
     let encrypted_data = match serde_cbor::to_vec(&first_message_sealed){
 	Ok(v) => {
 	    match ECKEY.lock() {
@@ -2516,8 +2552,7 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
 	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 	}
     };
-
-
+     */
     //======
 
     let len = key_gen_first_message_str.len();

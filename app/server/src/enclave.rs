@@ -1192,6 +1192,20 @@ impl Enclave {
        	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
     	}
     }
+
+    pub fn test_sc_encrypt_unencrypt(&self) -> Result<()> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let result = unsafe {
+            test_sc_encrypt_unencrypt(self.geteid(),
+				      &mut retval)
+    	};
+
+	match result {
+            sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+    	}
+    }
     
     pub fn say_something(&self, input_string: String) -> Result<String> {
      	let mut retval = sgx_status_t::SGX_SUCCESS;
@@ -1735,6 +1749,9 @@ impl Enclave {
 }
 
 extern {
+    fn test_sc_encrypt_unencrypt(eid: sgx_enclave_id_t, retval: *mut sgx_status_t)
+			   -> sgx_status_t;
+    
     fn test_create_session(eid: sgx_enclave_id_t, retval: *mut sgx_status_t)
 			   -> sgx_status_t;
 
@@ -2167,7 +2184,13 @@ mod tests {
 	let enc = Enclave::new().unwrap();
 	enc.test_create_session().unwrap();
     }
-*/
+     */
+
+    #[test]
+    fn test_sc_encrypt_unencrypt() {
+	let enc = Enclave::new().unwrap();
+	enc.test_sc_encrypt_unencrypt().unwrap();
+    }
 }
 
 

@@ -31,6 +31,8 @@ enclave {
 
 	public void test_enclave_init();		
 
+	public uint32_t test_sc_encrypt_unencrypt();
+
         public uint32_t session_request(sgx_enclave_id_t src_enclave_id,
 	[out, size=1500] uint8_t* dh_msg1);
 	//, [out] size_t* session_ptr);

@@ -207,6 +207,7 @@ impl Attestation for Lockbox{
 	    Ok(Some(x)) => match x.try_into() {
 		Ok(x) => {
 		    self.enclave_mut().set_ec_key(Some(x));
+		    self.enclave_mut().set_ec_key_enclave(x);
 		    Ok(*self.enclave().get_ec_key())
 		},
 		Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),

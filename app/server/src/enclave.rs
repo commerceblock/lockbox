@@ -1332,8 +1332,8 @@ impl Enclave {
 	}
     }
 
-    pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<[u8; 592]> {
-	let mut sealed_log = [0; 592];
+    pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<ec_key_sealed> {
+	let mut sealed_log = [0; EC_KEY_SEALED_SIZE];
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
 	let dh_msg3_str = serde_json::to_string(dh_msg3).unwrap();
@@ -1387,6 +1387,19 @@ impl Enclave {
 	
 	let _result = unsafe {
 	    verify_sealed_bytes32(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
+    pub fn set_ec_key_enclave(&self, sealed_log: ec_key_sealed) -> Result<()> {
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	
+	let _result = unsafe {
+	    set_ec_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
 	};
 	
 	match enclave_ret {
@@ -1739,6 +1752,9 @@ extern {
             sealed_log: * mut u8, sealed_log_size: u32 );
 
     fn verify_sealed_bytes32(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+			     sealed_log: * mut u8, sealed_log_size: u32);
+
+    fn set_ec_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 			     sealed_log: * mut u8, sealed_log_size: u32);
 
     fn create_sealed_random_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,

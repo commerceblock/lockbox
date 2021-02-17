@@ -64,7 +64,7 @@ impl Lockbox
 
 	//Get the sealed enclave key from the database and store it in the enclave struct
 	lb.get_enclave_key(&db_key).unwrap();
-
+	
 	Ok(lb)
     }
 

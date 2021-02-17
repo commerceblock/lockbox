@@ -2515,7 +2515,7 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
     };
 
     //------
-    /*
+
     let first_message_sealed = FirstMessageSealed { comm_witness, ec_key_pair };
     
     let sealable = match SgxSealable::try_from(first_message_sealed.clone()){
@@ -2534,7 +2534,7 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: * mut u8,
     }
 
     //-----
-    
+/*    
     let encrypted_data = match serde_cbor::to_vec(&first_message_sealed){
 	Ok(v) => {
 	    match ECKEY.lock() {

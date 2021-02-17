@@ -47,6 +47,9 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 pub const EC_KEY_SEALED_SIZE: usize = 592;
 pub type ec_key_sealed = [u8; EC_KEY_SEALED_SIZE];
 
+pub const EC_LOG_SIZE: usize = 8192;
+pub type ec_log = [u8; EC_LOG_SIZE];
+
 pub struct Enclave {
     inner: SgxEnclave,
     ec_key: Option<ec_key_sealed>
@@ -1211,7 +1214,7 @@ impl Enclave {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut data_out = [0; 64];
 
-	
+	println!("encrypt to out...");
 	let result = unsafe {
             test_encrypt_to_out(self.geteid(),
 				&mut retval,
@@ -1220,9 +1223,11 @@ impl Enclave {
 
 	match result {
             sgx_status_t::SGX_SUCCESS => (),
-       	    _ => return Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+       	    _ => return Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - test_encrypt_to_out {}!", result.as_str())).into())
     	};
 
+	
+	println!("test in to decrypt...");
 	let result = unsafe {
             test_in_to_decrypt(self.geteid(),
 				&mut retval,
@@ -1232,7 +1237,7 @@ impl Enclave {
 
 	match result {
             sgx_status_t::SGX_SUCCESS => Ok(()),
-       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - test_in_to_decrypt{}!", result.as_str())).into())
     	}
 
 	
@@ -1467,11 +1472,38 @@ impl Enclave {
 	}
     }
 
+    pub fn get_random_ec_fe_log(&self) -> Result<[u8; 8192]> {
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	let mut ec_log = [0u8; 8192];
+	
+	let _result = unsafe {
+	    create_ec_random_fe(self.geteid(), &mut enclave_ret, ec_log.as_mut_ptr() as * mut u8);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(ec_log),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
     pub fn verify_sealed_fe_log(&self, sealed_log: [u8; 8192]) -> Result<()> {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
 	    verify_sealed_fe(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
+    pub fn verify_ec_fe_log(&self, ec_log: ec_log) -> Result<()> {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	
+	let _result = unsafe {
+	    verify_ec_fe(self.geteid(), &mut enclave_ret, ec_log.as_ptr() as * mut u8);
 	};
 	
 	match enclave_ret {
@@ -1817,7 +1849,13 @@ extern {
             sealed_log: * mut u8, sealed_log_size: u32 );
 
     fn verify_sealed_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-				sealed_log: * mut u8, sealed_log_size: u32);
+			sealed_log: * mut u8, sealed_log_size: u32);
+
+    fn create_ec_random_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+            ec_log: * mut u8);
+
+    fn verify_ec_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+				ec_log: * mut u8);
 
     fn calc_sha256(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		   input_str: * const u8, len: u32, hash: * mut u8) -> sgx_status_t;
@@ -1958,6 +1996,21 @@ mod tests {
        let enc = Enclave::new().unwrap();
        let rsd = enc.get_random_sealed_fe_log().unwrap();
        enc.verify_sealed_fe_log(rsd).unwrap();
+       enc.destroy();
+    }
+
+    #[test]
+    fn test_get_random_ec_fe_log() {
+       let enc = Enclave::new().unwrap();
+       let _rsd = enc.get_random_ec_fe_log().unwrap();
+       enc.destroy();
+    }
+
+    #[test]
+    fn test_verify_ec_fe_log() {
+       let enc = Enclave::new().unwrap();
+       let rsd = enc.get_random_ec_fe_log().unwrap();
+       enc.verify_ec_fe_log(rsd).unwrap();
        enc.destroy();
     }
 

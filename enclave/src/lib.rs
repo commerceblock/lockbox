@@ -98,6 +98,9 @@ extern crate serde_cbor;
 
 const SECURITY_BITS: usize = 256;
 
+pub const EC_LOG_SIZE: usize = 8192;
+pub type ec_log = [u8; EC_LOG_SIZE];
+
 static CALLBACK_FN: AtomicPtr<()> = AtomicPtr::new(0 as * mut ());
 
 //Using lazy_static in order to be able to use a heap-allocated
@@ -115,7 +118,7 @@ big_array! {
 }
 
 fn test_vec() -> Vec<u8>{
-    vec![2,44,55,66,23,45,67,3,22,144,67]
+    vec![123, 34, 105, 110, 110, 101, 114, 34, 58, 34, 57, 50, 53, 48, 98, 52, 48, 98, 57, 55, 53, 49, 97, 57, 50, 50, 51, 57, 56, 50, 50, 56, 50, 52, 98, 49, 52, 56, 97, 55, 54, 54, 52, 48, 102, 100, 100, 56, 98, 49, 50, 53, 51, 97, 97, 102, 100, 50, 99, 100, 50, 101, 56, 49, 53, 50, 53, 49, 98, 99, 98, 51, 102, 49, 34, 125]
 }
 
 //Local attestation
@@ -680,7 +683,14 @@ impl EncryptedData {
 
 	let mut enc_data = Self::new();
 	enc_data.payload_data.encrypt = vec![0_u8; encrypt_text.len()].into_boxed_slice();
-	
+	println!("try_from... - rsgx_rijndae");
+	println!("encrypt_key.key: {:?}", encrypt_key.key);
+	println!("encrypt_text: {:?}", encrypt_text);
+	println!("payload_iv: {:?}", payload_iv);
+	println!("additional_text: {:?}", additional_text);
+	println!("enc_data.payload_data.encrypt: {:?}", enc_data.payload_data.encrypt);
+	println!("enc_data.payload_data.payload_tag: {:?}", enc_data.payload_data.payload_tag);
+
 	let error = rsgx_rijndael128GCM_encrypt(
             &encrypt_key.key,
             encrypt_text,
@@ -691,6 +701,7 @@ impl EncryptedData {
 	);
 	if error.is_err() {
             encrypt_key.key = sgx_key_128bit_t::default();
+	    println!("encrypt error: - {}", error.unwrap_err());
             return Err(error.unwrap_err());
 	}
 	
@@ -726,6 +737,7 @@ impl EncryptedData {
             &mut unsealed_data.decrypt,
         );
         if error.is_err() {
+	    println!("unencrypt error: {}", error.unwrap_err());
             encrypt_key.key = sgx_key_128bit_t::default();
             return Err(error.unwrap_err());
         }
@@ -2225,6 +2237,89 @@ pub extern "C" fn verify_sealed_fe(sealed_log: * mut u8, sealed_log_size: u32) -
 
 }
 
+#[no_mangle]
+pub extern "C" fn create_ec_random_fe(ec_log: &mut [u8; EC_LOG_SIZE]) -> sgx_status_t {
+
+    let secret_share: FE = ECScalar::new_random();
+    let fes = FESealed { inner: secret_share };
+
+    println!("FESealed to str");
+    let fes_str = match serde_json::to_string(&fes){
+	Ok(r) => r,
+	Err(e) => {
+	    println!("{}", e);
+	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	},
+    };
+    let mut fes_bytes = &fes_str.as_bytes();
+    println!("encrypting: {:?}...", fes_bytes);
+    match encrypt(fes_bytes){
+	Ok(ed) => {
+	    println!("encrypted to string");
+	    let ser_str = match serde_json::to_string(&ed){
+		Ok(v) => v,
+		Err(e) => {
+		    println!("{}", e);
+		    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		},
+	    };
+	    let len = ser_str.len();
+	    let mut ser_str_sized=format!("{}", len);
+	    ser_str_sized=format!("{}{}", ser_str_sized.len(), ser_str_sized);
+	    ser_str_sized.push_str(&ser_str);
+
+	    let mut ser_bytes = ser_str_sized.into_bytes();
+	    ser_bytes.resize(EC_LOG_SIZE,0);
+
+	    println!("bytes to log");
+            *ec_log = match ser_bytes.as_slice().try_into() {
+		Ok(x) => x,
+		Err(e) => {
+		    println!("{}", e);
+		    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		},
+	    };
+	    sgx_status_t::SGX_SUCCESS
+	},
+	Err(e) => {
+	    println!("error encrypting - {}", e);
+	    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	},
+    }
+}
+
+
+#[no_mangle]
+pub extern "C" fn verify_ec_fe(ec_log_in: * const u8) -> sgx_status_t {
+
+    let str_slice = unsafe { slice::from_raw_parts(ec_log_in, EC_LOG_SIZE)};
+
+    let c = str_slice[0].clone();
+    let c = &[c];
+    if let Ok(nc_str) = std::str::from_utf8(c) {
+	if let Ok(nc) = nc_str.parse::<usize>() {
+	    if let Ok(size_str) = std::str::from_utf8(&str_slice[1..(nc+1)]) {
+		if let Ok(size) = size_str.parse::<usize>(){
+		    if let Ok(ed_str) = std::str::from_utf8(&str_slice[(nc+1)..(size+nc+1)]){
+			if let Ok(ed) =serde_json::from_str::<EncryptedData>(&ed_str){
+			    if let Ok(ud) = unencrypt(&ed) {
+				if let Ok(fe_str) = std::str::from_utf8(&ud.decrypt) {
+				    if let Ok(fe) = serde_json::from_str::<FESealed>(&fe_str){
+					return sgx_status_t::SGX_SUCCESS
+				    }
+				}
+			    }
+			}
+		    }
+		}
+	    }
+	}
+    }
+
+    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+}
+
+
 /// A Ecall function takes a string and output its SHA256 digest.
 ///
 /// # Parameters
@@ -2496,12 +2591,17 @@ pub extern "C" fn test_sc_encrypt_unencrypt() -> sgx_status_t {
     }
 }
 
-fn encrypt(encrypt: &Vec<u8>) -> SgxResult<EncryptedData> {
+fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
+    println!("encrypting: {:?}...", encrypt);
     match ECKEY.lock() {
 	Ok(mut k) => {
-	    EncryptedData::try_from(&[0;0], &encrypt.as_slice(), &[0;0], &mut k)
+	    println!("got key lock...");
+	    EncryptedData::try_from(&[], encrypt, &[0;12], &mut k)
 	},
-	Err(_) => Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	Err(e) => {
+	    println!("ECKEY error: {}", e);
+	    Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	}
     }
 }
 
@@ -2554,8 +2654,7 @@ pub extern "C" fn test_in_to_decrypt(data_in: *const u8, data_len: usize) -> sgx
     let encrypted_data_str = match std::str::from_utf8(&str_slice) {
 	Ok(r) => r,
 	Err(e) => {
-	    let _ = io::stdout().write(format!("error: {:?}", e).as_str().as_bytes());
-	    println!("error: {:?}", e);
+	    let _ = io::stdout().write(format!("encrypted data str error: {:?}", e).as_str().as_bytes());
 	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 	}
     };
@@ -2563,8 +2662,7 @@ pub extern "C" fn test_in_to_decrypt(data_in: *const u8, data_len: usize) -> sgx
     let encrypted_data: EncryptedData = match serde_json::from_str(&encrypted_data_str){
         Ok(r) => r,
         Err(e) => {
-	    let _ = io::stdout().write(format!("error: {:?}", e).as_str().as_bytes());
-	    println!("error: {:?}", e);
+	    let _ = io::stdout().write(format!("encrypted data error: {:?}", e).as_str().as_bytes());
 	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 	}
     };
@@ -2577,7 +2675,10 @@ pub extern "C" fn test_in_to_decrypt(data_in: *const u8, data_len: usize) -> sgx
 		
 	    }
 	},
-	Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	Err(e) => {
+	    println!("unencrypt error: {:?}", e);
+	    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	}
     }
 }
 

@@ -2070,8 +2070,8 @@ mod tests {
     #[test]
     fn test_first_message() {
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
-	enc.verify_sealed_fe_log(rsd1).unwrap();
+	let mut rsd1 = enc.get_random_ec_fe_log().unwrap();
+	enc.verify_ec_fe_log(rsd1).unwrap();
 	let (_kg1m, _sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
     }
 

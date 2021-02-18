@@ -190,7 +190,8 @@ mod tests {
         assert_eq!(response.status(), Status::Ok);
     }
 
-	
+
+    #[ignore]
     #[test]
     #[serial]
     fn test_first_message() {
@@ -203,6 +204,7 @@ mod tests {
 	assert_eq!(server.first_message(msg).unwrap().0, expected);
     }
 
+    #[ignore]
     #[test]
     #[serial]
     fn test_second_message() {
@@ -260,7 +262,8 @@ mod tests {
     }
 
     use crate::protocol::requests::{post_lb, get_lb};
-    
+
+    #[ignore]
     #[test]
     #[serial]
     fn test_attestation() {

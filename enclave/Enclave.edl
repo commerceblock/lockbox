@@ -38,7 +38,7 @@ enclave {
 	public uint32_t test_in_to_decrypt([in, size=data_len] uint8_t* data_in, size_t data_len);
 
         public uint32_t session_request(sgx_enclave_id_t src_enclave_id,
-	[out, size=1500] uint8_t* dh_msg1);
+	[out, size=1600] uint8_t* dh_msg1);
 	//, [out] size_t* session_ptr);
 
         public uint32_t proc_msg1([in, size=msg1_len] const uint8_t* msg1_str, size_t msg1_len,		
@@ -46,13 +46,13 @@ enclave {
 
 	public uint32_t exchange_report(sgx_enclave_id_t src_enclave_id,
 	       [in, size=msg2_len] const uint8_t* msg2_str, size_t msg2_len,	 
-	       [out, size=1500] uint8_t *dh_msg3);
+	       [out, size=1600] uint8_t *dh_msg3);
 	       //,
 	       //	       [user_check]size_t* session_ptr
 	       //	       );
 
         public uint32_t proc_msg3([in, size=msg3_len] const uint8_t* msg3_str, size_t msg3_len,
-	       [out, size=592] uint8_t* sealed_log);
+	       [out, size=650] uint8_t* sealed_log);
 
 	public uint32_t test_create_session();
 
@@ -115,13 +115,13 @@ enclave {
 					  [in, size=len] const uint8_t* msg2_str, size_t len,
 					  [out, size=480000] uint8_t* plain_out);
 
-	public sgx_status_t sign_first([in, size=32300] uint8_t* sealed_log_in,
-		       	  [out, size=32300] uint8_t* sealed_log_out,
+	public sgx_status_t sign_first([in, size=32400] uint8_t* sealed_log_in,
+		       	  [out, size=32400] uint8_t* sealed_log_out,
 			  [in, size=len] const uint8_t* sign_msg1,
 			  size_t len,
 			  [out, size=480000] uint8_t* plain_out);
 
-	public sgx_status_t sign_second([in, size=8192] uint8_t* sealed_log_in,
+	public sgx_status_t sign_second([in, size=32400] uint8_t* sealed_log_in,
 		       	  [out, size=8192] uint8_t* sealed_log_out,
 			  [in, size=len] const uint8_t* sign_msg2,
 			  size_t len,	     

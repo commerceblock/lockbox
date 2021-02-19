@@ -346,6 +346,7 @@ mod tests {
             eph_key_gen_first_message_party_two,
         };
 
+
         let path: &str = "ecdsa/sign/first";
         let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
             post_lb(&lockbox, path, &sign_msg1).unwrap();
@@ -370,7 +371,7 @@ mod tests {
 
         let path: &str = "ecdsa/sign/second";
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
-/*
+
         assert_eq!(der_signature.len(),2);
         assert_eq!(der_signature[1].len(),33);
 
@@ -385,7 +386,7 @@ mod tests {
         let ver = verify(&r,&s,&pk_vec,&msg);
 
         assert!(ver);
-*/
+
     }
 
     #[test]

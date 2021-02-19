@@ -44,7 +44,7 @@ static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 //Shared encryption key for enclaves
-pub const EC_KEY_SEALED_SIZE: usize = 592;
+pub const EC_KEY_SEALED_SIZE: usize = 650;
 pub type ec_key_sealed = [u8; EC_KEY_SEALED_SIZE];
 
 pub const EC_LOG_SIZE: usize = 8192;
@@ -1264,7 +1264,7 @@ impl Enclave {
 
     pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-	let mut dh_msg1 = [0u8;1500];
+	let mut dh_msg1 = [0u8;1600];
 
 //	let mut session_ptr: usize = 0;
 	let src_enclave_id = id_msg.inner;
@@ -1319,7 +1319,7 @@ impl Enclave {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
 
-	let mut dh_msg3_arr = [0u8;1500];
+	let mut dh_msg3_arr = [0u8;1600];
 //	let mut session_ptr: usize = ep_msg.session_ptr;
 	let src_enclave_id = ep_msg.src_enclave_id;
 	let dh_msg2_str = serde_json::to_string(&ep_msg.dh_msg2).unwrap();
@@ -1383,11 +1383,13 @@ impl Enclave {
     }
 
     pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<ec_key_sealed> {
-	let mut sealed_log = [0; EC_KEY_SEALED_SIZE];
+	let mut sealed_log = [0u8; EC_KEY_SEALED_SIZE];
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
 	let dh_msg3_str = serde_json::to_string(dh_msg3).unwrap();
 
+	println!("enclave.rs: proc_msg3 - calling enclave");
+	
      	let result = unsafe {
             proc_msg3(self.geteid(),
 		      &mut retval,
@@ -1396,6 +1398,8 @@ impl Enclave {
 		      sealed_log.as_ptr() as * mut u8)
     	};
 
+	println!("enclave.rs: proc_msg3 - called enclave");
+	
 	match retval {
 	    sgx_status_t::SGX_SUCCESS  => Ok(sealed_log),
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),

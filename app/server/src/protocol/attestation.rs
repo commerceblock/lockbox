@@ -12,7 +12,7 @@ use shared_lib::structs::ExchangeReportMsg;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
-use crate::enclave::ec_key_sealed;
+use enclave::ec_key_sealed;
 
 use bitcoin::Transaction;
 use rocket::State;
@@ -173,17 +173,19 @@ impl Attestation for Lockbox{
     }
 
     fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<()> {
-	match self.enclave_mut().proc_msg3(dh_msg3) {
+	let (db_key, sealed_log) = match self.enclave_mut().proc_msg3(dh_msg3) {
 	    Ok(sealed_log) => {
 
 		let key_id = dh_msg3.inner.msg3_body.report.key_id.id;
 		let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
 		let db_key = Key::from_uuid(&key_uuid.build());
-		self.put_enclave_key(&db_key, sealed_log)?;
-		Ok(())
+
+		(db_key, sealed_log)
 	    },
-	    Err(e) => Err(LockboxError::Generic(format!("proc_msg3: {}",e))),
-	}
+	    Err(e) => return Err(LockboxError::Generic(format!("proc_msg3: {}",e))),
+	};
+
+	self.put_enclave_key(&db_key, sealed_log)
     }
 
     fn put_enclave_key(&self, db_key: &Key, sealed_log: ec_key_sealed) -> Result<()> {

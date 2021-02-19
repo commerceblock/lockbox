@@ -3,7 +3,7 @@ pub use super::super::Result;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
-use crate::enclave::Enclave;
+use crate::enclave::{Enclave, ec_key_sealed};
 use shared_lib::{
     structs::{KeyGenMsg1, KeyGenMsg2, SignMsg1, SignMsg2, Protocol,
     KUSendMsg, KUReceiveMsg, KUFinalize, KUAttest},
@@ -21,6 +21,9 @@ use std::convert::TryInto;
 
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
+
+    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(ec_key_sealed, Key)>;
+    
     fn get_sealed_secrets(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8;8192], Key)>;
 
     fn get_sealed_secrets_lg(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8;32400], Key)>;
@@ -39,6 +42,20 @@ pub trait Ecdsa {
 }
 
 impl Ecdsa for Lockbox {
+    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(ec_key_sealed, Key)>{
+
+        let user_db_key = Key::from_uuid(user_id);
+
+        match self.database.get_cf(cf, &user_db_key) {
+            Ok(Some(x)) => match x.try_into(){
+		Ok(x) => Ok((x,user_db_key.clone())),
+		Err(e) => return Err(LockboxError::Generic(format!("sealed secrets format error: {:?}", e))),
+	    },
+            Ok(None) => return Err(LockboxError::Generic(format!("sealed_secrets for DB key {} is None", user_id))),
+            Err(e) => return Err(e.into())
+	}
+    }
+    
     fn get_sealed_secrets(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8; 8192], Key)>{
 
         let user_db_key = Key::from_uuid(user_id);

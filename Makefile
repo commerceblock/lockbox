@@ -69,6 +69,7 @@ Enclave_EDL_Files := enclave/Enclave_t.c enclave/Enclave_t.h app/Enclave_u.c app
 
 ######## APP Settings ########
 
+App_Test_Flags ?= -- --nocapture
 App_Rust_Flags := --release
 App_SRC_Files := $(shell find app/ -type f -name '*.rs') $(shell find app/ -type f -name 'Cargo.toml')
 App_Include_Paths := -I ./app -I./include -I$(SGX_SDK)/include -I./attestation -I$(CUSTOM_EDL_PATH)
@@ -160,4 +161,4 @@ clean:
 
 .PHONY: test
 test:
-	@cd app && SGX_SDK=$(SGX_SDK) cargo test $(App_Rust_Flags) -- --nocapture
+	@cd app && SGX_SDK=$(SGX_SDK) cargo test $(App_Rust_Flags) $(App_Test_Flags)

@@ -101,6 +101,9 @@ const SECURITY_BITS: usize = 256;
 pub const EC_LOG_SIZE: usize = 8192;
 pub type ec_log = [u8; EC_LOG_SIZE];
 
+pub const EC_LOG_SIZE_LG: usize = 32400;
+pub type ec_log_lg = [u8; EC_LOG_SIZE_LG];
+
 static CALLBACK_FN: AtomicPtr<()> = AtomicPtr::new(0 as * mut ());
 
 //Using lazy_static in order to be able to use a heap-allocated
@@ -688,8 +691,8 @@ impl EncryptedData {
 	println!("encrypt_text: {:?}", encrypt_text);
 	println!("payload_iv: {:?}", payload_iv);
 	println!("additional_text: {:?}", additional_text);
-	println!("enc_data.payload_data.encrypt: {:?}", enc_data.payload_data.encrypt);
-	println!("enc_data.payload_data.payload_tag: {:?}", enc_data.payload_data.payload_tag);
+	println!("enc_data.payload_data.encrypt:");
+	println!("enc_data.payload_data.payload_tag:");
 
 	let error = rsgx_rijndael128GCM_encrypt(
             &encrypt_key.key,
@@ -2275,7 +2278,7 @@ pub extern "C" fn create_ec_random_fe(ec_log: &mut [u8; EC_LOG_SIZE]) -> sgx_sta
     }
 }
 
-fn str_to_enc_log(in_str: &str, ec_log: &mut [u8; EC_LOG_SIZE]) -> SgxResult<()> {
+fn str_to_enc_log(in_str: &str, ec_log: &mut ec_log) -> SgxResult<()> {
     let len = in_str.len();
     let mut in_str_sized=format!("{}", len);
     in_str_sized=format!("{}{}", in_str_sized.len(), in_str_sized);
@@ -2292,6 +2295,29 @@ fn str_to_enc_log(in_str: &str, ec_log: &mut [u8; EC_LOG_SIZE]) -> SgxResult<()>
 	    return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
 	},
     };
+    println!("bytes to ok");
+    Ok(())
+}
+
+
+fn str_to_enc_log_lg(in_str: &str, ec_log: &mut ec_log_lg) -> SgxResult<()> {
+    let len = in_str.len();
+    let mut in_str_sized=format!("{}", len);
+    in_str_sized=format!("{}{}", in_str_sized.len(), in_str_sized);
+    in_str_sized.push_str(&in_str);
+    
+    let mut ser_bytes = in_str_sized.into_bytes();
+    ser_bytes.resize(EC_LOG_SIZE_LG,0);
+    
+    println!("bytes to log");
+    *ec_log = match ser_bytes.as_slice().try_into() {
+	Ok(x) => x,
+	Err(e) => {
+	    println!("{}", e);
+	    return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	},
+    };
+    println!("bytes to ok");
     Ok(())
 }
 
@@ -2549,15 +2575,59 @@ fn raw_encrypted_to_decrypted(raw_enc: * mut u8) -> SgxResult<UnencryptedData> {
 
     let str_slice = unsafe { slice::from_raw_parts(raw_enc, EC_LOG_SIZE)};
 
+    println!("raw_encrypted_to_decrypted: str slice  {:?}", str_slice);
+    
     let c = str_slice[0].clone();
     let c = &[c];
     if let Ok(nc_str) = std::str::from_utf8(c) {
+	println!("raw_encrypted_to_decrypted: nc_str: {}", nc_str);
 	if let Ok(nc) = nc_str.parse::<usize>() {
+	    println!("raw_encrypted_to_decrypted: nc: {}", nc);
 	    if let Ok(size_str) = std::str::from_utf8(&str_slice[1..(nc+1)]) {
+		println!("raw_encrypted_to_decrypted: size_str: {}", size_str);
 		if let Ok(size) = size_str.parse::<usize>(){
+		    println!("raw_encrypted_to_decrypted: size: {}", size);
 		    if let Ok(ed_str) = std::str::from_utf8(&str_slice[(nc+1)..(size+nc+1)]){
+			println!("raw_encrypted_to_decrypted: ed_str");
 			if let Ok(ed) =serde_json::from_str::<EncryptedData>(&ed_str){
+			    println!("raw_encrypted_to_decrypted: ed");
 			    if let Ok(ud) = unencrypt(&ed) {
+				println!("raw_encrypted_to_decrypted: ud");
+				return Ok(ud)
+			    }
+			}
+		    }
+		}
+	    }
+	}
+    }
+
+    Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+    
+}
+
+fn raw_encrypted_to_decrypted_lg(raw_enc: * mut u8) -> SgxResult<UnencryptedData> {
+
+    let str_slice = unsafe { slice::from_raw_parts(raw_enc, EC_LOG_SIZE_LG)};
+
+    println!("raw_encrypted_to_decrypted: str slice {:?}", str_slice);
+    
+    let c = str_slice[0].clone();
+    let c = &[c];
+    if let Ok(nc_str) = std::str::from_utf8(c) {
+	println!("raw_encrypted_to_decrypted: nc_str: {}", nc_str);
+	if let Ok(nc) = nc_str.parse::<usize>() {
+	    println!("raw_encrypted_to_decrypted: nc: {}", nc);
+	    if let Ok(size_str) = std::str::from_utf8(&str_slice[1..(nc+1)]) {
+		println!("raw_encrypted_to_decrypted: size_str: {}", size_str);
+		if let Ok(size) = size_str.parse::<usize>(){
+		    println!("raw_encrypted_to_decrypted: size: {}", size);
+		    if let Ok(ed_str) = std::str::from_utf8(&str_slice[(nc+1)..(size+nc+1)]){
+			println!("raw_encrypted_to_decrypted: ed_str");
+			if let Ok(ed) =serde_json::from_str::<EncryptedData>(&ed_str){
+			    println!("raw_encrypted_to_decrypted: ed");
+			    if let Ok(ud) = unencrypt(&ed) {
+				println!("raw_encrypted_to_decrypted: ud");
 				return Ok(ud)
 			    }
 			}
@@ -2575,7 +2645,7 @@ fn raw_encrypted_to_decrypted(raw_enc: * mut u8) -> SgxResult<UnencryptedData> {
 pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: &mut [u8; EC_LOG_SIZE],
 				key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
 
-
+    println!("in enc: first message");
     if let Ok(ud) = raw_encrypted_to_decrypted(sealed_log_in) {
 	if let Ok(fe_str) = std::str::from_utf8(&ud.decrypt) {
 	    if let Ok(data) = serde_json::from_str::<FESealed>(&fe_str){
@@ -2821,12 +2891,13 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: &mut [u8; EC_LOG
 }
 
 #[no_mangle]
-pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: &mut ec_log_lg,
 				 msg2_str: *const u8, len: usize,
 				 kg_party_one_second_message: &mut [u8;480000] 
 ) -> sgx_status_t {
 
-
+    println!("in enc: second message");
+    println!("deser key gen msg 2");
     let str_slice = unsafe { slice::from_raw_parts(msg2_str, len) };
     
     let key_gen_msg2: KeyGenMsg2 = match std::str::from_utf8(&str_slice) {
@@ -2841,11 +2912,14 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
     
     let party2_public: GE = key_gen_msg2.dlog_proof.pk.clone();
         
-    
+    println!("raw enc to dec");
     if let Ok(ud) = raw_encrypted_to_decrypted(sealed_log_in) {
+	println!("from_utf8");
 	if let Ok(msg_str) = std::str::from_utf8(&ud.decrypt) {
+	    println!("from_str");
 	    if let Ok(data) = serde_json::from_str::<FirstMessageSealed>(&msg_str){
 
+		println!("deserialised FirstMessageSealed...");
 		let comm_witness = data.comm_witness;
 		let comm_witness_public_share = comm_witness.public_share.clone();
 		let ec_key_pair = &data.ec_key_pair;
@@ -2926,21 +3000,44 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 		    party2_public,
 		    master_key
 		};
-		
-		let sealable = match SgxSealable::try_from(second_message_sealed){
-		    Ok(x) => x,
-		    Err(ret) => return ret
+
+		println!("SecondMessageSealed to str");
+		let sms_str = match serde_json::to_string(&second_message_sealed){
+		    Ok(r) => r,
+		    Err(e) => {
+			println!("{}", e);
+			return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		    },
 		};
-		
-		let sealed_data = match sealable.to_sealed(){
-		    Ok(x) => x,
-		    Err(ret) => return ret
+		let mut sms_bytes = &sms_str.as_bytes();
+		println!("second message - encrypting: {:?}...", sms_bytes);
+		println!("second message length - {}...", sms_bytes.len());
+		match encrypt(sms_bytes){
+		    Ok(ed) => {
+			println!("encrypted to string");
+			let ser_str = match serde_json::to_string(&ed){
+			    Ok(v) => {
+				v
+			    },
+			    Err(e) => {
+				println!("{}", e);
+				return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+			    },
+			};
+
+			
+			println!("second message - encrypted length: {}", ser_str.len());
+			
+			match str_to_enc_log_lg(&ser_str, sealed_log_out){
+			    Ok(_) => (),
+			    Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+			};
+		    },
+		    Err(e) => {
+			println!("error encrypting - {}", e);
+			return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		    },
 		};
-		
-		let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
-		if opt.is_none() {
-		    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-		}
 		
 		return sgx_status_t::SGX_SUCCESS
 	    }
@@ -2952,10 +3049,11 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 
 
 #[no_mangle]
-pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
+pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: &mut ec_log_lg,
 			     sign_msg1_str: *const u8, len: usize,
 			     sign_party_one_first_message: &mut [u8;480000]) -> sgx_status_t {
 
+    println!("sign first - get str_slice");
     let str_slice = unsafe { slice::from_raw_parts(sign_msg1_str, len) };
 
     let sign_msg1_str = match std::str::from_utf8(&str_slice) {
@@ -2976,8 +3074,6 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 	}
     };
 
-
-
     let base: GE = ECPoint::generator();
     let secret_share: FE = ECScalar::new_random();
     let public_share = &base * &secret_share;
@@ -2992,8 +3088,6 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
         g2: h.clone(),
         h2: c.clone(),
     };
-
-
 
     let d_log_proof = ECDDHProof::prove(&w, &delta);
 
@@ -3014,7 +3108,6 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
             ec_key_pair,
 	);
 
-
     let plain_str = match serde_json::to_string(&sign_party_one_first_msg){
 	Ok(v) => v,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -3033,33 +3126,60 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-    let data = match SecondMessageSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
-        Ok(v) => v,
-	Err(e) => return e
+    println!("sign first - decrypt log in");
+    if let Ok(ud) = raw_encrypted_to_decrypted_lg(sealed_log_in) {
+	println!("sign first - from utf8");
+	if let Ok(sm_str) = std::str::from_utf8(&ud.decrypt) {
+	    println!("sign first - from str");
+	    if let Ok(data) = serde_json::from_str::<SecondMessageSealed>(&sm_str){
+		
+		let sign_first_sealed =  SignFirstSealed {
+		    shared_key: data.master_key,
+		    eph_key_gen_first_message_party_two: sign_msg1.eph_key_gen_first_message_party_two,
+		    eph_ec_key_pair_party1: eph_ec_key_pair_party1,
+		};
+		
+		
+		println!("sign first - SignFirstSealed to str");
+		let sfs_str = match serde_json::to_string(&sign_first_sealed){
+		    Ok(r) => r,
+		    Err(e) => {
+			println!("{}", e);
+			return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		    },
+		};
+		let mut sfs_bytes = &sfs_str.as_bytes();
+		println!("sign first - encrypting: {:?}...", sfs_bytes);
+		match encrypt(sfs_bytes){
+		    Ok(ed) => {
+			println!("encrypted to string");
+			let ser_str = match serde_json::to_string(&ed){
+			    Ok(v) => v,
+			    Err(e) => {
+				println!("{}", e);
+				return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+			    },
+			};
+			println!("sign first - ser str out len: {}", ser_str.len());
+			match str_to_enc_log_lg(&ser_str, sealed_log_out){
+			    Ok(_) => (),
+			    Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+			};
+		    },
+		    Err(e) => {
+			println!("error encrypting - {}", e);
+			return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		    },
+		};
+		
+		return sgx_status_t::SGX_SUCCESS
+		    
+	    }
+	}
     };
 
-    let sign_first_sealed =  SignFirstSealed {
-	shared_key: data.master_key,
-	eph_key_gen_first_message_party_two: sign_msg1.eph_key_gen_first_message_party_two,
-        eph_ec_key_pair_party1: eph_ec_key_pair_party1,
-    };
 
-    let sealable = match SgxSealable::try_from(sign_first_sealed){
-	Ok(x) => x,
-	Err(ret) => return ret
-    };
-
-    let sealed_data = match sealable.to_sealed(){
-	Ok(x) => x,
-        Err(ret) => return ret
-    };
-
-    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log_out, SgxSealedLog::size() as u32);
-    if opt.is_none() {
-        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-    }
-
-    sgx_status_t::SGX_SUCCESS
+    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 }
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
@@ -3087,70 +3207,73 @@ pub extern "C" fn sign_second(sealed_log_in: * mut u8, _sealed_log_out: * mut u8
         Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-    let ssi = match SignFirstSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
-        Ok(v) => v,
-        Err(e) => return e
-    };
-
-    let signature;
-
-    match ssi.shared_key.sign_second_message(
-        &sign_msg2.sign_second_msg_request.party_two_sign_message,
-        &ssi.eph_key_gen_first_message_party_two,
-        &ssi.eph_ec_key_pair_party1,
-        &sign_msg2.sign_second_msg_request.message,
-    ) {
-        Ok(sig) => signature = sig,
-        Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-    };
-
     
-    // Make signature witness
-    let mut r_vec = BigInt::to_vec(&signature.r);
-    if r_vec.len() != 32 {
-        // Check corrcet length of conversion to Signature
-        let mut temp = vec![0; 32 - r_vec.len()];
-        temp.extend(r_vec);
-        r_vec = temp;
+    if let Ok(ud) = raw_encrypted_to_decrypted_lg(sealed_log_in) {
+	if let Ok(ssi_str) = std::str::from_utf8(&ud.decrypt) {
+	    if let Ok(ssi) = serde_json::from_str::<SignFirstSealed>(&ssi_str){
+
+		let signature = match ssi.shared_key.sign_second_message(
+		    &sign_msg2.sign_second_msg_request.party_two_sign_message,
+		    &ssi.eph_key_gen_first_message_party_two,
+		    &ssi.eph_ec_key_pair_party1,
+		    &sign_msg2.sign_second_msg_request.message,
+		) {
+		    Ok(sig) => sig,
+		    Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+		};
+
+		// Make signature witness
+		let mut r_vec = BigInt::to_vec(&signature.r);
+		if r_vec.len() != 32 {
+		    // Check corrcet length of conversion to Signature
+		    let mut temp = vec![0; 32 - r_vec.len()];
+		    temp.extend(r_vec);
+		    r_vec = temp;
+		}
+		
+		let mut s_vec = BigInt::to_vec(&signature.s);
+		if s_vec.len() != 32 {
+		    // Check corrcet length of conversion to Signature
+		    let mut temp = vec![0; 32 - s_vec.len()];
+		    temp.extend(s_vec);
+		    s_vec = temp;
+		}
+		let mut v = r_vec;
+		v.extend(s_vec);
+		let s = Secp256k1::new();
+		let mut sig_vec = match secp256k1::Signature::from_compact(&s, &v[..]){
+		    Ok(x) => x.serialize_der(&s).to_vec(),
+		    Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+		};
+		sig_vec.push(01);
+		let pk_vec = ssi.shared_key.public.q.get_element().serialize().to_vec();
+		let witness = vec![sig_vec, pk_vec];
+		let ws: Vec<Vec<u8>> = witness;
+		
+		let output = SignSecondOut { inner: ws };
+		
+		let plain_str = serde_json::to_string(&output).unwrap();
+		
+		let len = plain_str.len();
+		let mut plain_str_sized=format!("{}", len);
+		plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
+		plain_str_sized.push_str(&plain_str);
+		
+		let mut plain_bytes=plain_str_sized.into_bytes();
+		plain_bytes.resize(480000,0);
+		
+		*plain_out  = match plain_bytes.as_slice().try_into(){
+		    Ok(x) => x,
+		    Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+		};
+		
+		return sgx_status_t::SGX_SUCCESS
+		    
+	    }
+	}
     }
-
-    let mut s_vec = BigInt::to_vec(&signature.s);
-    if s_vec.len() != 32 {
-        // Check corrcet length of conversion to Signature
-        let mut temp = vec![0; 32 - s_vec.len()];
-        temp.extend(s_vec);
-        s_vec = temp;
-    }
-    let mut v = r_vec;
-    v.extend(s_vec);
-    let s = Secp256k1::new();
-    let mut sig_vec = match secp256k1::Signature::from_compact(&s, &v[..]){
-	Ok(x) => x.serialize_der(&s).to_vec(),
-	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-    };
-    sig_vec.push(01);
-    let pk_vec = ssi.shared_key.public.q.get_element().serialize().to_vec();
-    let witness = vec![sig_vec, pk_vec];
-    let ws: Vec<Vec<u8>> = witness;
-
-    let output = SignSecondOut { inner: ws };
-
-    let plain_str = serde_json::to_string(&output).unwrap();
-
-    let len = plain_str.len();
-    let mut plain_str_sized=format!("{}", len);
-    plain_str_sized=format!("{}{}", plain_str_sized.len(), plain_str_sized);
-    plain_str_sized.push_str(&plain_str);
-
-    let mut plain_bytes=plain_str_sized.into_bytes();
-    plain_bytes.resize(480000,0);
     
-    *plain_out  = match plain_bytes.as_slice().try_into(){
-	Ok(x) => x,
-	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-    };
-
-    sgx_status_t::SGX_SUCCESS
+    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 }
 
 #[no_mangle]

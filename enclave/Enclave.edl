@@ -111,12 +111,12 @@ enclave {
 				          [out, size=256] uint8_t* plain_out);
 
         public sgx_status_t second_message([in, size=8192] uint8_t* sealed_log_in,
-		       	    		  [out, size=8192] uint8_t* sealed_log_out,
+		       	    		  [out, size=32400] uint8_t* sealed_log_out,
 					  [in, size=len] const uint8_t* msg2_str, size_t len,
 					  [out, size=480000] uint8_t* plain_out);
 
-	public sgx_status_t sign_first([in, size=8192] uint8_t* sealed_log_in,
-		       	  [out, size=8192] uint8_t* sealed_log_out,
+	public sgx_status_t sign_first([in, size=32300] uint8_t* sealed_log_in,
+		       	  [out, size=32300] uint8_t* sealed_log_out,
 			  [in, size=len] const uint8_t* sign_msg1,
 			  size_t len,
 			  [out, size=480000] uint8_t* plain_out);

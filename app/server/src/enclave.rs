@@ -1655,14 +1655,15 @@ impl Enclave {
     }
 
     pub fn second_message(&self, sealed_log_in: &mut [u8; 8192], key_gen_msg_2: &KeyGenMsg2)
-	-> Result<(party1::KeyGenParty1Message2,  [u8;8192])>{
+	-> Result<(party1::KeyGenParty1Message2,  [u8;32400])>{
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-	let mut sealed_log_out = [0u8; 8192];
+	let mut sealed_log_out = [0u8; 32400];
 	let mut plain_ret = [0u8;480000];
 
 	let key_gen_msg2_sgx = &KeyGenMsg2SgxW::from(key_gen_msg_2).inner;
 	let msg_2_str = serde_json::to_string(key_gen_msg2_sgx).unwrap();
-	
+
+	println!("enclave doing second message");
 	let _result = unsafe{
 	    second_message(self.geteid(), &mut enclave_ret,
 			   sealed_log_in.as_mut_ptr() as *mut u8,
@@ -1671,6 +1672,7 @@ impl Enclave {
 			   msg_2_str.len(),
 			   plain_ret.as_mut_ptr() as *mut u8)
 	};
+	println!("enclave done second message");
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
@@ -1691,10 +1693,10 @@ impl Enclave {
     }
 
     
-    pub fn sign_first(&self, sealed_log_in: &mut [u8; 8192], sign_msg1: &SignMsg1)
-	-> Result<Option<(party_one::EphKeyGenFirstMsg, [u8;8192])>> {
+    pub fn sign_first(&self, sealed_log_in: &mut [u8; 32400], sign_msg1: &SignMsg1)
+	-> Result<Option<(party_one::EphKeyGenFirstMsg, [u8;32400])>> {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-	let mut sealed_log_out = [0u8; 8192];
+	let mut sealed_log_out = [0u8; 32400];
 	let mut plain_ret = [0u8;480000];
 
 	let sign_msg1_sgx = SignMsg1SgxW::from(sign_msg1).inner;
@@ -1728,7 +1730,7 @@ impl Enclave {
 	}	
     }
 
-    pub fn sign_second(&self, sealed_log_in: &mut [u8; 8192], sign_msg2: &SignMsg2)
+    pub fn sign_second(&self, sealed_log_in: &mut [u8; 32400], sign_msg2: &SignMsg2)
 		       -> Result<(Vec<Vec<u8>>, [u8;8192])>
     {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
@@ -2078,9 +2080,10 @@ mod tests {
     #[test]
     fn test_second_message() {
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
-	enc.verify_sealed_fe_log(rsd1).unwrap();
+	let mut rsd1 = enc.get_random_ec_fe_log().unwrap();
+	enc.verify_ec_fe_log(rsd1).unwrap();
 	let (_kg1m, mut sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
+
 
 	let wallet_secret_key: FE = ECScalar::new_random();
 	
@@ -2098,7 +2101,7 @@ mod tests {
 	let kgm_2 : KeyGenMsg2 = serde_json::from_str(&kgm2str).unwrap();
 
 	assert!(kgm2str.len() > 0);
-	
+
 	enc.second_message(&mut sealed_log_out, &kgm_2).unwrap();
     }
 

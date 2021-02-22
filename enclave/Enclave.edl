@@ -84,8 +84,8 @@ enclave {
         public sgx_status_t verify_sealed_fe([in, size=sealed_log_size]
             uint8_t* sealed_log, uint32_t sealed_log_size);
 
-        public sgx_status_t verify_ec_fe([in, size=8192]
-            uint8_t* ec_log);
+        public sgx_status_t verify_ec_fe([in, size=ec_log_size]
+            uint8_t* ec_log, uint32_t ec_log_size);
 
         public sgx_status_t sk_tweak_add_assign([in, size=sealed_log1_size]
             uint8_t* sealed_log1, uint32_t sealed_log1_size,
@@ -111,17 +111,17 @@ enclave {
 				          [out, size=256] uint8_t* plain_out);
 
         public sgx_status_t second_message([in, size=8192] uint8_t* sealed_log_in,
-		       	    		  [out, size=32400] uint8_t* sealed_log_out,
+		       	    		  [out, size=8192] uint8_t* sealed_log_out,
 					  [in, size=len] const uint8_t* msg2_str, size_t len,
 					  [out, size=480000] uint8_t* plain_out);
 
-	public sgx_status_t sign_first([in, size=32400] uint8_t* sealed_log_in,
-		       	  [out, size=32400] uint8_t* sealed_log_out,
+	public sgx_status_t sign_first([in, size=8192] uint8_t* sealed_log_in,
+		       	  [out, size=8192] uint8_t* sealed_log_out,
 			  [in, size=len] const uint8_t* sign_msg1,
 			  size_t len,
 			  [out, size=480000] uint8_t* plain_out);
 
-	public sgx_status_t sign_second([in, size=32400] uint8_t* sealed_log_in,
+	public sgx_status_t sign_second([in, size=8192] uint8_t* sealed_log_in,
 		       	  [out, size=8192] uint8_t* sealed_log_out,
 			  [in, size=len] const uint8_t* sign_msg2,
 			  size_t len,	     

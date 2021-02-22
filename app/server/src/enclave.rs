@@ -1476,14 +1476,14 @@ impl Enclave {
 	}
     }
 
-    pub fn get_random_ec_fe_log(&self) -> Result<[u8; 8192]> {
+    pub fn get_random_ec_fe_log(&self) -> Result<[u8;8192]> {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	let mut ec_log = [0u8; 8192];
 	
 	let _result = unsafe {
 	    create_ec_random_fe(self.geteid(), &mut enclave_ret, ec_log.as_mut_ptr() as * mut u8);
 	};
-	
+
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => Ok(ec_log),
        	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
@@ -1503,11 +1503,11 @@ impl Enclave {
 	}
     }
 
-    pub fn verify_ec_fe_log(&self, ec_log: ec_log) -> Result<()> {
+    pub fn verify_ec_fe_log(&self, ec_log: [u8;8192]) -> Result<()> {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-	
+
 	let _result = unsafe {
-	    verify_ec_fe(self.geteid(), &mut enclave_ret, ec_log.as_ptr() as * mut u8);
+	    verify_ec_fe(self.geteid(), &mut enclave_ret, ec_log.as_ptr() as * mut u8, 8192);
 	};
 	
 	match enclave_ret {
@@ -1659,9 +1659,9 @@ impl Enclave {
     }
 
     pub fn second_message(&self, sealed_log_in: &mut [u8; 8192], key_gen_msg_2: &KeyGenMsg2)
-	-> Result<(party1::KeyGenParty1Message2,  [u8;32400])>{
+	-> Result<(party1::KeyGenParty1Message2,  [u8;8192])>{
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-	let mut sealed_log_out = [0u8; 32400];
+	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
 
 	let key_gen_msg2_sgx = &KeyGenMsg2SgxW::from(key_gen_msg_2).inner;
@@ -1697,10 +1697,10 @@ impl Enclave {
     }
 
     
-    pub fn sign_first(&self, sealed_log_in: &mut [u8; 32400], sign_msg1: &SignMsg1)
-	-> Result<Option<(party_one::EphKeyGenFirstMsg, [u8;32400])>> {
+    pub fn sign_first(&self, sealed_log_in: &mut [u8; 8192], sign_msg1: &SignMsg1)
+	-> Result<Option<(party_one::EphKeyGenFirstMsg, [u8;8192])>> {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-	let mut sealed_log_out = [0u8; 32400];
+	let mut sealed_log_out = [0u8; 8192];
 	let mut plain_ret = [0u8;480000];
 
 	let sign_msg1_sgx = SignMsg1SgxW::from(sign_msg1).inner;
@@ -1734,7 +1734,7 @@ impl Enclave {
 	}	
     }
 
-    pub fn sign_second(&self, sealed_log_in: &mut [u8; 32400], sign_msg2: &SignMsg2)
+    pub fn sign_second(&self, sealed_log_in: &mut [u8; 8192], sign_msg2: &SignMsg2)
 		       -> Result<(Vec<Vec<u8>>, [u8;8192])>
     {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
@@ -1861,7 +1861,7 @@ extern {
             ec_log: * mut u8);
 
     fn verify_ec_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-				ec_log: * mut u8);
+				ec_log: * mut u8, ec_log_size: u32);
 
     fn calc_sha256(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		   input_str: * const u8, len: u32, hash: * mut u8) -> sgx_status_t;
@@ -1955,12 +1955,15 @@ mod tests {
     use super::*;
     use bitcoin::secp256k1::Secp256k1;
 
+
+    #[serial]
     #[test]
     fn test_new() {
        let enc = Enclave::new().unwrap();
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_say_something() {
        let enc = Enclave::new().unwrap();
@@ -1968,6 +1971,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_self_report() {
 	let enc = Enclave::new().unwrap();
@@ -1975,6 +1979,7 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_get_random_sealed_log() {
        let enc = Enclave::new().unwrap();
@@ -1982,6 +1987,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_verify_sealed_log() {
        let enc = Enclave::new().unwrap();
@@ -1990,6 +1996,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_get_random_sealed_fe_log() {
        let enc = Enclave::new().unwrap();
@@ -1997,6 +2004,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_verify_sealed_fe_log() {
        let enc = Enclave::new().unwrap();
@@ -2005,6 +2013,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_get_random_ec_fe_log() {
        let enc = Enclave::new().unwrap();
@@ -2012,6 +2021,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_verify_ec_fe_log() {
        let enc = Enclave::new().unwrap();
@@ -2020,6 +2030,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_calc_sha256() {
 	let enc = Enclave::new().unwrap();
@@ -2029,6 +2040,7 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_sk_tweak_add_assign() {
 	let enc = Enclave::new().unwrap();
@@ -2040,6 +2052,7 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_sk_tweak_mul_assign() {
 	let enc = Enclave::new().unwrap();
@@ -2051,6 +2064,7 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_sign_verify() {
 	let enc = Enclave::new().unwrap();
@@ -2073,6 +2087,7 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_first_message() {
 	let enc = Enclave::new().unwrap();
@@ -2081,11 +2096,13 @@ mod tests {
 	let (_kg1m, _sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
     }
 
+    #[serial]
     #[test]
     fn test_second_message() {
 	let enc = Enclave::new().unwrap();
 	let mut rsd1 = enc.get_random_ec_fe_log().unwrap();
 	enc.verify_ec_fe_log(rsd1).unwrap();
+
 	let (_kg1m, mut sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
 
 
@@ -2109,6 +2126,7 @@ mod tests {
 	enc.second_message(&mut sealed_log_out, &kgm_2).unwrap();
     }
 
+    #[serial]
     #[test]
     fn test_convert_bigint() {
 	
@@ -2128,6 +2146,7 @@ mod tests {
 	
     }
 
+    #[serial]
     #[test]
     fn test_convert_bigint_sgx() {
 	
@@ -2147,6 +2166,7 @@ mod tests {
 	assert!(wbis.deref() == wbis2.deref(), format!("{:?} does not equal {:?}", wbis.deref(), wbis2.deref()));
     }
 
+    #[serial]
     #[test]
     fn test_convert_negative_bigint_sgx() {
 	
@@ -2165,6 +2185,7 @@ mod tests {
 
     use curv::elliptic::curves::traits::ECPoint as ECPointSgx;
     
+    #[serial]
     #[test]
     fn test_convert_ge() {
 	let ge1: GE = GE::generator() * FE::new_random();
@@ -2185,13 +2206,13 @@ mod tests {
 	assert_eq!(s1.get_element(), s1_2.get_element());
     }
 
+    #[serial]
     #[test]
     fn test_sign() {
 	
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
-	enc.verify_sealed_fe_log(rsd1).unwrap();
-
+	let mut rsd1 = enc.get_random_ec_fe_log().unwrap();
+	enc.verify_ec_fe_log(rsd1).unwrap();
 
 
 	let (kg_party_one_first_message, mut sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
@@ -2242,7 +2263,7 @@ mod tests {
             eph_key_gen_first_message_party_two: eph_key_gen_first_message_party_two,
         };
 
-	
+	println!("test_sign: sign_first");
 	let (ekg1m, mut sign_first_sealed) = enc.sign_first(&mut sealed_log_2, &sign_msg1).unwrap().unwrap();
 	
 
@@ -2266,36 +2287,27 @@ mod tests {
         };
 	
 
+	println!("test_sign: sign_second");
         let (_return_msg, _return_sealed) = enc.sign_second(&mut sign_first_sealed, &sign_msg2).unwrap();
 	
     }
 
-/*
-    #[test]
-    fn test_session_request() {
-	let enc = Enclave::new().unwrap();
-	let id_msg = EnclaveIDMsg{ inner: enc.geteid() };
-	enc.session_request(&id_msg).unwrap();
-    }
 
-    #[test]
-    fn test_test_create_session() {
-	let enc = Enclave::new().unwrap();
-	enc.test_create_session().unwrap();
-    }
-     */
-
+    #[serial]
     #[test]
     fn test_sc_encrypt_unencrypt() {
 	let enc = Enclave::new().unwrap();
 	enc.test_sc_encrypt_unencrypt().unwrap();
     }
 
-    #[test]
-    fn test_encrypt_unencrypt_io() {
-	let enc = Enclave::new().unwrap();
-	enc.test_encrypt_unencrypt_io().unwrap();
-    }
+
+//    #[serial]
+//    #[test]
+//    fn test_encrypt_unencrypt_io() {
+//	let enc = Enclave::new().unwrap();
+//	enc.test_encrypt_unencrypt_io().unwrap();
+//    }
+
 }
 
 

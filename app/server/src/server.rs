@@ -239,7 +239,7 @@ mod tests {
 	
 	let kgp1m2 = server.second_message(key_gen_msg2).unwrap().unwrap();
 
-
+	println!("got second message");
 	let key_gen_second_message = MasterKey2::key_gen_second_message(
             &m1_msg,
             &kgp1m2,
@@ -247,7 +247,7 @@ mod tests {
 
 
 	let (_, party_two_paillier) = key_gen_second_message.unwrap();
-
+	println!("setting master key");
 	let _master_key = MasterKey2::set_master_key(
             &BigInt::from(0),
             &kg_ec_key_pair_party2,

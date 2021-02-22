@@ -185,6 +185,8 @@ impl Attestation for Lockbox{
 	    Err(e) => return Err(LockboxError::Generic(format!("proc_msg3: {}",e))),
 	};
 
+	
+
 	self.put_enclave_key(&db_key, sealed_log)
     }
 

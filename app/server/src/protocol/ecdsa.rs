@@ -125,6 +125,7 @@ impl Ecdsa for Lockbox {
 	self.database.put_cf(cf, user_db_key, &sealed_secrets)?;
 
 	Ok((key_gen_msg1.shared_key_id, key_gen_first_mess))
+
      }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>> {
@@ -145,7 +146,7 @@ impl Ecdsa for Lockbox {
     fn sign_first(&self, sign_msg1: SignMsg1) -> Result<Option<party_one::EphKeyGenFirstMsg>> {
 	let cf_in = &self.database.cf_handle("ecdsa_second_message").unwrap();
 	let cf_out = &self.database.cf_handle("ecdsa_sign_first").unwrap();
-	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets_lg(cf_in, &sign_msg1.shared_key_id)?;
+	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg1.shared_key_id)?;
 	
 	match self.enclave().sign_first(&mut sealed_secrets, &sign_msg1) {
 	    Ok(x) => {
@@ -165,7 +166,7 @@ impl Ecdsa for Lockbox {
     fn sign_second(&self, sign_msg2: SignMsg2) -> Result<Option<Vec<Vec<u8>>>> {
 	let cf_in = &self.database.cf_handle("ecdsa_sign_first").unwrap();
 	let cf_out = &self.database.cf_handle("ecdsa_sign_second").unwrap();
-	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets_lg(cf_in, &sign_msg2.shared_key_id)?;
+	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg2.shared_key_id)?;
 	
 
 	match self.enclave().sign_second(&mut sealed_secrets, &sign_msg2) {

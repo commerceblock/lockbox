@@ -1214,7 +1214,6 @@ impl Enclave {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 	let mut data_out = [0; 64];
 
-	println!("encrypt to out...");
 	let result = unsafe {
             test_encrypt_to_out(self.geteid(),
 				&mut retval,
@@ -1227,7 +1226,6 @@ impl Enclave {
     	};
 
 	
-	println!("test in to decrypt...");
 	let result = unsafe {
             test_in_to_decrypt(self.geteid(),
 				&mut retval,
@@ -1269,7 +1267,6 @@ impl Enclave {
 //	let mut session_ptr: usize = 0;
 	let src_enclave_id = id_msg.inner;
 
-	println!("enclave trait - doing say something");
 	
 	let mut input_string = String::from("enclave - session request say something");
      	let result = unsafe {
@@ -1279,14 +1276,11 @@ impl Enclave {
 			  input_string.len())
     	};
 
-	println!("enclave trait - finished doing say something");
-
 	match retval {
 	    sgx_status_t::SGX_SUCCESS  =>(),
 	    _ => return Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - say something {}!", retval.as_str())).into()),
 	};
 	
-	println!("enclave trait - doing session request");
      	let result = unsafe {
             session_request(self.geteid(),
 			    &mut retval,
@@ -1295,15 +1289,12 @@ impl Enclave {
 		//,
 		//	    &mut session_ptr);
     	};
-	println!("enclave trait - finished doing session request");
 
 	match retval {
 	    sgx_status_t::SGX_SUCCESS  => {
-		println!("dh_msg1: {:?}\n", dh_msg1);
 		let c = dh_msg1[0].clone();
 		let c = &[c];
 		let nc_str = std::str::from_utf8(c).unwrap();
-		println!("nc_str: {}\n", nc_str);
 		let nc = nc_str.parse::<usize>().unwrap();
 		let size_str = std::str::from_utf8(&dh_msg1[1..(nc+1)]).unwrap();
 		let size = size_str.parse::<usize>().unwrap();
@@ -1388,7 +1379,6 @@ impl Enclave {
 
 	let dh_msg3_str = serde_json::to_string(dh_msg3).unwrap();
 
-	println!("enclave.rs: proc_msg3 - calling enclave");
 	
      	let result = unsafe {
             proc_msg3(self.geteid(),
@@ -1398,8 +1388,6 @@ impl Enclave {
 		      sealed_log.as_ptr() as * mut u8)
     	};
 
-	println!("enclave.rs: proc_msg3 - called enclave");
-	
 	match retval {
 	    sgx_status_t::SGX_SUCCESS  => Ok(sealed_log),
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
@@ -1667,7 +1655,6 @@ impl Enclave {
 	let key_gen_msg2_sgx = &KeyGenMsg2SgxW::from(key_gen_msg_2).inner;
 	let msg_2_str = serde_json::to_string(key_gen_msg2_sgx).unwrap();
 
-	println!("enclave doing second message");
 	let _result = unsafe{
 	    second_message(self.geteid(), &mut enclave_ret,
 			   sealed_log_in.as_mut_ptr() as *mut u8,
@@ -1676,7 +1663,6 @@ impl Enclave {
 			   msg_2_str.len(),
 			   plain_ret.as_mut_ptr() as *mut u8)
 	};
-	println!("enclave done second message");
 
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
@@ -2263,7 +2249,6 @@ mod tests {
             eph_key_gen_first_message_party_two: eph_key_gen_first_message_party_two,
         };
 
-	println!("test_sign: sign_first");
 	let (ekg1m, mut sign_first_sealed) = enc.sign_first(&mut sealed_log_2, &sign_msg1).unwrap().unwrap();
 	
 
@@ -2287,7 +2272,6 @@ mod tests {
         };
 	
 
-	println!("test_sign: sign_second");
         let (_return_msg, _return_sealed) = enc.sign_second(&mut sign_first_sealed, &sign_msg2).unwrap();
 	
     }

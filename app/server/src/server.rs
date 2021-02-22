@@ -57,10 +57,8 @@ impl Lockbox
 	//Get the enclave id from the enclave
 	let report = lb.enclave().get_self_report().unwrap();
 	let key_id = report.body.mr_enclave.m;
-	println!("enclave key id 1: {:?}", key_id);
         let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
         let db_key = Key::from_uuid(&key_uuid.build());
-	println!("enclave key id 2: {}", db_key);
 
 	//Get the sealed enclave key from the database and store it in the enclave struct
 	lb.get_enclave_key(&db_key).unwrap();
@@ -239,7 +237,6 @@ mod tests {
 	
 	let kgp1m2 = server.second_message(key_gen_msg2).unwrap().unwrap();
 
-	println!("got second message");
 	let key_gen_second_message = MasterKey2::key_gen_second_message(
             &m1_msg,
             &kgp1m2,
@@ -247,7 +244,6 @@ mod tests {
 
 
 	let (_, party_two_paillier) = key_gen_second_message.unwrap();
-	println!("setting master key");
 	let _master_key = MasterKey2::set_master_key(
             &BigInt::from(0),
             &kg_ec_key_pair_party2,
@@ -259,61 +255,5 @@ mod tests {
 	);
 
 	
-    }
-
-    use crate::protocol::requests::{post_lb, get_lb};
-
-    #[ignore]
-    #[test]
-    #[serial]
-    fn test_attestation() {
-
-	
-
-//	let config = crate::config::get_config();
-//	let server = Lockbox::load(config).unwrap();
-//
-//	let client_dest = client::get_client_dest();
-	
-//	println!("...getting src enclave id 0...\n");
-//	let enclave_id_msg = get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave_id").unwrap();
-		
-	//server.enclave.test_create_session().unwrap();
-
-//	let mut retval = sgx_status_t::SGX_SUCCESS;
-
-//	let eid_msg = server.enclave_id();
-
-//	let result = unsafe {
-//	    test_create_session(eid_msg.inner, &mut retval)
-//	};
-
-	/*
-
-	
-	let (msg1, session_ptr) = server.session_request(&eid_msg).unwrap();
-
-	let mut initiator: SgxDhInitiator = SgxDhInitiator::init_session();
-
-	let mut dh_msg2_inner = SgxDhMsg2::default();
-	
-	initiator.proc_msg1(&msg1.inner, &mut dh_msg2_inner).unwrap();
-	
-	let msg2 = DHMsg2{ inner: dh_msg2_inner };
-//	let msg3 = DHMsg3::default();
-//	println!("msg2: {}, msg3: {}", serde_json::to_string(&msg2).unwrap().len()
-	//		 , serde_json::to_string(&msg3).unwrap().len());
-	
-	
-	let er_msg = ExchangeReportMsg {
-	    src_enclave_id: server.enclave_id().inner,
-	    dh_msg2: msg2,
-	    session_ptr: session_ptr,
-	};
-	
-	let msg3 = server.exchange_report(&er_msg).unwrap();
-
-	server.end_session().unwrap();
-*/	
     }
 }

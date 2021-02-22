@@ -35,8 +35,8 @@ pub trait Attestation {
     fn test_create_session(&self) -> Result<()>;
 //    fn init_session(&self) -> Result<()>;
     fn enclave_id(&self) -> EnclaveIDMsg;
-    fn put_enclave_key(&self, db_key: &Key, sealed_log: ec_key_sealed) -> Result<()>;
-    fn get_enclave_key(&self, db_key: &Key) -> Result<Option<ec_key_sealed>>;
+    fn put_enclave_key(&self, db_key: &Key, sealed_log: [u8; 8192]) -> Result<()>;
+    fn get_enclave_key(&self, db_key: &Key) -> Result<Option<[u8; 8192]>>;
 }
 
 #[get("/attestation/test_create_session")]
@@ -135,12 +135,22 @@ impl Attestation for Lockbox{
     }
 
     fn exchange_report(&self, er_msg: &ExchangeReportMsg) -> Result<DHMsg3> {
-	self.enclave().say_something(String::from("doing exchange report"));
 
-	match self.enclave().exchange_report(er_msg) {
-	    Ok(r) => Ok(r),
-	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
+	let (dh_msg3, db_key, sealed_log) = match self.enclave_mut().exchange_report(er_msg) {
+	    Ok((dh_msg3, sealed_log)) => {
+		let key_id = dh_msg3.inner.msg3_body.report.key_id.id;;
+		let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
+		let db_key = Key::from_uuid(&key_uuid.build());		
+		(dh_msg3, db_key, sealed_log)
+	    },
+	    Err(e) => return Err(LockboxError::Generic(format!("exchange report: {}",e)))
+	};
+
+	match self.put_enclave_key(&db_key, sealed_log){
+	    Ok(_) => Ok(dh_msg3),
+	    Err(e) => Err(LockboxError::Generic(format!("exchange report: {}",e)))
 	}
+
     }
     
     fn end_session(&self) -> Result<()> {
@@ -190,7 +200,7 @@ impl Attestation for Lockbox{
 	self.put_enclave_key(&db_key, sealed_log)
     }
 
-    fn put_enclave_key(&self, db_key: &Key, sealed_log: ec_key_sealed) -> Result<()> {
+    fn put_enclave_key(&self, db_key: &Key, sealed_log: [u8; 8192]) -> Result<()> {
 	let cf = match self.database.cf_handle("enclave_key"){
 	    Some(x) => x,
 	    None => return Err(LockboxError::Generic(String::from("enclave_key not found"))),
@@ -205,7 +215,7 @@ impl Attestation for Lockbox{
 
     }
 
-    fn get_enclave_key(&self, db_key: &Key) -> Result<Option<ec_key_sealed>> {
+    fn get_enclave_key(&self, db_key: &Key) -> Result<Option<[u8; 8192]>> {
 	let cf = &self.database.cf_handle("enclave_key").unwrap();
 	match self.database.get_cf(cf, db_key){
 	    Ok(Some(x)) => match x.try_into() {

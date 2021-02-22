@@ -409,7 +409,7 @@ fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log:  * mut u
     };
 
     
-    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, 650);
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, 8192);
     if opt.is_none() {
 	return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
@@ -420,13 +420,6 @@ fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log:  * mut u
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
     };
-
-    match ECKEY.lock() {
-	Ok(mut ec_key) => (),
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
-    };
-
-    test_sc_encrypt_unencrypt();
 
     ATTESTATION_STATUS::SUCCESS
 }
@@ -445,8 +438,8 @@ pub extern "C" fn proc_msg3(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log
 #[allow(unused_variables)]
 fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 			dh_msg2_str: *const u8 , msg2_len: usize,
-			dh_msg3_arr: &mut [u8;1600]
-//			,
+			dh_msg3_arr: &mut [u8;1600],
+			sealed_log: *mut u8
 //			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
 
@@ -501,6 +494,32 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
+
+    let key_sealed  = SgxKey128BitSealed {
+	inner: dh_aek.key
+    };
+    
+    let sealable = match SgxSealable::try_from(key_sealed){
+	Ok(x) => x,
+        Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
+    };
+
+    let sealed_data = match sealable.to_sealed(){
+        Ok(x) => x,
+	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
+    };
+    
+    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, 8192);
+    if opt.is_none() {
+	return ATTESTATION_STATUS::ATTESTATION_ERROR;
+    }
+
+    match ECKEY.lock() {
+	Ok(mut ec_key) => {
+	    *ec_key = dh_aek;
+	},
+	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
+    };
     
 //    let dh_msg3 = SgxDhMsg3::default();
     
@@ -527,7 +546,8 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 #[no_mangle]
 pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
 				  dh_msg2_str: *const u8, msg2_len: usize,
-				  dh_msg3_arr: &mut [u8;1600]
+				  dh_msg3_arr: &mut [u8;1600],
+				  sealed_log: *mut u8,
 	//,
 	//			  session_ptr: *mut usize
 ) -> ATTESTATION_STATUS {
@@ -540,7 +560,7 @@ pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
 
     
     unsafe {
-        exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr)
+        exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr, sealed_log)
 	    //, &mut *(session_ptr as *mut DhSessionInfo))
     }
 }
@@ -2187,6 +2207,18 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_
 	    let mut key_align = sgx_align_key_128bit_t::default();
 	    key_align.key = data.inner;
 	    *ec_key = key_align;
+	    sgx_status_t::SGX_SUCCESS
+	},
+	Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn get_ec_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {
+
+    match ECKEY.lock() {
+	Ok(mut ec_key) => {
+	    *ec_key; 
 	    sgx_status_t::SGX_SUCCESS
 	},
 	Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,

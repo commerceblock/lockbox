@@ -52,7 +52,7 @@ pub type ec_log = [u8; EC_LOG_SIZE];
 
 pub struct Enclave {
     inner: SgxEnclave,
-    ec_key: Option<ec_key_sealed>
+    ec_key: Option<[u8; 8192]>
 }
 
 impl Deref for Enclave {
@@ -1171,11 +1171,11 @@ impl Enclave {
 	}
     }
 
-    pub fn get_ec_key(&self) -> &Option<ec_key_sealed> {
+    pub fn get_ec_key(&self) -> &Option<[u8;8192]> {
 	&self.ec_key
     }
 
-    pub fn set_ec_key(&mut self, key: Option<ec_key_sealed>) {
+    pub fn set_ec_key(&mut self, key: Option<[u8; 8192]>) {
 	self.ec_key = key;
     }
     
@@ -1306,9 +1306,9 @@ impl Enclave {
 	}
     }
 
-    pub fn exchange_report(&self, ep_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<DHMsg3> {
+    pub fn exchange_report(&self, ep_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<(DHMsg3, [u8; 8192])> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
-
+	let mut sealed_log = [0u8; 8192];
 
 	let mut dh_msg3_arr = [0u8;1600];
 //	let mut session_ptr: usize = ep_msg.session_ptr;
@@ -1321,7 +1321,8 @@ impl Enclave {
 			    src_enclave_id,
 			    dh_msg2_str.as_ptr() as * const u8,
 			    dh_msg2_str.len(),
-			    dh_msg3_arr.as_mut_ptr() as *mut u8)
+			    dh_msg3_arr.as_mut_ptr() as *mut u8,
+			    sealed_log.as_ptr() as * mut u8)
 		//,
 		//	    &mut session_ptr);
     	};
@@ -1336,7 +1337,7 @@ impl Enclave {
 		let size = size_str.parse::<usize>().unwrap();
 		let msg_str = std::str::from_utf8(&dh_msg3_arr[(nc+1)..(size+nc+1)]).unwrap().to_string();
 		let dh_msg3 : DHMsg3  = serde_json::from_str(&msg_str).unwrap();
-		Ok(dh_msg3)
+		Ok((dh_msg3, sealed_log))
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
 	}
@@ -1373,8 +1374,8 @@ impl Enclave {
 	}
     }
 
-    pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<ec_key_sealed> {
-	let mut sealed_log = [0u8; EC_KEY_SEALED_SIZE];
+    pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<[u8; 8192]> {
+	let mut sealed_log = [0u8; 8192];
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
 	let dh_msg3_str = serde_json::to_string(dh_msg3).unwrap();
@@ -1437,7 +1438,7 @@ impl Enclave {
 	}
     }
 
-    pub fn set_ec_key_enclave(&self, sealed_log: ec_key_sealed) -> Result<()> {
+    pub fn set_ec_key_enclave(&self, sealed_log: [u8;8192]) -> Result<()> {
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
@@ -1801,7 +1802,7 @@ impl Enclave {
 	}
     }
 
-}
+    }
 
 extern {
     fn test_sc_encrypt_unencrypt(eid: sgx_enclave_id_t, retval: *mut sgx_status_t)
@@ -1918,7 +1919,8 @@ extern {
     fn exchange_report(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		       src_enclave_id: sgx_enclave_id_t, dh_msg2: *const u8,
 		       msg2_len: size_t,
-		       dh_msg3: *mut u8);
+		       dh_msg3: *mut u8,
+		       sealed_log: *mut u8);
     //,
 //		       session_ptr: *mut usize);
 

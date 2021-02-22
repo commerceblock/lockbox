@@ -189,7 +189,6 @@ mod tests {
     }
 
 
-    #[ignore]
     #[test]
     #[serial]
     fn test_first_message() {
@@ -202,7 +201,6 @@ mod tests {
 	assert_eq!(server.first_message(msg).unwrap().0, expected);
     }
 
-    #[ignore]
     #[test]
     #[serial]
     fn test_second_message() {

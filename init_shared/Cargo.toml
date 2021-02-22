@@ -1,6 +1,6 @@
 [package]
 name = "init_shared"
-version = "0.1.1"
+version = "0.1.2"
 
 [lib]
 name = "init_shared_lib"

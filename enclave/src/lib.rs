@@ -726,7 +726,7 @@ impl EncryptedData {
 	enc_data.payload_data.encrypt = vec![0_u8; encrypt_text.len()].into_boxed_slice();
 	println!("try_from... - rsgx_rijndae");
 	println!("encrypt_key.key: {:?}", encrypt_key.key);
-	println!("encrypt_text: {:?}", encrypt_text);
+//	println!("encrypt_text: {:?}", encrypt_text);
 	println!("payload_iv: {:?}", payload_iv);
 	println!("additional_text: {:?}", additional_text);
 	println!("enc_data.payload_data.encrypt:");

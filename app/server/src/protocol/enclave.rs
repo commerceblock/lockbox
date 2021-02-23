@@ -15,7 +15,7 @@ pub fn enclave_hello(
 ) -> Result<Status> {
     // TODO: Add logic for health check
     let _msg = hello_message.into_inner();
-    match lockbox.enclave.say_something(_msg){
+    match lockbox.enclave().say_something(_msg){
     	  Ok(_) => Ok(Status::Ok),
 	  Err(e) => Err(LockboxError::Generic(format!("enclave_hello: {}", e.to_string())).into())
     }

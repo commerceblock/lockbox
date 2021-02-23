@@ -7,6 +7,17 @@ use super::Result;
 use config_rs::{Config as ConfigRs, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::env;
+extern crate lazy_static;
+use lazy_static::lazy_static; // 1.4.0
+
+lazy_static! {
+    static ref CONFIG: Config = Config::load().unwrap();
+}
+
+pub fn get_config() -> Config {
+    (*CONFIG).clone()
+}
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 /// Storage specific config
@@ -21,6 +32,37 @@ impl Default for StorageConfig {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+/// Client specific config
+pub struct ClientConfig {
+    pub url_src: String,
+    pub url_dest: String,
+}
+
+impl Default for ClientConfig {
+    fn default() -> ClientConfig {
+        ClientConfig {
+	    url_src: String::from(""),
+	    url_dest: String::from(""),
+        }
+    }
+}
+
+/// Enclave specific config
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EnclaveConfig {
+    pub index: u32,
+}
+
+impl Default for EnclaveConfig {
+    fn default() -> EnclaveConfig {
+        EnclaveConfig {
+	    index: 0,
+        }
+    }
+}
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 /// Rocket specific config
@@ -44,7 +86,7 @@ impl Default for RocketConfig {
 }
 
 /// Config struct storing all StataChain Entity config
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     /// Log file location. If not present print to stdout
     pub log_file: String,
@@ -54,6 +96,10 @@ pub struct Config {
     pub storage: StorageConfig,
     /// Rocket config
     pub rocket: RocketConfig,
+    /// Enclave config
+    pub enclave: EnclaveConfig,
+    /// Client config
+    pub client: ClientConfig
 }
 
 impl Default for Config {
@@ -63,6 +109,8 @@ impl Default for Config {
             testing_mode: true,
             storage: StorageConfig::default(),
             rocket: RocketConfig::default(),
+	    enclave: EnclaveConfig::default(),
+	    client: ClientConfig::default(),
         }
     }
 }
@@ -82,20 +130,23 @@ impl Config {
         // Override any config from env using LOCKBOX prefix
         conf_rs.merge(Environment::with_prefix("LOCKBOX"))?;
 
-        // Override storage and mainstay config from env variables.
-        // Currently doesn't seem to be supported by config_rs.
-        // https://github.com/mehcode/config-rs/issues/104
-        // A possible alternative would be using a "__" separator
-        // e.g. Environment::with_prefix("CO").separator("__")) and
-        // setting envs as below but is less readable and confusing
-        // CO_CLIENTCHAIN__ASSET_HASH=73be005...
-        // CO_CLIENTCHAIN__ASSET=CHALLENGE
-        // CO_CLIENTCHAIN__HOST=127.0.0.1:5555
-        // CO_CLIENTCHAIN__GENESIS_HASH=706f6...
-
         if let Ok(v) = env::var("LOCKBOX_DB_PATH") {
             let _ = conf_rs.set("storage.db_path", v)?;
         }
+	
+	if let Ok(v) = env::var("LOCKBOX_ENC_INDEX") {
+            let _ = conf_rs.set("enclave.index", v)?;
+	}
+
+	if let Ok(v) = env::var("LOCKBOX_CLIENT_URL_SRC") {
+            let _ = conf_rs.set("client.url_src", v)?;
+	}
+
+	if let Ok(v) = env::var("LOCKBOX_CLIENT_URL_DEST") {
+            let _ = conf_rs.set("client.url_dest", v)?;
+	}
+
+	
         Ok(conf_rs.try_into()?)
     }
 }

@@ -4,8 +4,7 @@ extern crate sgx_urts;
 use self::sgx_types::*;
 use self::sgx_urts::SgxEnclave;
 use crate::error::LockboxError;
-use crate::shared_lib::structs::{KeyGenMsg2, SignMsg1, SignMsg2, Protocol,
-				 SignSecondMsgRequest, KUSendMsg, KUReceiveMsg};
+use crate::shared_lib::structs::*;
 
 extern crate bitcoin;
 use bitcoin::secp256k1::{Signature, Message, PublicKey};
@@ -44,8 +43,16 @@ static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+//Shared encryption key for enclaves
+pub const EC_KEY_SEALED_SIZE: usize = 650;
+pub type ec_key_sealed = [u8; EC_KEY_SEALED_SIZE];
+
+pub const EC_LOG_SIZE: usize = 8192;
+pub type ec_log = [u8; EC_LOG_SIZE];
+
 pub struct Enclave {
-    inner: SgxEnclave
+    inner: SgxEnclave,
+    ec_key: Option<[u8; 8192]>
 }
 
 impl Deref for Enclave {
@@ -60,6 +67,37 @@ impl DerefMut for Enclave {
      	&mut self.inner
      }
 }
+
+
+#[derive(Clone)]
+pub struct SgxReport(sgx_report_t);
+
+impl Deref for SgxReport {
+    type Target = sgx_report_t;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/*
+impl Serialize for SgxReport {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer
+    {
+        // Any implementation of Serialize.
+    }
+}
+
+impl DeSerialize for SgxReport {
+    fn deserialize<D>(&self, deserializer: D) -> Result<Self, D::Error>
+    where D: Deserializer
+    {
+        // Any implementation of Serialize.
+    }
+}
+ */
+
+
 
 mod party_one_enc {
     use super::*;
@@ -1128,9 +1166,79 @@ impl Enclave {
                        		 &mut launch_token,
                        		 &mut launch_token_updated,
                        		 &mut misc_attr){
-	    Ok(v) => Ok(Self{inner:v}),
+	    Ok(v) => Ok(Self{inner:v, ec_key: None}),
 	    Err(e) => return Err(LockboxError::Generic(e.to_string()).into()),
 	}
+    }
+
+    pub fn get_ec_key(&self) -> &Option<[u8;8192]> {
+	&self.ec_key
+    }
+
+    pub fn set_ec_key(&mut self, key: Option<[u8; 8192]>) {
+	self.ec_key = key;
+    }
+    
+    //  pub fn dh_init_session() -> Result<> {
+    //  }
+
+    pub fn test_create_session(&self) -> Result<()> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let result = unsafe {
+            test_create_session(self.geteid(),
+				&mut retval)
+    	};
+
+	match result {
+            sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+    	}
+    }
+
+    pub fn test_sc_encrypt_unencrypt(&self) -> Result<()> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let result = unsafe {
+            test_sc_encrypt_unencrypt(self.geteid(),
+				      &mut retval)
+    	};
+
+	match result {
+            sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+    	}
+    }
+
+    pub fn test_encrypt_unencrypt_io(&self) -> Result<()> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut data_out = [0; 64];
+
+	let result = unsafe {
+            test_encrypt_to_out(self.geteid(),
+				&mut retval,
+				data_out.as_ptr() as *mut u8)
+    	};
+
+	match result {
+            sgx_status_t::SGX_SUCCESS => (),
+       	    _ => return Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - test_encrypt_to_out {}!", result.as_str())).into())
+    	};
+
+	
+	let result = unsafe {
+            test_in_to_decrypt(self.geteid(),
+				&mut retval,
+			       data_out.as_ptr() as *const u8,
+			       64)
+    	};
+
+	match result {
+            sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - test_in_to_decrypt{}!", result.as_str())).into())
+    	}
+
+	
     }
     
     pub fn say_something(&self, input_string: String) -> Result<String> {
@@ -1145,6 +1253,160 @@ impl Enclave {
 	
     	match result {
             sgx_status_t::SGX_SUCCESS => Ok(result.as_str().to_string()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
+    	}
+    }
+
+    
+    
+
+    pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut dh_msg1 = [0u8;1600];
+
+//	let mut session_ptr: usize = 0;
+	let src_enclave_id = id_msg.inner;
+
+	
+	let mut input_string = String::from("enclave - session request say something");
+     	let result = unsafe {
+            say_something(self.geteid(),
+			  &mut retval,
+			  input_string.as_ptr() as * const u8,
+			  input_string.len())
+    	};
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  =>(),
+	    _ => return Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - say something {}!", retval.as_str())).into()),
+	};
+	
+     	let result = unsafe {
+            session_request(self.geteid(),
+			    &mut retval,
+			    src_enclave_id,
+			    dh_msg1.as_mut_ptr() as *mut u8)
+		//,
+		//	    &mut session_ptr);
+    	};
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  => {
+		let c = dh_msg1[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		let nc = nc_str.parse::<usize>().unwrap();
+		let size_str = std::str::from_utf8(&dh_msg1[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let msg_str = std::str::from_utf8(&dh_msg1[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		let dh_msg1 : DHMsg1  = serde_json::from_str(&msg_str).unwrap();
+		Ok(dh_msg1)
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed -  session_request {}!", retval.as_str())).into()),
+	}
+    }
+
+    pub fn exchange_report(&self, ep_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<(DHMsg3, [u8; 8192])> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut sealed_log = [0u8; 8192];
+
+	let mut dh_msg3_arr = [0u8;1600];
+//	let mut session_ptr: usize = ep_msg.session_ptr;
+	let src_enclave_id = ep_msg.src_enclave_id;
+	let dh_msg2_str = serde_json::to_string(&ep_msg.dh_msg2).unwrap();
+
+     	let result = unsafe {
+            exchange_report(self.geteid(),
+			    &mut retval,
+			    src_enclave_id,
+			    dh_msg2_str.as_ptr() as * const u8,
+			    dh_msg2_str.len(),
+			    dh_msg3_arr.as_mut_ptr() as *mut u8,
+			    sealed_log.as_ptr() as * mut u8)
+		//,
+		//	    &mut session_ptr);
+    	};
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  => {
+		let c = dh_msg3_arr[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		let nc = nc_str.parse::<usize>().unwrap();
+		let size_str = std::str::from_utf8(&dh_msg3_arr[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let msg_str = std::str::from_utf8(&dh_msg3_arr[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		let dh_msg3 : DHMsg3  = serde_json::from_str(&msg_str).unwrap();
+		Ok((dh_msg3, sealed_log))
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
+	}
+    }
+    
+    pub fn proc_msg1(&self, dh_msg1: &DHMsg1) -> Result<DHMsg2> {
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+
+	let mut dh_msg2_arr = [0u8;1700];
+	let dh_msg1_str = serde_json::to_string(dh_msg1).unwrap();
+
+     	let result = unsafe {
+            proc_msg1(self.geteid(),
+		      &mut retval,
+		      dh_msg1_str.as_ptr() as * const u8,
+		      dh_msg1_str.len(),
+		      dh_msg2_arr.as_mut_ptr() as *mut u8);
+    	};
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  => {
+		let c = dh_msg2_arr[0].clone();
+		let c = &[c];
+		let nc_str = std::str::from_utf8(c).unwrap();
+		let nc = nc_str.parse::<usize>().unwrap();
+		let size_str = std::str::from_utf8(&dh_msg2_arr[1..(nc+1)]).unwrap();
+		let size = size_str.parse::<usize>().unwrap();
+		let msg_str = std::str::from_utf8(&dh_msg2_arr[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		let dh_msg2 : DHMsg2  = serde_json::from_str(&msg_str).unwrap();
+		Ok(dh_msg2)
+	    },
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
+	}
+    }
+
+    pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<[u8; 8192]> {
+	let mut sealed_log = [0u8; 8192];
+	let mut retval = sgx_status_t::SGX_SUCCESS;
+
+	let dh_msg3_str = serde_json::to_string(dh_msg3).unwrap();
+
+	
+     	let result = unsafe {
+            proc_msg3(self.geteid(),
+		      &mut retval,
+		      dh_msg3_str.as_ptr() as * const u8,
+		      dh_msg3_str.len(),
+		      sealed_log.as_ptr() as * mut u8)
+    	};
+
+	match retval {
+	    sgx_status_t::SGX_SUCCESS  => Ok(sealed_log),
+	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
+	}
+    }
+    
+    pub fn get_self_report(&self) -> Result<sgx_report_t> {
+     	let mut retval = sgx_status_t::SGX_SUCCESS;
+	let mut ret_report: sgx_report_t = sgx_report_t::default();
+	
+     	let result = unsafe {
+            get_self_report(self.geteid(),
+			    &mut retval,
+			    &mut ret_report as *mut sgx_report_t)
+    	};
+	
+    	match result {
+            sgx_status_t::SGX_SUCCESS => Ok(ret_report),
        	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", result.as_str())).into())
     	}
     }
@@ -1176,6 +1438,19 @@ impl Enclave {
 	}
     }
 
+    pub fn set_ec_key_enclave(&self, sealed_log: [u8;8192]) -> Result<()> {
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	
+	let _result = unsafe {
+	    set_ec_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
     pub fn get_random_sealed_fe_log(&self) -> Result<[u8; 8192]> {
      	let sealed_log = [0; 8192];
 	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
@@ -1190,11 +1465,38 @@ impl Enclave {
 	}
     }
 
+    pub fn get_random_ec_fe_log(&self) -> Result<[u8;8192]> {
+	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	let mut ec_log = [0u8; 8192];
+	
+	let _result = unsafe {
+	    create_ec_random_fe(self.geteid(), &mut enclave_ret, ec_log.as_mut_ptr() as * mut u8);
+	};
+
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(ec_log),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
     pub fn verify_sealed_fe_log(&self, sealed_log: [u8; 8192]) -> Result<()> {
      	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 	let _result = unsafe {
 	    verify_sealed_fe(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8, 8192);
+	};
+	
+	match enclave_ret {
+	    sgx_status_t::SGX_SUCCESS => Ok(()),
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+	}
+    }
+
+    pub fn verify_ec_fe_log(&self, ec_log: [u8;8192]) -> Result<()> {
+     	let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+
+	let _result = unsafe {
+	    verify_ec_fe(self.geteid(), &mut enclave_ret, ec_log.as_ptr() as * mut u8, 8192);
 	};
 	
 	match enclave_ret {
@@ -1353,7 +1655,7 @@ impl Enclave {
 
 	let key_gen_msg2_sgx = &KeyGenMsg2SgxW::from(key_gen_msg_2).inner;
 	let msg_2_str = serde_json::to_string(key_gen_msg2_sgx).unwrap();
-	
+
 	let _result = unsafe{
 	    second_message(self.geteid(), &mut enclave_ret,
 			   sealed_log_in.as_mut_ptr() as *mut u8,
@@ -1500,12 +1802,32 @@ impl Enclave {
 	}
     }
 
-}
+    }
 
 extern {
+    fn test_sc_encrypt_unencrypt(eid: sgx_enclave_id_t, retval: *mut sgx_status_t)
+				 -> sgx_status_t;
+
+    fn test_encrypt_to_out(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+			   encrypt_out: * mut u8)
+				     -> sgx_status_t;
+
+    fn test_in_to_decrypt(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+			  data_in: *const u8, data_len: usize)
+			   -> sgx_status_t;
+    
+    fn test_create_session(eid: sgx_enclave_id_t, retval: *mut sgx_status_t)
+			   -> sgx_status_t;
+
+    fn init_session(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    		    p_report: *mut sgx_report_t)
+			   -> sgx_status_t;
+    
     fn say_something(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
                      some_string: *const u8, len: usize) -> sgx_status_t;
 
+    fn get_self_report(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		       p_report: *mut sgx_report_t) -> sgx_status_t;
 
     fn create_sealed_random_bytes32(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
             sealed_log: * mut u8, sealed_log_size: u32 );
@@ -1513,11 +1835,20 @@ extern {
     fn verify_sealed_bytes32(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 			     sealed_log: * mut u8, sealed_log_size: u32);
 
+    fn set_ec_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+			     sealed_log: * mut u8, sealed_log_size: u32);
+
     fn create_sealed_random_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
             sealed_log: * mut u8, sealed_log_size: u32 );
 
     fn verify_sealed_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-				sealed_log: * mut u8, sealed_log_size: u32);
+			sealed_log: * mut u8, sealed_log_size: u32);
+
+    fn create_ec_random_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+            ec_log: * mut u8);
+
+    fn verify_ec_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+				ec_log: * mut u8, ec_log_size: u32);
 
     fn calc_sha256(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 		   input_str: * const u8, len: u32, hash: * mut u8) -> sgx_status_t;
@@ -1578,6 +1909,33 @@ extern {
 		  plain_out: *mut u8,
     );
 
+
+    fn session_request(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+    		       src_enclave_id: sgx_enclave_id_t,
+    		       dh_msg1: *mut u8);
+    //,
+    //		       session_pointer: *mut usize);
+
+    fn exchange_report(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		       src_enclave_id: sgx_enclave_id_t, dh_msg2: *const u8,
+		       msg2_len: size_t,
+		       dh_msg3: *mut u8,
+		       sealed_log: *mut u8);
+    //,
+//		       session_ptr: *mut usize);
+
+    fn proc_msg1(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		 dh_msg1: *const u8,
+		 msg1_len: size_t,
+		 dh_msg2: *mut u8);
+
+    fn proc_msg3(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+		 dh_msg3: *const u8,
+		 msg3_len: size_t,
+		 sealed_log: *mut u8);
+
+    
+//    public uint32_t end_session(sgx_enclave_id_t src_enclave_id, [user_check]size_t* session_ptr);
 }
 
 #[cfg(test)]
@@ -1585,12 +1943,15 @@ mod tests {
     use super::*;
     use bitcoin::secp256k1::Secp256k1;
 
+
+    #[serial]
     #[test]
     fn test_new() {
        let enc = Enclave::new().unwrap();
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_say_something() {
        let enc = Enclave::new().unwrap();
@@ -1598,6 +1959,15 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
+    #[test]
+    fn test_self_report() {
+	let enc = Enclave::new().unwrap();
+	let _report = enc.get_self_report().unwrap();
+	enc.destroy();
+    }
+
+    #[serial]
     #[test]
     fn test_get_random_sealed_log() {
        let enc = Enclave::new().unwrap();
@@ -1605,6 +1975,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_verify_sealed_log() {
        let enc = Enclave::new().unwrap();
@@ -1613,6 +1984,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_get_random_sealed_fe_log() {
        let enc = Enclave::new().unwrap();
@@ -1620,6 +1992,7 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_verify_sealed_fe_log() {
        let enc = Enclave::new().unwrap();
@@ -1628,6 +2001,24 @@ mod tests {
        enc.destroy();
     }
 
+    #[serial]
+    #[test]
+    fn test_get_random_ec_fe_log() {
+       let enc = Enclave::new().unwrap();
+       let _rsd = enc.get_random_ec_fe_log().unwrap();
+       enc.destroy();
+    }
+
+    #[serial]
+    #[test]
+    fn test_verify_ec_fe_log() {
+       let enc = Enclave::new().unwrap();
+       let rsd = enc.get_random_ec_fe_log().unwrap();
+       enc.verify_ec_fe_log(rsd).unwrap();
+       enc.destroy();
+    }
+
+    #[serial]
     #[test]
     fn test_calc_sha256() {
 	let enc = Enclave::new().unwrap();
@@ -1637,6 +2028,7 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_sk_tweak_add_assign() {
 	let enc = Enclave::new().unwrap();
@@ -1648,6 +2040,7 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_sk_tweak_mul_assign() {
 	let enc = Enclave::new().unwrap();
@@ -1659,6 +2052,7 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_sign_verify() {
 	let enc = Enclave::new().unwrap();
@@ -1681,20 +2075,24 @@ mod tests {
 	enc.destroy();
     }
 
+    #[serial]
     #[test]
     fn test_first_message() {
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
-	enc.verify_sealed_fe_log(rsd1).unwrap();
+	let mut rsd1 = enc.get_random_ec_fe_log().unwrap();
+	enc.verify_ec_fe_log(rsd1).unwrap();
 	let (_kg1m, _sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
     }
 
+    #[serial]
     #[test]
     fn test_second_message() {
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
-	enc.verify_sealed_fe_log(rsd1).unwrap();
+	let mut rsd1 = enc.get_random_ec_fe_log().unwrap();
+	enc.verify_ec_fe_log(rsd1).unwrap();
+
 	let (_kg1m, mut sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
+
 
 	let wallet_secret_key: FE = ECScalar::new_random();
 	
@@ -1712,10 +2110,11 @@ mod tests {
 	let kgm_2 : KeyGenMsg2 = serde_json::from_str(&kgm2str).unwrap();
 
 	assert!(kgm2str.len() > 0);
-	
+
 	enc.second_message(&mut sealed_log_out, &kgm_2).unwrap();
     }
 
+    #[serial]
     #[test]
     fn test_convert_bigint() {
 	
@@ -1735,6 +2134,7 @@ mod tests {
 	
     }
 
+    #[serial]
     #[test]
     fn test_convert_bigint_sgx() {
 	
@@ -1754,6 +2154,7 @@ mod tests {
 	assert!(wbis.deref() == wbis2.deref(), format!("{:?} does not equal {:?}", wbis.deref(), wbis2.deref()));
     }
 
+    #[serial]
     #[test]
     fn test_convert_negative_bigint_sgx() {
 	
@@ -1772,6 +2173,7 @@ mod tests {
 
     use curv::elliptic::curves::traits::ECPoint as ECPointSgx;
     
+    #[serial]
     #[test]
     fn test_convert_ge() {
 	let ge1: GE = GE::generator() * FE::new_random();
@@ -1792,13 +2194,13 @@ mod tests {
 	assert_eq!(s1.get_element(), s1_2.get_element());
     }
 
+    #[serial]
     #[test]
     fn test_sign() {
 	
 	let enc = Enclave::new().unwrap();
-	let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
-	enc.verify_sealed_fe_log(rsd1).unwrap();
-
+	let mut rsd1 = enc.get_random_ec_fe_log().unwrap();
+	enc.verify_ec_fe_log(rsd1).unwrap();
 
 
 	let (kg_party_one_first_message, mut sealed_log_out) = enc.first_message(&mut rsd1).unwrap();
@@ -1849,7 +2251,6 @@ mod tests {
             eph_key_gen_first_message_party_two: eph_key_gen_first_message_party_two,
         };
 
-	
 	let (ekg1m, mut sign_first_sealed) = enc.sign_first(&mut sealed_log_2, &sign_msg1).unwrap().unwrap();
 	
 
@@ -1876,7 +2277,23 @@ mod tests {
         let (_return_msg, _return_sealed) = enc.sign_second(&mut sign_first_sealed, &sign_msg2).unwrap();
 	
     }
-    
+
+
+    #[serial]
+    #[test]
+    fn test_sc_encrypt_unencrypt() {
+	let enc = Enclave::new().unwrap();
+	enc.test_sc_encrypt_unencrypt().unwrap();
+    }
+
+
+//    #[serial]
+//    #[test]
+//    fn test_encrypt_unencrypt_io() {
+//	let enc = Enclave::new().unwrap();
+//	enc.test_encrypt_unencrypt_io().unwrap();
+//    }
+
 }
 
 

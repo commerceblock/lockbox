@@ -1,10 +1,9 @@
 
-
 pub use super::super::Result;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
-use crate::enclave::Enclave;
+use crate::enclave::{Enclave, ec_key_sealed};
 use shared_lib::{
     structs::{KeyGenMsg1, KeyGenMsg2, SignMsg1, SignMsg2, Protocol,
     KUSendMsg, KUReceiveMsg, KUFinalize, KUAttest},
@@ -22,7 +21,12 @@ use std::convert::TryInto;
 
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
-    fn get_sealed_secrets(&self, _cf: &ColumnFamily, _user_id: &Uuid) -> Result<([u8;8192], Key)>;
+
+    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(ec_key_sealed, Key)>;
+    
+    fn get_sealed_secrets(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8;8192], Key)>;
+
+    fn get_sealed_secrets_lg(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8;32400], Key)>;
 	
     fn first_message(&self, key_gen_msg1: KeyGenMsg1) -> Result<(Uuid, party_one::KeyGenFirstMsg)>;
 
@@ -38,16 +42,44 @@ pub trait Ecdsa {
 }
 
 impl Ecdsa for Lockbox {
-    fn get_sealed_secrets(&self, _cf: &ColumnFamily, _user_id: &Uuid) -> Result<([u8;8192], Key)>{
+    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(ec_key_sealed, Key)>{
 
-        let user_db_key = Key::from_uuid(_user_id);
+        let user_db_key = Key::from_uuid(user_id);
 
-        match self.database.get_cf(_cf, &user_db_key) {
+        match self.database.get_cf(cf, &user_db_key) {
             Ok(Some(x)) => match x.try_into(){
 		Ok(x) => Ok((x,user_db_key.clone())),
 		Err(e) => return Err(LockboxError::Generic(format!("sealed secrets format error: {:?}", e))),
 	    },
-            Ok(None) => return Err(LockboxError::Generic(format!("sealed_secrets for DB key {} is None", _user_id))),
+            Ok(None) => return Err(LockboxError::Generic(format!("sealed_secrets for DB key {} is None", user_id))),
+            Err(e) => return Err(e.into())
+	}
+    }
+    
+    fn get_sealed_secrets(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8; 8192], Key)>{
+
+        let user_db_key = Key::from_uuid(user_id);
+
+        match self.database.get_cf(cf, &user_db_key) {
+            Ok(Some(x)) => match x.try_into(){
+		Ok(x) => Ok((x,user_db_key.clone())),
+		Err(e) => return Err(LockboxError::Generic(format!("sealed secrets format error: {:?}", e))),
+	    },
+            Ok(None) => return Err(LockboxError::Generic(format!("sealed_secrets for DB key {} is None", user_id))),
+            Err(e) => return Err(e.into())
+	}
+    }
+
+    fn get_sealed_secrets_lg(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8; 32400], Key)>{
+
+        let user_db_key = Key::from_uuid(user_id);
+
+        match self.database.get_cf(cf, &user_db_key) {
+            Ok(Some(x)) => match x.try_into(){
+		Ok(x) => Ok((x,user_db_key.clone())),
+		Err(e) => return Err(LockboxError::Generic(format!("sealed secrets format error: {:?}", e))),
+	    },
+            Ok(None) => return Err(LockboxError::Generic(format!("sealed_secrets for DB key {} is None", user_id))),
             Err(e) => return Err(e.into())
 	}
     }
@@ -67,12 +99,10 @@ impl Ecdsa for Lockbox {
 	    Err(e) => return Err(e.into()) 
         };
 	
-	let enc = Enclave::new().unwrap();
-
 	let (key_gen_first_mess, sealed_secrets) =
 	    if key_gen_msg1.protocol == Protocol::Deposit {
-		let mut rsd1 = enc.get_random_sealed_fe_log().unwrap();
-		match enc.first_message(&mut rsd1) {
+		let mut rsd1 = self.enclave().get_random_ec_fe_log().unwrap();
+		match self.enclave().first_message(&mut rsd1) {
 		    Ok(x) => x,
 		    Err(e) => return Err(LockboxError::Generic(format!("generating first message: {}", e)))
 		}
@@ -80,7 +110,7 @@ impl Ecdsa for Lockbox {
 		let cf_ku = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
 		match self.get_sealed_secrets(cf_ku, &key_gen_msg1.shared_key_id){
 		    Ok(mut sealed_in) =>{
-			match enc.first_message_transfer(&mut sealed_in.0) {
+			match self.enclave().first_message_transfer(&mut sealed_in.0) {
 			    Ok(x) => x,
 			    Err(e) => return Err(LockboxError::Generic(format!("{}", e))),
 			}
@@ -95,16 +125,16 @@ impl Ecdsa for Lockbox {
 	self.database.put_cf(cf, user_db_key, &sealed_secrets)?;
 
 	Ok((key_gen_msg1.shared_key_id, key_gen_first_mess))
+
      }
 
     fn second_message(&self, key_gen_msg2: KeyGenMsg2) -> Result<Option<party1::KeyGenParty1Message2>> {
 	let cf_in = &self.database.cf_handle("ecdsa_first_message").unwrap();
 	let cf_out = &self.database.cf_handle("ecdsa_second_message").unwrap();
+	println!("second_message: get sealed secrets");
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &key_gen_msg2.shared_key_id)?;
-	
-	let enc = Enclave::new().unwrap();
-	
-	match enc.second_message(&mut sealed_secrets, &key_gen_msg2) {
+	println!("second_message: got sealed secrets");
+	match self.enclave().second_message(&mut sealed_secrets, &key_gen_msg2) {
 	    Ok(x) => {
 		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		Ok(Some(x.0))
@@ -118,9 +148,7 @@ impl Ecdsa for Lockbox {
 	let cf_out = &self.database.cf_handle("ecdsa_sign_first").unwrap();
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg1.shared_key_id)?;
 	
-	let enc = Enclave::new().unwrap();
-
-	match enc.sign_first(&mut sealed_secrets, &sign_msg1) {
+	match self.enclave().sign_first(&mut sealed_secrets, &sign_msg1) {
 	    Ok(x) => {
 		match x {
 		    Some(x) => {
@@ -141,9 +169,7 @@ impl Ecdsa for Lockbox {
 	let (mut sealed_secrets, user_db_key) = self.get_sealed_secrets(cf_in, &sign_msg2.shared_key_id)?;
 	
 
-	let enc = Enclave::new().unwrap();
-
-	match enc.sign_second(&mut sealed_secrets, &sign_msg2) {
+	match self.enclave().sign_second(&mut sealed_secrets, &sign_msg2) {
 	    Ok(x) => {
 		self.database.put_cf(cf_out, user_db_key, &x.1)?;
 		return Ok(Some(x.0))
@@ -157,9 +183,7 @@ impl Ecdsa for Lockbox {
 	let cf_out = &self.database.cf_handle("ecdsa_keyupdate").unwrap();
 	let (mut sealed_secrets, _user_db_key) = self.get_sealed_secrets(cf_in, &receiver_msg.user_id)?;
 
-	let enc = Enclave::new().unwrap();
-
-	match enc.keyupdate_first(&mut sealed_secrets, &receiver_msg) {
+	match self.enclave().keyupdate_first(&mut sealed_secrets, &receiver_msg) {
 	    Ok(x) => {
 		let statechain_db_key = Key::from_uuid(&receiver_msg.statechain_id);
 		self.database.put_cf(cf_out, statechain_db_key, &x.1)?;

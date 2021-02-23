@@ -16,6 +16,9 @@ extern crate zk_paillier;
 extern crate bitcoin;
 extern crate subtle;
 extern crate hex;
+extern crate shared_lib;
+#[macro_use]
+extern crate serial_test;
 
 use uuid::Uuid;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
@@ -31,6 +34,7 @@ use reqwest::Error as ReqwestError;
 use bitcoin::secp256k1::{Signature, PublicKey, Message, Secp256k1};
 use subtle::ConstantTimeEq;
 use std::env;
+use shared_lib::structs::{EnclaveIDMsg, DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
 
 pub struct Lockbox {
     pub client: reqwest::blocking::Client,
@@ -175,6 +179,30 @@ where
     }
 }
 
+pub fn get_lb<V>(lockbox: &Lockbox, path: &str) -> Result<V>
+where
+    V: serde::de::DeserializeOwned,
+{
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let mut b = lockbox
+        .client
+        .get(&format!("{}/{}", lockbox.endpoint, path));
+
+    // catch reqwest errors
+    let value = match b.send() {
+        Ok(v) => v.text().unwrap(),
+        Err(e) => return Err(CError::from(e)),
+    };
+
+    // catch State entity errors
+    if value.contains(&String::from("Error: ")) {
+        return Err(CError::Generic(value));
+    }
+
+    Ok(serde_json::from_str(value.as_str()).unwrap())
+}
+
 // verify 2P ECDSA signature
 pub fn verify(r: &BigInt, s: &BigInt, pubkey: &GE, message: &BigInt) -> bool {
     let s_fe: FE = ECScalar::from(&s);
@@ -204,10 +232,62 @@ pub fn verify(r: &BigInt, s: &BigInt, pubkey: &GE, message: &BigInt) -> bool {
 mod tests {
     use super::*;
 
+    fn init_dh() -> Lockbox {
+	let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
+	
+        let lockbox = Lockbox::new(lockbox_url.to_string());
+
+	println!("...getting src enclave id...\n");
+	let enclave_id_msg = get_lb::<EnclaveIDMsg>(&lockbox, "attestation/enclave_id").unwrap();
+
+	println!("enclave id: {:?}", enclave_id_msg);
+
+	println!("...requesting session...\n");
+	let dhmsg1: DHMsg1 = post_lb(&lockbox, "attestation/session_request", &enclave_id_msg).unwrap();
+
+	println!("...proc_msg1...\n");
+	let dh_msg2: DHMsg2 = post_lb(&lockbox, "attestation/proc_msg1", &dhmsg1).unwrap();
+
+	let rep_msg = ExchangeReportMsg {
+	    src_enclave_id: enclave_id_msg.inner,
+	    dh_msg2,
+	};
+	
+	let dh_msg3: DHMsg3 = post_lb(&lockbox, "attestation/exchange_report", &rep_msg).unwrap();
+
+	println!("...proc_msg3...\n");
+	let res: () = post_lb(&lockbox, "attestation/proc_msg3", &dh_msg3).unwrap();
+	
+	/*
+	let shared_key_id = Uuid::new_v4();
+
+        let key_gen_msg1 = KeyGenMsg1 {
+            shared_key_id: shared_key_id,
+            protocol: Protocol::Deposit,
+        };
+
+	println!("keygen first");
+	
+        let path: &str = "ecdsa/keygen/first";
+	println!("int test: first message");
+        let (return_id, key_gen_first_msg): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1).unwrap();
+	 */
+
+	lockbox
+    }
+    
+    #[serial]
+    #[test]
+    fn test_dh() {
+	let _lockbox = init_dh();
+    }
+
+    
+    #[serial]
     #[test]
     fn test_keygen() {
         let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
-
+	
         let lockbox = Lockbox::new(lockbox_url.to_string());
 
         let shared_key_id = Uuid::new_v4();
@@ -217,9 +297,12 @@ mod tests {
             protocol: Protocol::Deposit,
         };
 
+	println!("keygen first");
+	
         let path: &str = "ecdsa/keygen/first";
-
+	println!("int test: first message");
         let (return_id, key_gen_first_msg): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1).unwrap();
+
 
         assert_eq!(return_id,shared_key_id);
 
@@ -234,12 +317,14 @@ mod tests {
             dlog_proof: kg_party_two_first_message.d_log_proof,
         };
 
+
         let path: &str = "ecdsa/keygen/second";
+	println!("int test: second message");
         let kg_party_one_second_message: party1::KeyGenParty1Message2 = post_lb(&lockbox, path, &key_gen_msg2).unwrap();
 
         let key_gen_second_message = MasterKey2::key_gen_second_message(
             &key_gen_first_msg,
-            &kg_party_one_second_message,
+            &kg_party_one_second_message,      
         );
 
         let (_, party_two_paillier) = key_gen_second_message.unwrap();
@@ -255,12 +340,13 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn test_sign_keygen() {
         let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
-
+	
         let lockbox = Lockbox::new(lockbox_url.to_string());
-
+	
         let shared_key_id = Uuid::new_v4();
 
         let key_gen_msg1 = KeyGenMsg1 {
@@ -317,6 +403,7 @@ mod tests {
             eph_key_gen_first_message_party_two,
         };
 
+
         let path: &str = "ecdsa/sign/first";
         let sign_party_one_first_message: party_one::EphKeyGenFirstMsg =
             post_lb(&lockbox, path, &sign_msg1).unwrap();
@@ -356,8 +443,10 @@ mod tests {
         let ver = verify(&r,&s,&pk_vec,&msg);
 
         assert!(ver);
+
     }
 
+    #[serial]
     #[test]
     fn test_transfer_sign_keygen() {
         let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
@@ -594,4 +683,5 @@ mod tests {
         assert!(ver);
 
     }
+	
 }

@@ -1,0 +1,37 @@
+[package]
+name = "attestation"
+version = "1.0.0"
+authors = ["The Teaclave Authors"]
+
+[features]
+default = []
+use_std = []
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies]
+sgx_types = {  rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_trts = {  rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tstd = {  rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tdh = {  rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_alloc = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_backtrace = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_backtrace_sys = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_build_helper = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_cov = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+##sgx_crypto_helper = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_demangle = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_libc = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_rand = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_rand_derive = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_serialize = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_serialize_derive = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_serialize_derive_internals = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_tcrypto = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_tcrypto_helper = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_tkey_exchange = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_tprotected_fs = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_tse = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_tseal = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_tunittest = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+##sgx_ucrypto = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_unwind = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+#sgx_urts = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }

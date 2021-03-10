@@ -41,7 +41,7 @@ pub enum Protocol {
 //Secret key is stored as raw bytes
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
 pub struct FESer {
-    secret_bytes: Vec<u8>,
+    pub secret_bytes: Vec<u8>,
 }
 
 impl FESer {
@@ -276,7 +276,7 @@ pub struct KUSendMsg {        // Sent from server to lockbox
     pub user_id: Uuid,
     pub statechain_id: Uuid,
     pub x1: FE,
-    pub t2: FE,
+    pub t2: FESer,
     pub o2_pub: GE,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]

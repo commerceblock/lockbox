@@ -84,6 +84,7 @@ use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
 use zk_paillier::zkproofs::{NICorrectKeyProof,CompositeDLogProof, DLogStatement};
 use num_traits::{One, Pow};
 use core::ptr;
+use std::string::ToString;
 
 extern crate attestation;
 use attestation::types::*;
@@ -3205,13 +3206,28 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
 	match serde_cbor::from_slice::<SecondMessageSealed>(&ud.decrypt){
 	    Ok(data) => {
 
+        println!("{:?}", "s1");
+
 		let s1 = data.party_one_private.x1;
+
+        println!("{:?}", s1);
 
         let key_bytes = &hex::decode(&s1.clone().get_element().to_string()).unwrap();
 
+        println!("{:?}", "t2enc");
+
+        println!("{:?}", hex::encode(&rec_msg.t2));
+
         let t2s = ecies::decrypt(key_bytes, &rec_msg.t2).unwrap();
 
-        let t2 = ECScalar::from(&BigInt::from_hex(hex::encode(&t2s)));
+        println!("{:?}", "t2dec");
+        println!("{:?}", hex::encode(&t2s));
+
+        let t2: FE = ECScalar::from(&BigInt::from_hex(&hex::encode(&t2s)));
+
+        println!("{:?}", "t2fe");
+
+        println!("{:?}", t2);
 
 //        let t2sk = libsecp256k1::SecretKey::from_slice(t2s).unwrap();
 //        let mut t2 = FE::zero();

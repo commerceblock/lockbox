@@ -30,7 +30,7 @@ paillier = { git = "https://github.com/commerceblock/rust-paillier.git", branch 
 zk-paillier = { git = "https://github.com/commerceblock/zk-paillier.git", branch = "sgx" }
 subtle = { git = "https://github.com/mesalock-linux/subtle-sgx.git", tag = "sgx_1.1.3" }
 lazy_static = "1.4.0"
-ecies = { git = "https://github.com/commerceblock/rs.git", branch = "sgx" }
+ecies = { git = "https://github.com/commerceblock/rs.git", branch = "sgx2" }
 
 [dependencies.either]
 default-features = false

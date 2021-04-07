@@ -3206,33 +3206,13 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
 	match serde_cbor::from_slice::<SecondMessageSealed>(&ud.decrypt){
 	    Ok(data) => {
 
-        println!("{:?}", "s1");
-
 		let s1 = data.party_one_private.x1;
-
-        println!("{:?}", s1);
 
         let key_bytes = &hex::decode(&s1.clone().get_element().to_string()).unwrap();
 
-        println!("{:?}", "t2enc");
-
-        println!("{:?}", hex::encode(&rec_msg.t2));
-
         let t2s = ecies::decrypt(key_bytes, &rec_msg.t2).unwrap();
 
-        println!("{:?}", "t2dec");
-        println!("{:?}", hex::encode(&t2s));
-
         let t2: FE = ECScalar::from(&BigInt::from_hex(&hex::encode(&t2s)));
-
-        println!("{:?}", "t2fe");
-
-        println!("{:?}", t2);
-
-//        let t2sk = libsecp256k1::SecretKey::from_slice(t2s).unwrap();
-//        let mut t2 = FE::zero();
-//        t2.set_element(t2sk);
-//        let t2 = t2;
 
 		// derive updated private key share
 		let s2 = t2 * (rec_msg.x1.invert()) * s1;
@@ -3252,7 +3232,6 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
 		    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
 		}
 		
-    
 		let rec_msg_out = KUReceiveMsg {
 		    s2_pub,
 		};

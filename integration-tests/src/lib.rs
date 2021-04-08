@@ -17,6 +17,7 @@ extern crate bitcoin;
 extern crate subtle;
 extern crate hex;
 extern crate shared_lib;
+extern crate ecies;
 #[macro_use]
 extern crate serial_test;
 
@@ -64,6 +65,11 @@ pub enum Protocol {
 
 // 2P-ECDSA Co-signing algorithm structs
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+pub struct FESer {
+    pub secret_bytes: Vec<u8>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct KeyGenMsg1 {
     pub shared_key_id: Uuid,
@@ -100,7 +106,7 @@ pub struct KUSendMsg {
     pub user_id: Uuid,
     pub statechain_id: Uuid,
     pub x1: FE,
-    pub t2: FE,
+    pub t2: FESer,
     pub o2_pub: GE,
 }
 
@@ -172,10 +178,10 @@ where
         Err(e) => return Err(CError::from(e)),
     };
     match serde_json::from_str(value.as_str()) {
-	Ok(r) => Ok(r),
-	Err(e) => {
-	    Err(CError::Generic(format!("Error derserialising POST response: {}: {}", value.as_str(), e)))
-	}
+    Ok(r) => Ok(r),
+    Err(e) => {
+        Err(CError::Generic(format!("Error derserialising POST response: {}: {}", value.as_str(), e)))
+    }
     }
 }
 
@@ -233,53 +239,51 @@ mod tests {
     use super::*;
 
     fn init_dh() -> Lockbox {
-	let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
-	
+    let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
+    
         let lockbox = Lockbox::new(lockbox_url.to_string());
 
-	println!("...getting src enclave id...\n");
-	let enclave_id_msg = get_lb::<EnclaveIDMsg>(&lockbox, "attestation/enclave_id").unwrap();
+    println!("...getting src enclave id...\n");
+    let enclave_id_msg = get_lb::<EnclaveIDMsg>(&lockbox, "attestation/enclave_id").unwrap();
 
-	println!("enclave id: {:?}", enclave_id_msg);
+    println!("enclave id: {:?}", enclave_id_msg);
 
-	println!("...requesting session...\n");
-	let dhmsg1: DHMsg1 = post_lb(&lockbox, "attestation/session_request", &enclave_id_msg).unwrap();
+    println!("...requesting session...\n");
+    let dhmsg1: DHMsg1 = post_lb(&lockbox, "attestation/session_request", &enclave_id_msg).unwrap();
 
-	println!("...proc_msg1...\n");
-	let dh_msg2: DHMsg2 = post_lb(&lockbox, "attestation/proc_msg1", &dhmsg1).unwrap();
+    println!("...proc_msg1...\n");
+    let dh_msg2: DHMsg2 = post_lb(&lockbox, "attestation/proc_msg1", &dhmsg1).unwrap();
 
-	let rep_msg = ExchangeReportMsg {
-	    src_enclave_id: enclave_id_msg.inner,
-	    dh_msg2,
-	};
-	
-	let dh_msg3: DHMsg3 = post_lb(&lockbox, "attestation/exchange_report", &rep_msg).unwrap();
+    let rep_msg = ExchangeReportMsg {
+        src_enclave_id: enclave_id_msg.inner,
+        dh_msg2,
+    };
+    
+    let dh_msg3: DHMsg3 = post_lb(&lockbox, "attestation/exchange_report", &rep_msg).unwrap();
 
-	println!("...proc_msg3...\n");
-	let res: () = post_lb(&lockbox, "attestation/proc_msg3", &dh_msg3).unwrap();
-	
-	/*
-	let shared_key_id = Uuid::new_v4();
-
+    println!("...proc_msg3...\n");
+    let res: () = post_lb(&lockbox, "attestation/proc_msg3", &dh_msg3).unwrap();
+    
+    /*
+    let shared_key_id = Uuid::new_v4();
         let key_gen_msg1 = KeyGenMsg1 {
             shared_key_id: shared_key_id,
             protocol: Protocol::Deposit,
         };
-
-	println!("keygen first");
-	
+    println!("keygen first");
+    
         let path: &str = "ecdsa/keygen/first";
-	println!("int test: first message");
+    println!("int test: first message");
         let (return_id, key_gen_first_msg): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1).unwrap();
-	 */
+     */
 
-	lockbox
+    lockbox
     }
     
     #[serial]
     #[test]
     fn test_dh() {
-	let _lockbox = init_dh();
+    let _lockbox = init_dh();
     }
 
     
@@ -287,7 +291,7 @@ mod tests {
     #[test]
     fn test_keygen() {
         let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
-	
+    
         let lockbox = Lockbox::new(lockbox_url.to_string());
 
         let shared_key_id = Uuid::new_v4();
@@ -297,10 +301,10 @@ mod tests {
             protocol: Protocol::Deposit,
         };
 
-	println!("keygen first");
-	
+    println!("keygen first");
+    
         let path: &str = "ecdsa/keygen/first";
-	println!("int test: first message");
+    println!("int test: first message");
         let (return_id, key_gen_first_msg): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1).unwrap();
 
 
@@ -319,7 +323,7 @@ mod tests {
 
 
         let path: &str = "ecdsa/keygen/second";
-	println!("int test: second message");
+    println!("int test: second message");
         let kg_party_one_second_message: party1::KeyGenParty1Message2 = post_lb(&lockbox, path, &key_gen_msg2).unwrap();
 
         let key_gen_second_message = MasterKey2::key_gen_second_message(
@@ -344,9 +348,9 @@ mod tests {
     #[test]
     fn test_sign_keygen() {
         let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
-	
+    
         let lockbox = Lockbox::new(lockbox_url.to_string());
-	
+    
         let shared_key_id = Uuid::new_v4();
 
         let key_gen_msg1 = KeyGenMsg1 {
@@ -533,7 +537,7 @@ mod tests {
 
         let path: &str = "ecdsa/sign/second";
         let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
-	
+    
         assert_eq!(der_signature.len(),2);
         assert_eq!(der_signature[1].len(),33);
 
@@ -562,11 +566,22 @@ mod tests {
 
         let t2 = t1 * (o2.invert());
 
+        let pk_bytes = &kg_party_one_second_message
+                .ecdh_second_message
+                .comm_witness
+                .public_share.pk_to_key_slice();
+
+        let t2s = t2.clone().get_element().to_string();
+
+        let t2_bytes = hex::decode(&t2s).expect("hex decode error");
+        let encrypted = ecies::encrypt(pk_bytes, &t2_bytes).unwrap();
+
+
         let ku_send = KUSendMsg {
             user_id: shared_key_id,
             statechain_id: statechain_id,
             x1: x1,
-            t2: t2,
+            t2: FESer { secret_bytes: encrypted },
             o2_pub: o2_pub,
         };
 
@@ -683,5 +698,5 @@ mod tests {
         assert!(ver);
 
     }
-	
+    
 }

@@ -44,9 +44,11 @@ extern crate uuid;
 extern crate paillier;
 extern crate zk_paillier;
 extern crate subtle;
+extern crate ecies;
 #[macro_use]
 extern crate serde_big_array;
 extern crate lazy_static;
+extern crate hex;
 
 use secp256k1::Secp256k1;
 use sgx_types::*;
@@ -64,6 +66,7 @@ use sgx_tseal::{SgxSealedData};
 use std::ops::{Deref, DerefMut};
 use std::default::Default;
 use curv::{BigInt, FE, GE};
+use curv::elliptic::curves::secp256_k1::SK as SKey;
 use curv::elliptic::curves::traits::{ECScalar, ECPoint};
 use curv::arithmetic_sgx::traits::{Samplable, Converter};
 use curv::cryptographic_primitives_sgx::proofs::sigma_ec_ddh::*;
@@ -81,6 +84,7 @@ use paillier::{Paillier, Randomness, RawPlaintext, KeyGeneration,
 use zk_paillier::zkproofs::{NICorrectKeyProof,CompositeDLogProof, DLogStatement};
 use num_traits::{One, Pow};
 use core::ptr;
+use std::string::ToString;
 
 extern crate attestation;
 use attestation::types::*;
@@ -1118,7 +1122,7 @@ pub struct KUSendMsg {        // Sent from server to lockbox
     pub user_id: Uuid,
     pub statechain_id: Uuid,
     pub x1: FE,
-    pub t2: FE,
+    pub t2: Vec<u8>,
     pub o2_pub: GE,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -3202,13 +3206,17 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
 	match serde_cbor::from_slice::<SecondMessageSealed>(&ud.decrypt){
 	    Ok(data) => {
 
-    
 		let s1 = data.party_one_private.x1;
-		
+
+        let key_bytes = &hex::decode(&s1.clone().get_element().to_string()).unwrap();
+
+        let t2s = ecies::decrypt(key_bytes, &rec_msg.t2).unwrap();
+
+        let t2: FE = ECScalar::from(&BigInt::from_hex(&hex::encode(&t2s)));
+
 		// derive updated private key share
-		let s2 = rec_msg.t2 * (rec_msg.x1.invert()) * s1;
-		
-		
+		let s2 = t2 * (rec_msg.x1.invert()) * s1;
+
 		// Note:
 		//  s2 = o1*o2_inv*s1
 		//  t2 = o1*x1*o2_inv
@@ -3224,7 +3232,6 @@ pub extern "C" fn keyupdate_first(sealed_log_in: * mut u8, sealed_log_out: * mut
 		    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
 		}
 		
-    
 		let rec_msg_out = KUReceiveMsg {
 		    s2_pub,
 		};

@@ -126,9 +126,9 @@ pub fn end_session(
 
 impl Attestation for Lockbox{
     fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
-	self.enclave().say_something(String::from("doing session request"));
+	self.enclave_mut().say_something(String::from("doing session request"));
 	
-	match self.enclave().session_request(id_msg) {
+	match self.enclave_mut().session_request(id_msg) {
 	    Ok(r) => Ok(r),
 	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
 	}
@@ -154,18 +154,18 @@ impl Attestation for Lockbox{
     }
     
     fn end_session(&self) -> Result<()> {
-	self.enclave().say_something(String::from("doing end session"));
+	self.enclave_mut().say_something(String::from("doing end session"));
 	
 	Ok(())
     }
 
     fn enclave_id(&self) -> EnclaveIDMsg {
 	println!("...calling enclave.geteid()...");
-        EnclaveIDMsg { inner: self.enclave().geteid() }
+        EnclaveIDMsg { inner: self.enclave_mut().geteid() }
     }
 
     fn test_create_session(&self) -> Result<()> {
-	match self.enclave().test_create_session() {
+	match self.enclave_mut().test_create_session() {
 	    Ok(r) => {
 		Ok(())
 	    },
@@ -174,7 +174,7 @@ impl Attestation for Lockbox{
     }
     
     fn proc_msg1(&self, dh_msg1: &DHMsg1) -> Result<DHMsg2> {
-	match self.enclave().proc_msg1(dh_msg1) {
+	match self.enclave_mut().proc_msg1(dh_msg1) {
 	    Ok(r) => {
 		Ok(r)
 	    },
@@ -222,7 +222,7 @@ impl Attestation for Lockbox{
 		Ok(x) => {
 		    self.enclave_mut().set_ec_key(Some(x));
 		    self.enclave_mut().set_ec_key_enclave(x);
-		    Ok(*self.enclave().get_ec_key())
+		    Ok(*self.enclave_mut().get_ec_key())
 		},
 		Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
 	    },

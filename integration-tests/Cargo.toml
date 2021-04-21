@@ -18,7 +18,7 @@ serial_test = "0.5.0"
 bitcoin = { version = "0.25", features = [ "use-serde" ] }
 subtle = "2.4.0"
 hex = "0.4.2"
-ecies = "0.1.4"
+ecies = { git = "https://github.com/commerceblock/rs.git", branch = "rust-crypto" }
 
 [dependencies.zk-paillier]
 git = "https://github.com/KZen-networks/zk-paillier"

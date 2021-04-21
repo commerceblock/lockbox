@@ -216,9 +216,9 @@ mod tests {
     fn fuzz_cycle_full() {
 
         // repetitions
-        const NCYCLE: u32 = 100;        
+        const NCYCLE: u32 = 1;        
 
-        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
+        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://209.250.253.39:8000".to_string());
         let lockbox = Lockbox::new(lockbox_url.to_string());
 
         // loop keygen
@@ -244,6 +244,8 @@ mod tests {
                 dlog_proof: kg_party_two_first_message.d_log_proof,
             };
 
+            println!("{:?}", "done keygen first");
+
             let path: &str = "ecdsa/keygen/second";
             let kg_party_one_second_message: party1::KeyGenParty1Message2 = post_lb(&lockbox, path, &key_gen_msg2).unwrap();
 
@@ -263,6 +265,8 @@ mod tests {
                     .public_share,
                 &party_two_paillier,
             );
+
+            println!("{:?}", "done keygen second");
 
             // choose message to sign
             let message = FE::new_random().to_big_int();
@@ -294,6 +298,8 @@ mod tests {
                 },
             };
 
+                        println!("{:?}", "done sign first");
+
             let path: &str = "ecdsa/sign/second";
             let der_signature: Vec<Vec<u8>> =  post_lb(&lockbox, path, &sign_msg2).unwrap();
             assert_eq!(der_signature.len(),2);
@@ -306,6 +312,8 @@ mod tests {
             let pk_vec = master_key.public.q;
             let ver = verify(&r,&s,&pk_vec,&msg);
             assert!(ver);
+
+            println!("{:?}", "done sign second");
 
             // do transfer
             let statechain_id = Uuid::new_v4();
@@ -342,6 +350,8 @@ mod tests {
                 shared_key_id: new_shared_key_id,
             };
 
+                        println!("{:?}", "done ku first");
+
             let path: &str = "ecdsa/keyupdate/second";
             let ku_attest: KUAttest = post_lb(&lockbox, path, &ku_send).unwrap();
 
@@ -352,6 +362,8 @@ mod tests {
                 shared_key_id: new_shared_key_id,
                 protocol: Protocol::Transfer,
             };
+
+            println!("{:?}", "done ku second");
 
             let path: &str = "ecdsa/keygen/first";
             let (return_id_2, key_gen_first_msg_2): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1_2).unwrap();
@@ -441,9 +453,9 @@ mod tests {
     fn fuzz_cycle_transfer() {
 
         // repetitions
-        const NCYCLE: u32 = 100;        
+        const NCYCLE: u32 = 10;        
 
-        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
+        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://209.250.253.39:8000".to_string());
         let lockbox = Lockbox::new(lockbox_url.to_string());
 
         let shared_key_id = Uuid::new_v4();
@@ -673,9 +685,9 @@ mod tests {
     fn fuzz_interlace() {
 
         // repetitions
-        const NCYCLE: u32 = 100;        
+        const NCYCLE: u32 = 1;        
 
-        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
+        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://209.250.253.39:8000".to_string());
         let lockbox = Lockbox::new(lockbox_url.to_string());
 
         let mut shared_key_id: Vec<Uuid> = vec![];

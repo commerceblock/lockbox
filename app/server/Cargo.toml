@@ -97,12 +97,12 @@ package = "multi-party-ecdsa"
 
 [dependencies.multi-party-schnorr]
 git = "https://github.com/commerceblock/multi-party-schnorr"
-tag = "v0.3.4"
+tag = "v0.3.5"
 optional = true
 
 [dependencies.curv]
 git = "https://github.com/commerceblock/curv"
-tag = "v0.2.3"
+tag = "v0.2.8"
 features =  ["ec_secp256k1"]
 
 [dependencies.curv-client]

@@ -78,7 +78,7 @@ pub struct RocketConfig {
 impl Default for RocketConfig {
     fn default() -> RocketConfig {
         RocketConfig {
-            keep_alive: 100,
+            keep_alive: 0,
             address: "0.0.0.0".to_string(),
             port: 8000,
         }

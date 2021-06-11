@@ -55,7 +55,7 @@ impl Lockbox
         };
 
 	//Get the enclave id from the enclave
-	let report = lb.enclave().get_self_report().unwrap();
+	let report = lb.enclave_mut().get_self_report().unwrap();
 	let key_id = report.body.mr_enclave.m;
         let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
         let db_key = Key::from_uuid(&key_uuid.build());
@@ -66,9 +66,9 @@ impl Lockbox
 	Ok(lb)
     }
 
-    pub fn enclave(&self) -> RwLockReadGuard<Enclave> {
-	self.enclave.read().unwrap()
-    }
+    //pub fn enclave(&self) -> RwLockReadGuard<Enclave> {
+//	self.enclave.read().unwrap()
+//    }
 
     pub fn enclave_mut(&self) -> RwLockWriteGuard<Enclave> {
 	let mut lock = self.enclave.write().expect("locking enclave to write");

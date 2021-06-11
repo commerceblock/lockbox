@@ -1,6 +1,6 @@
 [package]
 name = "lockbox_enclave"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["The Teaclave Authors"]
 
 [lib]
@@ -22,12 +22,15 @@ serde-big-array = { git = "https://github.com/mesalock-linux/serde-big-array-sgx
 serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx" }
 libsecp256k1 = {  package = "libsecp256k1", git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx.git" }
 secp256k1_sgx = {git = "https://github.com/commerceblock/rust-secp256k1-sgx.git", package = "secp256k1-sgx", features = ["rand"]}
-zeroize = "0.10"
+zeroize = "1.3.0"
+hex = { git = "https://github.com/mesalock-linux/rust-hex-sgx" }
+
 uuid = { git = "https://github.com/mesalock-linux/uuid-sgx", features = ["v4", "serde"] }
 paillier = { git = "https://github.com/commerceblock/rust-paillier.git", branch = "sgx" }
 zk-paillier = { git = "https://github.com/commerceblock/zk-paillier.git", branch = "sgx" }
 subtle = { git = "https://github.com/mesalock-linux/subtle-sgx.git", tag = "sgx_1.1.3" }
 lazy_static = "1.4.0"
+ecies = { git = "https://github.com/commerceblock/rs.git", branch = "sgx" }
 
 [dependencies.either]
 default-features = false

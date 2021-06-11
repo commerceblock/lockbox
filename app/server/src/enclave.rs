@@ -281,7 +281,7 @@ pub struct KUSendMsgSgx {        // Sent from server to lockbox
     pub user_id: Uuid,
     pub statechain_id: Uuid,
     pub x1: FESgx,
-    pub t2: FESgx,
+    pub t2: Vec<u8>,
     pub o2_pub: GESgx,
 }
 
@@ -295,7 +295,7 @@ impl From<&KUSendMsg> for KUSendMsgSgxW {
 	let user_id = item.user_id;
 	let statechain_id = item.statechain_id;
 	let x1 = FESgxW::from(&item.x1).inner;
-	let t2 = FESgxW::from(&item.t2).inner;
+	let t2 = item.t2.secret_bytes.clone();
 	let o2_pub = GESgxW::from(&item.o2_pub).inner;
 	
 	Self { inner: KUSendMsgSgx { user_id, statechain_id, x1, t2, o2_pub } }

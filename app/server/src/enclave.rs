@@ -1440,8 +1440,6 @@ impl Enclave {
 
     pub fn set_ec_key_enclave(&self, sealed_log: [u8;8192]) -> Result<()> {
 		
-		println!("set_ec_key_enclave");
-
 		let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 	
 		let _result = unsafe {
@@ -1450,7 +1448,6 @@ impl Enclave {
 	
 		match enclave_ret {
 	    	sgx_status_t::SGX_SUCCESS => {
-				println!("successfully set enclave key");
 				Ok(())
 			},
        	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
@@ -1699,7 +1696,6 @@ impl Enclave {
 		let sign_msg1_sgx = SignMsg1SgxW::from(sign_msg1).inner;
 	
 		let sign_msg1_str = serde_json::to_string(&sign_msg1_sgx).unwrap();
-		println!("calling enclave sign_first...");
 		let _result = unsafe {
 	    	sign_first(self.geteid(), &mut enclave_ret,
 		       sealed_log_in.as_mut_ptr() as *mut u8,
@@ -1708,7 +1704,6 @@ impl Enclave {
 		       sign_msg1_str.len(),
 	    	       plain_ret.as_mut_ptr() as *mut u8)
 		};
-		println!("finished enclave sign_first...");
 
 		match enclave_ret {
 	    	sgx_status_t::SGX_SUCCESS => {

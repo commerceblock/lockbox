@@ -420,7 +420,6 @@ fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log:  * mut u
 
     match ECKEY.lock() {
 	Ok(mut ec_key) => {
-        println!("Setting encryption key: {:?}", dh_aek.key);
 	    *ec_key = dh_aek;
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
@@ -521,7 +520,6 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 
     match ECKEY.lock() {
 	Ok(mut ec_key) => {
-        println!("Setting encryption key: {:?}", dh_aek.key);
 	    *ec_key = dh_aek;
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
@@ -2212,7 +2210,6 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_
 	Ok(mut ec_key) => {
 	    let mut key_align = sgx_align_key_128bit_t::default();
 	    key_align.key = data.inner;
-        println!("Setting ec key: {:?}", key_align.key);
 	    *ec_key = key_align;
 	    sgx_status_t::SGX_SUCCESS
 	},
@@ -2225,7 +2222,6 @@ pub extern "C" fn get_ec_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_
 
     match ECKEY.lock() {
 	Ok(mut ec_key) => {
-        println!("Getting ec key: {:?}", ec_key.key);
 	    *ec_key; 
 	    sgx_status_t::SGX_SUCCESS
 	},
@@ -2308,7 +2304,6 @@ fn str_to_enc_log(in_str: &str, ec_log: &mut ec_log) -> SgxResult<()> {
     let mut ser_bytes = in_str_sized.into_bytes();
     ser_bytes.resize(EC_LOG_SIZE,0);
     
-    println!("bytes to log");
     *ec_log = match ser_bytes.as_slice().try_into() {
 	Ok(x) => x,
 	Err(e) => {
@@ -2584,15 +2579,12 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 fn raw_encrypted_to_decrypted(raw_enc: * mut u8, raw_enc_len: usize) -> SgxResult<UnencryptedData> {
 
 //    let slice = unsafe { slice::from_raw_parts(raw_enc, EC_LOG_SIZE)};
-    println!("enclave raw_encrypted_to_decrypted: ");
     match from_encrypted_log_for_slice(raw_enc, raw_enc_len as u32) {
    
 	Some(encrypted) => {
-        println!("got encrypted slice");
 	    unencrypt(&encrypted)
 	},
 	None =>  {
-        println!("failed to get encrypted slice");
         Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
     },
 
@@ -2682,7 +2674,6 @@ pub extern "C" fn test_sc_encrypt_unencrypt() -> sgx_status_t {
 fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
     match ECKEY.lock() {
 	Ok(mut k) => {
-        println!("encrypting with key: {:?}",k.key);
 	    EncryptedData::try_from(&[], encrypt, &[0;12], &mut k)
 	},
 	Err(e) => {
@@ -2693,14 +2684,11 @@ fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
 }
 
 fn unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
-    println!("enclave: unencrypt...");
     match ECKEY.lock() {
 	Ok(mut k) => {
-        println!("unencrypting with key: {:?}",k.key);
 	    encrypt.unencrypt(&mut k) 
 	},
 	Err(_) => {
-        println!("failed to unencrypt");
         Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
         }
     }
@@ -3057,7 +3045,6 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
-    println!("enclave sign_first: decrypting...");
     if let Ok(ud) = raw_encrypted_to_decrypted(sealed_log_in, EC_LOG_SIZE) {
 	match serde_cbor::from_slice::<SecondMessageSealed>(&ud.decrypt){
 	    Ok(data) => {

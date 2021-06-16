@@ -43,7 +43,6 @@ pub trait Attestation {
 pub fn test_create_session(
     lockbox: State<Lockbox>,
 ) -> Result<()> {
-    println!("...getting enclave id...");
     match lockbox.test_create_session(){
 	Ok(_) => Ok(()),
 	Err(e) => Err(e.into()),
@@ -110,7 +109,6 @@ pub fn proc_msg3(
 pub fn enclave_id(
     lockbox: State<Lockbox>,
 ) -> Result<Json<EnclaveIDMsg>> {
-    println!("...getting enclave id...");
     Ok(Json(lockbox.enclave_id()))
 }
 
@@ -146,8 +144,6 @@ impl Attestation for Lockbox{
 	    	Err(e) => return Err(LockboxError::Generic(format!("exchange report: {}",e)))
 		};
 
-		println!("exchange_report: db_key = {:?}", db_key);
-
 		match self.put_enclave_key(&db_key, sealed_log){
 	    	Ok(_) => Ok(dh_msg3),
 	    	Err(e) => Err(LockboxError::Generic(format!("exchange report: {}",e)))
@@ -162,7 +158,6 @@ impl Attestation for Lockbox{
     }
 
     fn enclave_id(&self) -> EnclaveIDMsg {
-	println!("...calling enclave.geteid()...");
         EnclaveIDMsg { inner: self.enclave_mut().geteid() }
     }
 
@@ -195,7 +190,6 @@ impl Attestation for Lockbox{
 	    	},
 	    	Err(e) => return Err(LockboxError::Generic(format!("proc_msg3: {}",e))),
 		};
-		println!("proc_msg_3: db_key = {:?}", db_key);
 		self.put_enclave_key(&db_key, sealed_log)
     }
 
@@ -214,12 +208,10 @@ impl Attestation for Lockbox{
 	}
 
     fn get_enclave_key(&self, db_key: &Key) -> Result<Option<[u8; 8192]>> {
-		println!("getting enclave key...");
 		let cf = &self.key_database.cf_handle("enclave_key").unwrap();
 		match self.key_database.get_cf(cf, db_key){
 	    	Ok(Some(x)) => match x.try_into() {
 				Ok(x) => {
-					println!("got enclave key from db - setting in enclave");
 		    		self.enclave_mut().set_ec_key(Some(x));
 		    		self.enclave_mut().set_ec_key_enclave(x);
 		    		Ok(*self.enclave_mut().get_ec_key())
@@ -227,7 +219,6 @@ impl Attestation for Lockbox{
 				Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
 	    	},
 	    	Ok(None) => {
-				println!("enclave key not found in db");
 				Ok(None)
 			},
 	    	Err(e) => Err(e.into()),

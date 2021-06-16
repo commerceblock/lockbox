@@ -300,16 +300,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crypto-mac"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4857fd85a0c34b3c3297875b747c1e02e06b6a0ea32dd892d8192b9ce0813ea6"
-dependencies = [
- "generic-array 0.14.4",
- "subtle 2.4.0",
-]
-
-[[package]]
 name = "curv"
 version = "0.2.3"
 source = "git+https://github.com/KZen-networks/curv?tag=v0.2.3#d6c575b5711cd3d1c4e4e7f6c6b0fc0e38b3642a"
@@ -317,7 +307,7 @@ dependencies = [
  "blake2b_simd",
  "digest 0.8.1",
  "hex 0.3.2",
- "hmac 0.7.1",
+ "hmac",
  "rand 0.6.5",
  "rust-gmp 0.5.1",
  "secp256k1 0.15.5",
@@ -336,7 +326,7 @@ dependencies = [
  "blake2b_simd",
  "digest 0.8.1",
  "hex 0.3.2",
- "hmac 0.7.1",
+ "hmac",
  "rand 0.6.5",
  "rust-gmp 0.5.1",
  "secp256k1 0.19.0",
@@ -373,15 +363,13 @@ checksum = "212d0f5754cb6769937f4501cc0e67f4f4483c8d2c3e1e922ee9edbe4ab4c7c0"
 
 [[package]]
 name = "ecies"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e44d5bdf6a2543f7cb287beb5e8b8d9430f97fb9d2f3ae28faa3b8d5ecae331"
+version = "0.2.1"
+source = "git+https://github.com/commerceblock/rs.git?branch=rust-crypto#6b3a4b5b6234e3fc6f8049bec5f407dd62dac8ad"
 dependencies = [
  "hex 0.4.3",
- "hkdf",
  "libsecp256k1",
- "openssl",
  "rand 0.7.3",
+ "rust-crypto",
  "sha2 0.9.3",
 ]
 
@@ -511,6 +499,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "gcc"
+version = "0.3.55"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
+
+[[package]]
 name = "generic-array"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -536,8 +530,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fc3cb4d91f53b50155bdcfd23f6a4c39ae1969c2ae85982b135750cccaf5fce"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.9.0+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -598,33 +594,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hkdf"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51ab2f639c231793c5f6114bdb9bbe50a7dbbfcd7c7c6bd8475dec2d991e964f"
-dependencies = [
- "digest 0.9.0",
- "hmac 0.10.1",
-]
-
-[[package]]
 name = "hmac"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5dcb5e64cda4c23119ab41ba960d1e170a774c8e4b9d9e6a9bc18aabf5e59695"
 dependencies = [
- "crypto-mac 0.7.0",
+ "crypto-mac",
  "digest 0.8.1",
-]
-
-[[package]]
-name = "hmac"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1441c6b1e930e2817404b5046f1f989899143a12bf92de603b69f4e0aee1e15"
-dependencies = [
- "crypto-mac 0.10.0",
- "digest 0.9.0",
 ]
 
 [[package]]
@@ -635,7 +611,7 @@ checksum = "c6e570451493f10f6581b48cdd530413b63ea9e780f544bfd3bdcaa0d89d1a7b"
 dependencies = [
  "digest 0.8.1",
  "generic-array 0.12.4",
- "hmac 0.7.1",
+ "hmac",
 ]
 
 [[package]]
@@ -1446,6 +1422,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust-crypto"
+version = "0.2.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f76d05d3993fd5f4af9434e8e436db163a12a9d40e1a58a726f27a01dfd12a2a"
+dependencies = [
+ "gcc",
+ "libc",
+ "rand 0.3.23",
+ "rustc-serialize",
+ "time 0.1.43",
+]
+
+[[package]]
 name = "rust-gmp"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1464,6 +1453,12 @@ dependencies = [
  "num-traits 0.2.14",
  "serde",
 ]
+
+[[package]]
+name = "rustc-serialize"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 
 [[package]]
 name = "rustc_version"

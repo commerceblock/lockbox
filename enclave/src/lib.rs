@@ -420,6 +420,7 @@ fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log:  * mut u
 
     match ECKEY.lock() {
 	Ok(mut ec_key) => {
+        println!("Setting encryption key: {:?}", dh_aek.key);
 	    *ec_key = dh_aek;
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
@@ -2210,6 +2211,7 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_
 	Ok(mut ec_key) => {
 	    let mut key_align = sgx_align_key_128bit_t::default();
 	    key_align.key = data.inner;
+        println!("Setting ec key: {:?}", key_align.key);
 	    *ec_key = key_align;
 	    sgx_status_t::SGX_SUCCESS
 	},
@@ -2222,6 +2224,7 @@ pub extern "C" fn get_ec_key(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_
 
     match ECKEY.lock() {
 	Ok(mut ec_key) => {
+        println!("Getting ec key: {:?}", ec_key.key);
 	    *ec_key; 
 	    sgx_status_t::SGX_SUCCESS
 	},
@@ -2673,6 +2676,7 @@ pub extern "C" fn test_sc_encrypt_unencrypt() -> sgx_status_t {
 fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
     match ECKEY.lock() {
 	Ok(mut k) => {
+        println!("encrypting with key: {:?}",k.key);
 	    EncryptedData::try_from(&[], encrypt, &[0;12], &mut k)
 	},
 	Err(e) => {
@@ -2685,6 +2689,7 @@ fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
 fn unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
     match ECKEY.lock() {
 	Ok(mut k) => {
+        println!("unencrypting with key: {:?}",k.key);
 	    encrypt.unencrypt(&mut k) 
 	},
 	Err(_) => Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)

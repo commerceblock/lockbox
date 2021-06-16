@@ -11,10 +11,12 @@ ENV SGX_SDK=/opt/intel/sgxsdk \
     BINUTILS_PREFIX=/usr \
     LD_LIBRARY_PATH=$SGX_SDK/sdk_libs \
     LOCKBOX_DB_PATH=/root/lockbox_db \
+    LOCKBOX_KEY_DB_PATH=/root/lockbox_key_db \
     TESTS=$tests
 
 RUN set -x \
     && mkdir $LOCKBOX_DB_PATH \
+    && mkdir $LOCKBOX_KEY_DB_PATH \
     && apt update \
     && apt install -y libgmp-dev llvm clang \
     && git clone -b master --single-branch https://github.com/apache/incubator-teaclave-sgx-sdk.git /root/sgx \

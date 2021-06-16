@@ -201,11 +201,11 @@ impl Attestation for Lockbox{
     }
 
     fn put_enclave_key(&self, db_key: &Key, sealed_log: [u8; 8192]) -> Result<()> {
-	let cf = match self.database.cf_handle("enclave_key"){
+	let cf = match self.key_database.cf_handle("enclave_key"){
 	    Some(x) => x,
 	    None => return Err(LockboxError::Generic(String::from("enclave_key not found"))),
 	};
-	match self.database.put_cf(cf, db_key, &sealed_log){
+	match self.key_database.put_cf(cf, db_key, &sealed_log){
 	    Ok(_) => {
 		self.enclave_mut().set_ec_key(Some(sealed_log));
 		Ok(())
@@ -216,19 +216,19 @@ impl Attestation for Lockbox{
     }
 
     fn get_enclave_key(&self, db_key: &Key) -> Result<Option<[u8; 8192]>> {
-	let cf = &self.database.cf_handle("enclave_key").unwrap();
-	match self.database.get_cf(cf, db_key){
-	    Ok(Some(x)) => match x.try_into() {
-		Ok(x) => {
-		    self.enclave_mut().set_ec_key(Some(x));
-		    self.enclave_mut().set_ec_key_enclave(x);
-		    Ok(*self.enclave_mut().get_ec_key())
-		},
-		Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
-	    },
-	    Ok(None) => Ok(None),
-	    Err(e) => Err(e.into()),
-	}
+	let cf = &self.key_database.cf_handle("enclave_key").unwrap();
+		match self.key_database.get_cf(cf, db_key){
+	    	Ok(Some(x)) => match x.try_into() {
+				Ok(x) => {
+		    		self.enclave_mut().set_ec_key(Some(x));
+		    		self.enclave_mut().set_ec_key_enclave(x);
+		    		Ok(*self.enclave_mut().get_ec_key())
+				},
+				Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
+	    	},
+	    	Ok(None) => Ok(None),
+	    	Err(e) => Err(e.into()),
+		}
     }
 
     /*

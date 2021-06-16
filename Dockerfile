@@ -32,7 +32,9 @@ RUN set -x \
     && cd /root/lockbox \
     && echo "$TESTS" \
     && if [ "$TESTS" = "true" ] ; then sed -i 's/SGX_MODE ?= HW/SGX_MODE ?= SW/g' Makefile \
-    && bash -c "source /opt/intel/sgxsdk/environment && SGX_MODE=SW make" && /docker-entrypoint.sh tests \
+    && bash -c "source /opt/intel/sgxsdk/environment && SGX_MODE=SW make" \
+    && cd init_shared && cargo build --release && cp target/release/init_shared_exec /opt/lockbox/bin \
+    && cd .. && /docker-entrypoint.sh tests \
     && cd integration-tests && cargo test --no-default-features -- --test-threads=4 ; else make ; fi \
     && rm -rf /var/lib/apt/lists/*
 

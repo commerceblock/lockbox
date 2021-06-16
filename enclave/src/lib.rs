@@ -521,6 +521,7 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 
     match ECKEY.lock() {
 	Ok(mut ec_key) => {
+        println!("Setting encryption key: {:?}", dh_aek.key);
 	    *ec_key = dh_aek;
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
@@ -2343,7 +2344,6 @@ fn str_to_enc_log_lg(in_str: &str, ec_log: &mut ec_log_lg) -> SgxResult<()> {
 pub extern "C" fn verify_ec_fe(ec_log_in: * const u8, ec_log_in_len: u32) -> sgx_status_t {
 
     //let slice = unsafe { slice::from_raw_parts(ec_log_in, ec_log_in_len as usize)};
-
     match from_encrypted_log_for_slice(ec_log_in, ec_log_in_len) {
 	Some(encrypted) => {
 	    match unencrypt(&encrypted){
@@ -2584,12 +2584,18 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 fn raw_encrypted_to_decrypted(raw_enc: * mut u8, raw_enc_len: usize) -> SgxResult<UnencryptedData> {
 
 //    let slice = unsafe { slice::from_raw_parts(raw_enc, EC_LOG_SIZE)};
-
+    println!("enclave raw_encrypted_to_decrypted: ");
     match from_encrypted_log_for_slice(raw_enc, raw_enc_len as u32) {
+   
 	Some(encrypted) => {
+        println!("got encrypted slice");
 	    unencrypt(&encrypted)
 	},
-	None =>  Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER),
+	None =>  {
+        println!("failed to get encrypted slice");
+        Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+    },
+
     }
 }
 
@@ -2687,12 +2693,16 @@ fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
 }
 
 fn unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
+    println!("enclave: unencrypt...");
     match ECKEY.lock() {
 	Ok(mut k) => {
         println!("unencrypting with key: {:?}",k.key);
 	    encrypt.unencrypt(&mut k) 
 	},
-	Err(_) => Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	Err(_) => {
+        println!("failed to unencrypt");
+        Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+        }
     }
 }
 
@@ -3047,6 +3057,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
 
+    println!("enclave sign_first: decrypting...");
     if let Ok(ud) = raw_encrypted_to_decrypted(sealed_log_in, EC_LOG_SIZE) {
 	match serde_cbor::from_slice::<SecondMessageSealed>(&ud.decrypt){
 	    Ok(data) => {

@@ -62,6 +62,7 @@ impl Lockbox
     let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
     let db_key = Key::from_uuid(&key_uuid.build());
 
+    println!("getting enclave key for db key: {:?}", db_key);
 	//Get the sealed enclave key from the database and store it in the enclave struct
 	lb.get_enclave_key(&db_key).unwrap();
 	

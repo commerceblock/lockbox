@@ -36,11 +36,11 @@ tag = "v0.3.7"
 [dependencies.curv]
 git = "https://github.com/commerceblock/curv"
 features =  ["ec_secp256k1"]
-tag = "v0.2.7"
+tag = "v0.2.8"
 
 [dependencies.centipede]
 git = "https://github.com/commerceblock/centipede"
-tag = "v0.2.7"
+tag = "v0.2.9"
 
 [dependencies.shared]
 path = "../app/shared"

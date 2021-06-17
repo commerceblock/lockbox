@@ -17,7 +17,6 @@ ENV SGX_SDK=/opt/intel/sgxsdk \
 RUN set -x \
     && rm -rf /root/.cargo/registry/src/* \
     && rustup default nightly-2021-05-18 \
-    && rustup override set nightly-2021-05-18 \
     && mkdir $LOCKBOX_DB_PATH \
     && mkdir $LOCKBOX_KEY_DB_PATH \
     && apt update \
@@ -33,6 +32,8 @@ RUN set -x \
     && export PKG_CONFIG_PATH=$SGX_SDK/pkgconfig \
     && export BINUTILS_PREFIX=/usr \
     && cd /root/lockbox \
+    && rustup override set nightly-2021-05-18 \
+    && make clean \
     && echo "$TESTS" \
     && if [ "$TESTS" = "true" ] ; then sed -i 's/SGX_MODE ?= HW/SGX_MODE ?= SW/g' Makefile \
     && bash -c "source /opt/intel/sgxsdk/environment && SGX_MODE=SW make" \

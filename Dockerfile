@@ -15,6 +15,7 @@ ENV SGX_SDK=/opt/intel/sgxsdk \
     TESTS=$tests
 
 RUN set -x \
+    && rustup default nightly-2021-05-18 \
     && mkdir $LOCKBOX_DB_PATH \
     && mkdir $LOCKBOX_KEY_DB_PATH \
     && apt update \

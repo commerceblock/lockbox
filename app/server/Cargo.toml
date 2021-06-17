@@ -37,9 +37,9 @@ serial_test = "0.5.0"
 mockall = "0.8.1"
 cfg-if = "0.1.10"
 bitcoin = { version = "0.25", features = [ "use-serde" ] }
-sgx_types = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
-sgx_urts = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
-sgx_tdh = { rev="v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
+sgx_types = { rev="ed9e7cce4fd40efd7a256d5c4be1c5f00778a5bb", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
+sgx_urts = { rev="ed9e7cce4fd40efd7a256d5c4be1c5f00778a5bb", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
+sgx_tdh = { rev="ed9e7cce4fd40efd7a256d5c4be1c5f00778a5bb", git = "https://github.com/apache/teaclave-sgx-sdk.git"}
 rocksdb= "0.15.0"
 tempdir = "0.3.7"
 serde_cbor = "0.11.1"

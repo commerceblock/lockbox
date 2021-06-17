@@ -15,6 +15,7 @@ ENV SGX_SDK=/opt/intel/sgxsdk \
     TESTS=$tests
 
 RUN set -x \
+    && rm -rf /root/.cargo/registry/src/* \
     && rustup default nightly-2021-05-18 \
     && rustup override set nightly-2021-05-18 \
     && mkdir $LOCKBOX_DB_PATH \

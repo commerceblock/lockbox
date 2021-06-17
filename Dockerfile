@@ -33,9 +33,9 @@ RUN set -x \
     && echo "$TESTS" \
     && if [ "$TESTS" = "true" ] ; then sed -i 's/SGX_MODE ?= HW/SGX_MODE ?= SW/g' Makefile \
     && bash -c "source /opt/intel/sgxsdk/environment && SGX_MODE=SW make" \
-    && cd init_shared && cargo build --release && cp target/release/init_shared_exec /opt/lockbox/bin \
-    && cd .. && /docker-entrypoint.sh tests \
-    && cd integration-tests && cargo test --no-default-features -- --test-threads=4 ; else make ; fi \
+    && /docker-entrypoint.sh tests \
+    && cd integration-tests && cargo test --no-default-features -- --test-threads=4 && cd .. ; else make ; fi \
+    && cd init_shared && cargo build --release && cp target/release/init_shared_exec /opt/lockbox/bin && cd .. \
     && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

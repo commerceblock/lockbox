@@ -243,16 +243,18 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 
 
     let mut dh_msg1_inner = SgxDhMsg1::default();
-
+    println!("session_request_safe - generating response:");
     let status = match RESPONDER.lock(){
-	Ok(mut r) => r.gen_msg1(&mut dh_msg1_inner),
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+	    Ok(mut r) => r.gen_msg1(&mut dh_msg1_inner),
+	    Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
     
     if status.is_err() {
+        println!("session_request_safe - error generating response");
         return ATTESTATION_STATUS::INVALID_SESSION;
     }
 
+    println!("serialising response");
     match serde_json::to_string(& DHMsg1 { inner: dh_msg1_inner } ) {
 	Ok(v) => {
 	    let len = v.len();
@@ -266,11 +268,15 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
+    println!("writing session info");
     match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
 	    session_info.enclave_id = src_enclave_id;
 	    session_info.session.session_status = match RESPONDER.lock() {
-		Ok(r) => DhSessionStatus::InProgress(*r.deref()),
+		Ok(r) => {
+            println!("returning DhSessionStatus");
+            DhSessionStatus::InProgress(*r.deref())
+        },
 		Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
 		    
 	    };
@@ -2127,7 +2133,7 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
     let _ = io::stdout().write(str_slice);
 
     // A sample &'static string
-    let rust_raw_string = "This is a in-Enclave ";
+    let rust_raw_string = "<-This is a in-Enclave ";
     // An array
     let word:[u8;4] = [82, 117, 115, 116];
     // An vector

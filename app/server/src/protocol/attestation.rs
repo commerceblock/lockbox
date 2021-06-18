@@ -124,7 +124,7 @@ pub fn end_session(
 
 impl Attestation for Lockbox{
     fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
-	self.enclave_mut().say_something(String::from("doing session request"));
+	println!("doing session request");
 	
 	match self.enclave_mut().session_request(id_msg) {
 	    	Ok(r) => Ok(r),
@@ -152,7 +152,7 @@ impl Attestation for Lockbox{
     }
     
     fn end_session(&self) -> Result<()> {
-	self.enclave_mut().say_something(String::from("doing end session"));
+	println!("doing end session");
 	
 	Ok(())
     }

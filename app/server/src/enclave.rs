@@ -1264,23 +1264,16 @@ impl Enclave {
 		let mut retval = sgx_status_t::SGX_SUCCESS;
 		let mut dh_msg1 = [0u8;1600];
 
-//	let mut session_ptr: usize = 0;
+		//	let mut session_ptr: usize = 0;
 		let src_enclave_id = id_msg.inner;
 
-	
-		let mut input_string = String::from("enclave - session request say something");
-     	let result = unsafe {
-            say_something(self.geteid(),
-			&mut retval,
-			input_string.as_ptr() as * const u8,
-			input_string.len())
-    	};
 
 		match retval {
 	    	sgx_status_t::SGX_SUCCESS  =>(),
 	    	_ => return Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - say something {}!", retval.as_str())).into()),
 		};
 	
+		println!("enclave - doing session_request for enclave id {}", src_enclave_id);
      	let result = unsafe {
             session_request(self.geteid(),
 			&mut retval,
@@ -1289,7 +1282,7 @@ impl Enclave {
 		//,
 		//	    &mut session_ptr);
     	};
-
+		println!("enclave - parsing session request response");
 		match retval {
 	    	sgx_status_t::SGX_SUCCESS  => {
 			let c = dh_msg1[0].clone();

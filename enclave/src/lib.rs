@@ -307,9 +307,10 @@ pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
 fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
 		  dh_msg2: &mut [u8;1700]
 ) -> ATTESTATION_STATUS {
-
+    println!("dh_msg1_str: {:?} to slice", dh_msg1_str);
     let str_slice = unsafe { slice::from_raw_parts(dh_msg1_str, msg1_len) };
-
+    
+    println!("dh_msg1_str from utf8...");
     let dh_msg1 = match std::str::from_utf8(&str_slice) {
         Ok(v) =>{
             match serde_json::from_str::<DHMsg1>(v){
@@ -320,30 +321,42 @@ fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
         Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
+    println!("dh_msg1_str from utf8 finished.");
     let mut dh_msg2_inner: SgxDhMsg2 = SgxDhMsg2::default(); //Diffie-Hellman Message 2
     
+    println!("initiator - proc msg1...");
     let status = match INITIATOR.lock() {
-	Ok(mut r) => r.proc_msg1(&dh_msg1, &mut dh_msg2_inner),
-	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
+	    Ok(mut r) => r.proc_msg1(&dh_msg1, &mut dh_msg2_inner),
+	    Err(e) => {
+            println!("initiator proc msg1 err: {}", e);
+            return ATTESTATION_STATUS::ATTESTATION_ERROR
+        }
     };
 
     if status.is_err() {
+        println!("initiator proc msg1 status is err: {:?}", status);
         return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
 
+    println!("dh_msg2 to string...");
     match serde_json::to_string(& DHMsg2 { inner: dh_msg2_inner } ) {
 	Ok(v) => {
 	    let len = v.len();
+        println!("len: {}", len);
 	    let mut v_sized=format!("{}", len);
 	    v_sized=format!("{}{}", v_sized.len(), v_sized);
 	    v_sized.push_str(&v);
+        println!("v_sized: {}", v_sized);
 	    let mut v_bytes=v_sized.into_bytes();
+        println!("v_bytes: {:?} - resizing", v_bytes);
 	    v_bytes.resize(1700,0);
+        println!("v_bytes: {:?} - resized:", v_bytes);
 	    *dh_msg2 = v_bytes.as_slice().try_into().unwrap();
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
+    println!("proc msg1 success");
     ATTESTATION_STATUS::SUCCESS
 }
 

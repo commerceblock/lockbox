@@ -1341,8 +1341,9 @@ impl Enclave {
 
 
 	let mut dh_msg2_arr = [0u8;1700];
+	println!("proc_msg1 - deser dh_msg1");
 	let dh_msg1_str = serde_json::to_string(dh_msg1).unwrap();
-
+	println!("proc_msg1 - dh_msg1_str: {}. Doing enclave proc_msg1..", dh_msg1_str);
      	let result = unsafe {
             proc_msg1(self.geteid(),
 		      &mut retval,
@@ -1351,16 +1352,26 @@ impl Enclave {
 		      dh_msg2_arr.as_mut_ptr() as *mut u8);
     	};
 
+	println!("proc_msg1 - Finished enclave proc_msg1. Parsing result: {:?}", dh_msg2_arr);
+
 	match retval {
 	    sgx_status_t::SGX_SUCCESS  => {
+		println!("c");
 		let c = dh_msg2_arr[0].clone();
 		let c = &[c];
+		println!("nc_str");
 		let nc_str = std::str::from_utf8(c).unwrap();
+		println!("nc");
 		let nc = nc_str.parse::<usize>().unwrap();
+		println!("size_str");
 		let size_str = std::str::from_utf8(&dh_msg2_arr[1..(nc+1)]).unwrap();
+		println!("size");
 		let size = size_str.parse::<usize>().unwrap();
+		println!("msg_str");
 		let msg_str = std::str::from_utf8(&dh_msg2_arr[(nc+1)..(size+nc+1)]).unwrap().to_string();
+		println!("dh_msg2");
 		let dh_msg2 : DHMsg2  = serde_json::from_str(&msg_str).unwrap();
+		println!("returning");
 		Ok(dh_msg2)
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),

@@ -19,6 +19,7 @@ extern crate hex;
 extern crate shared_lib;
 #[macro_use]
 extern crate serial_test;
+use std::time::Duration;
 
 use uuid::Uuid;
 use curv::cryptographic_primitives::proofs::sigma_dlog::DLogProof;
@@ -44,7 +45,7 @@ pub struct Lockbox {
 
 impl Lockbox {
     pub fn new(endpoint: String) -> Lockbox {
-        let client = reqwest::blocking::Client::new();
+        let client = reqwest::blocking::Client::builder().timeout(Duration::from_secs(60)).build().unwrap();
         let active = endpoint.len() > 0;
         let lb = Lockbox {
             client,
@@ -245,7 +246,7 @@ mod tests {
 	println!("...requesting session...\n");
 	let dhmsg1: DHMsg1 = post_lb(&lockbox, "attestation/session_request", &enclave_id_msg).unwrap();
 
-	println!("...proc_msg1...\n");
+	println!("...proc_msg1: {:?}\n", dhmsg1);
 	let dh_msg2: DHMsg2 = post_lb(&lockbox, "attestation/proc_msg1", &dhmsg1).unwrap();
 
 	let rep_msg = ExchangeReportMsg {

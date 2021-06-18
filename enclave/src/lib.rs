@@ -465,8 +465,9 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 			sealed_log: *mut u8
 //			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
-
+    println!("dh_msg2 str from raw parts...");
     let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
+    println!("dh_msg2 str from str_slice...");
     let dh_msg2 = match std::str::from_utf8(&str_slice) {
 	Ok(v) =>{
 	    match serde_json::from_str::<DHMsg2>(v){
@@ -476,34 +477,44 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
+    println!("dh_aek default...");
     let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
+    println!("initiator identity default...");
     let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
 
+    println!("lock sessioninfo...");
     let mut dh_msg3_r  = match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
+        println!("get responder...");
 	    let mut responder = match session_info.session.session_status {
-		DhSessionStatus::InProgress(res) => {res},
-		_ => {
-		    return ATTESTATION_STATUS::INVALID_SESSION;
-		}
+		    DhSessionStatus::InProgress(res) => {res},
+		    _ => {
+		        return ATTESTATION_STATUS::INVALID_SESSION;
+		    }
 	    };
 
 	    let mut result = SgxDhMsg3::default();
+        println!("proc msg2 with responder...");
 	    let status = responder.proc_msg2(&dh_msg2, &mut result, &mut dh_aek.key, &mut initiator_identity);
 	    if status.is_err() {
-		return ATTESTATION_STATUS::ATTESTATION_ERROR;
+            println!("proc msg2 with responder error");
+		    return ATTESTATION_STATUS::ATTESTATION_ERROR;
 	    }
 	    result
 	},
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+	Err(e) => {
+        println!("session info lock error: {}", e);
+        return ATTESTATION_STATUS::INVALID_SESSION
+        }
     };
 
-
+    println!("dh_msg3_r calc raw sealed data size...");
     let raw_len = dh_msg3_r.calc_raw_sealed_data_size();
     let mut dh_msg3_inner = sgx_dh_msg3_t::default();
+    println!("dh_msg3_r to raw...");
     let _ = unsafe{ dh_msg3_r.to_raw_dh_msg3_t(&mut dh_msg3_inner, raw_len ) };
 
-
+    println!("dh_msg3_inner to string...");
     match serde_json::to_string(& DHMsg3 { inner: dh_msg3_inner } ) {
 	Ok(v) => {
 	    let len = v.len();
@@ -511,37 +522,50 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	    v_sized=format!("{}{}", v_sized.len(), v_sized);
 	    v_sized.push_str(&v);
 	    let mut v_bytes=v_sized.into_bytes();
+        println!("resize v_bytes...");
 	    v_bytes.resize(1600,0);
+        println!("v_bytes as as slice...");
 	    *dh_msg3_arr = v_bytes.as_slice().try_into().unwrap();
 	},
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+	Err(e) => {
+            println!("dh_msg3_inner to string error: {}", e);
+            return ATTESTATION_STATUS::INVALID_SESSION
+        }
     };
 
 
     let key_sealed  = SgxKey128BitSealed {
-	inner: dh_aek.key
+	    inner: dh_aek.key
     };
     
+    println!("sealable key...");
     let sealable = match SgxSealable::try_from(key_sealed){
 	Ok(x) => x,
         Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
     };
 
+    println!("sealed key data...");
     let sealed_data = match sealable.to_sealed(){
         Ok(x) => x,
 	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
     };
     
+    println!("sealed log...");
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, 8192);
     if opt.is_none() {
 	return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
 
+    println!("lock eckey...");
     match ECKEY.lock() {
-	Ok(mut ec_key) => {
-	    *ec_key = dh_aek;
-	},
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
+	    Ok(mut ec_key) => {
+            println!("set eckey...");
+	        *ec_key = dh_aek;
+	    },
+	Err(e) => {
+            println!("error locking eckey");
+            return ATTESTATION_STATUS::INVALID_SESSION
+        },
     };
     
 //    let dh_msg3 = SgxDhMsg3::default();
@@ -558,12 +582,20 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         }
     }
      */
+    println!("locking sessioninfo...");
     match SESSIONINFO.lock() {
-	Ok(mut session_info) => {session_info
+	Ok(mut session_info) => {
+                println!("setting sessioninfo");
+                session_info
 				 .session.session_status = DhSessionStatus::Active(dh_aek);
+                 println!("exchange report success");
 				 ATTESTATION_STATUS::SUCCESS},
-	Err(_) => ATTESTATION_STATUS::INVALID_SESSION,
+	Err(e) => {
+            println!("error locking sessioninfo: {}", e);
+            ATTESTATION_STATUS::INVALID_SESSION
+        },
     }
+    
 }
 //Verify Message 2, generate Message3 and exchange Message 3 with Source Enclave
 #[no_mangle]

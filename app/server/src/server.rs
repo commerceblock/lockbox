@@ -45,7 +45,7 @@ impl Lockbox
 {
     pub fn load(config_rs: Config) -> Result<Lockbox> {
 
-        let enclave = RwLock::new(Enclave::new().expect("failed to start enclave"));
+    let enclave = RwLock::new(Enclave::new().expect("failed to start enclave"));
 
 	let (database,key_database) = get_db(&config_rs);
 		

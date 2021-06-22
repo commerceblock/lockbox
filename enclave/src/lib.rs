@@ -497,7 +497,7 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         println!("proc msg2 with responder...");
 	    let status = responder.proc_msg2(&dh_msg2, &mut result, &mut dh_aek.key, &mut initiator_identity);
 	    if status.is_err() {
-            println!("proc msg2 with responder error");
+            println!("proc msg2 with responder error:");
 		    return ATTESTATION_STATUS::ATTESTATION_ERROR;
 	    }
 	    result

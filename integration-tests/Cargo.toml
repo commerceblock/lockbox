@@ -21,17 +21,20 @@ hex = "0.4.2"
 ecies = { git = "https://github.com/commerceblock/rs.git", branch = "rust-crypto" }
 
 [dependencies.zk-paillier]
-git = "https://github.com/KZen-networks/zk-paillier"
-tag = "v0.2.8"
+git = "https://github.com/commerceblock/zk-paillier"
+#tag = "v0.2.8"
+branch="lockbox"
 
 [dependencies.kms]
 git = "https://github.com/commerceblock/kms-secp256k1"
-tag = "v0.1.3"
+#tag = "v0.1.3"
+branch="lockbox"
 default-features = false
 
 [dependencies.multi-party-ecdsa]
 git = "https://github.com/commerceblock/multi-party-ecdsa"
-tag = "v0.3.7"
+branch="lockbox"
+#tag = "v0.3.7"
 
 [dependencies.curv]
 git = "https://github.com/commerceblock/curv"

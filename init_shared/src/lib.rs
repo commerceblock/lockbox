@@ -259,21 +259,8 @@ mod tests {
 	println!("...proc_msg3...\n");
 	let res: () = post_lb(&lockbox, "attestation/proc_msg3", &dh_msg3).unwrap();
 	
-	/*
-	let shared_key_id = Uuid::new_v4();
-
-        let key_gen_msg1 = KeyGenMsg1 {
-            shared_key_id: shared_key_id,
-            protocol: Protocol::Deposit,
-        };
-
-	println!("keygen first");
+    println!("...finished\n");
 	
-        let path: &str = "ecdsa/keygen/first";
-	println!("int test: first message");
-        let (return_id, key_gen_first_msg): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1).unwrap();
-	 */
-
 	lockbox
     }
     

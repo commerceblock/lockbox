@@ -31,4 +31,5 @@ fn main() {
     
     println!("...proc_msg3...\n");
     let res: () = post_lb(&lockbox_src, "attestation/proc_msg3", &dh_msg3).unwrap();
+    println!("...init_shared completed.\n");
 }

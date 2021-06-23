@@ -243,18 +243,15 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 
 
     let mut dh_msg1_inner = SgxDhMsg1::default();
-    println!("session_request_safe - generating response:");
     let status = match RESPONDER.lock(){
 	    Ok(mut r) => r.gen_msg1(&mut dh_msg1_inner),
 	    Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
     
     if status.is_err() {
-        println!("session_request_safe - error generating response");
         return ATTESTATION_STATUS::INVALID_SESSION;
     }
 
-    println!("serialising response");
     match serde_json::to_string(& DHMsg1 { inner: dh_msg1_inner } ) {
 	Ok(v) => {
 	    let len = v.len();
@@ -268,13 +265,11 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
-    println!("writing session info");
     match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
 	    session_info.enclave_id = src_enclave_id;
 	    session_info.session.session_status = match RESPONDER.lock() {
 		Ok(r) => {
-            println!("returning DhSessionStatus");
             DhSessionStatus::InProgress(*r.deref())
         },
 		Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
@@ -307,10 +302,10 @@ pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
 fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
 		  dh_msg2: &mut [u8;1700]
 ) -> ATTESTATION_STATUS {
-    println!("dh_msg1_str: {:?} to slice", dh_msg1_str);
+    
     let str_slice = unsafe { slice::from_raw_parts(dh_msg1_str, msg1_len) };
     
-    println!("dh_msg1_str from utf8...");
+    
     let dh_msg1 = match std::str::from_utf8(&str_slice) {
         Ok(v) =>{
             match serde_json::from_str::<DHMsg1>(v){
@@ -321,42 +316,42 @@ fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
         Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
-    println!("dh_msg1_str from utf8 finished.");
+    
     let mut dh_msg2_inner: SgxDhMsg2 = SgxDhMsg2::default(); //Diffie-Hellman Message 2
     
-    println!("initiator - proc msg1...");
+    
     let status = match INITIATOR.lock() {
 	    Ok(mut r) => r.proc_msg1(&dh_msg1, &mut dh_msg2_inner),
 	    Err(e) => {
-            println!("initiator proc msg1 err: {}", e);
+    
             return ATTESTATION_STATUS::ATTESTATION_ERROR
         }
     };
 
     if status.is_err() {
-        println!("initiator proc msg1 status is err: {:?}", status);
+    
         return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
 
-    println!("dh_msg2 to string...");
+    
     match serde_json::to_string(& DHMsg2 { inner: dh_msg2_inner } ) {
 	Ok(v) => {
 	    let len = v.len();
-        println!("len: {}", len);
+    
 	    let mut v_sized=format!("{}", len);
 	    v_sized=format!("{}{}", v_sized.len(), v_sized);
 	    v_sized.push_str(&v);
-        println!("v_sized: {}", v_sized);
+    
 	    let mut v_bytes=v_sized.into_bytes();
-        println!("v_bytes: {:?} - resizing", v_bytes);
+    
 	    v_bytes.resize(1700,0);
-        println!("v_bytes: {:?} - resized:", v_bytes);
+    
 	    *dh_msg2 = v_bytes.as_slice().try_into().unwrap();
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
-    println!("proc msg1 success");
+    
     ATTESTATION_STATUS::SUCCESS
 }
 
@@ -465,9 +460,9 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 			sealed_log: *mut u8
 //			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
-    println!("dh_msg2 str from raw parts...");
+    
     let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
-    println!("dh_msg2 str from str_slice...");
+    
     let dh_msg2 = match std::str::from_utf8(&str_slice) {
 	Ok(v) =>{
 	    match serde_json::from_str::<DHMsg2>(v){
@@ -477,15 +472,15 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
-    println!("dh_aek default...");
+    
     let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
-    println!("initiator identity default...");
+    
     let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
 
-    println!("lock sessioninfo...");
+    
     let mut dh_msg3_r  = match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
-        println!("get responder...");
+    
 	    let mut responder = match session_info.session.session_status {
 		    DhSessionStatus::InProgress(res) => {res},
 		    _ => {
@@ -494,27 +489,22 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	    };
 
 	    let mut result = SgxDhMsg3::default();
-        println!("proc msg2 with responder...");
+        
 	    let status = responder.proc_msg2(&dh_msg2, &mut result, &mut dh_aek.key, &mut initiator_identity);
 	    if status.is_err() {
-            println!("proc msg2 with responder error:");
-		    return ATTESTATION_STATUS::ATTESTATION_ERROR;
+        	return ATTESTATION_STATUS::ATTESTATION_ERROR;
 	    }
 	    result
 	},
 	Err(e) => {
-        println!("session info lock error: {}", e);
         return ATTESTATION_STATUS::INVALID_SESSION
         }
     };
 
-    println!("dh_msg3_r calc raw sealed data size...");
     let raw_len = dh_msg3_r.calc_raw_sealed_data_size();
     let mut dh_msg3_inner = sgx_dh_msg3_t::default();
-    println!("dh_msg3_r to raw...");
     let _ = unsafe{ dh_msg3_r.to_raw_dh_msg3_t(&mut dh_msg3_inner, raw_len ) };
 
-    println!("dh_msg3_inner to string...");
     match serde_json::to_string(& DHMsg3 { inner: dh_msg3_inner } ) {
 	Ok(v) => {
 	    let len = v.len();
@@ -522,13 +512,10 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	    v_sized=format!("{}{}", v_sized.len(), v_sized);
 	    v_sized.push_str(&v);
 	    let mut v_bytes=v_sized.into_bytes();
-        println!("resize v_bytes...");
 	    v_bytes.resize(1600,0);
-        println!("v_bytes as as slice...");
 	    *dh_msg3_arr = v_bytes.as_slice().try_into().unwrap();
 	},
 	Err(e) => {
-            println!("dh_msg3_inner to string error: {}", e);
             return ATTESTATION_STATUS::INVALID_SESSION
         }
     };
@@ -538,32 +525,26 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	    inner: dh_aek.key
     };
     
-    println!("sealable key...");
     let sealable = match SgxSealable::try_from(key_sealed){
 	Ok(x) => x,
         Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
     };
 
-    println!("sealed key data...");
     let sealed_data = match sealable.to_sealed(){
         Ok(x) => x,
 	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
     };
     
-    println!("sealed log...");
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, 8192);
     if opt.is_none() {
 	return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
 
-    println!("lock eckey...");
     match ECKEY.lock() {
 	    Ok(mut ec_key) => {
-            println!("set eckey...");
 	        *ec_key = dh_aek;
 	    },
 	Err(e) => {
-            println!("error locking eckey");
             return ATTESTATION_STATUS::INVALID_SESSION
         },
     };
@@ -582,16 +563,12 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         }
     }
      */
-    println!("locking sessioninfo...");
     match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
-                println!("setting sessioninfo");
                 session_info
 				 .session.session_status = DhSessionStatus::Active(dh_aek);
-                 println!("exchange report success");
 				 ATTESTATION_STATUS::SUCCESS},
 	Err(e) => {
-            println!("error locking sessioninfo: {}", e);
             ATTESTATION_STATUS::INVALID_SESSION
         },
     }
@@ -806,7 +783,7 @@ impl EncryptedData {
             &mut unsealed_data.decrypt,
         );
         if error.is_err() {
-	    println!("unencrypt error: {}", error.unwrap_err());
+	        println!("unencrypt error: {}", error.unwrap_err());
             return Err(error.unwrap_err());
         }
 

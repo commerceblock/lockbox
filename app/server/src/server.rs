@@ -37,6 +37,7 @@ pub struct Lockbox {
     pub config: Config,
     pub enclave: RwLock<Enclave>,
     pub database: DB,
+    pub key_database: DB,
 }
 
 
@@ -44,21 +45,22 @@ impl Lockbox
 {
     pub fn load(config_rs: Config) -> Result<Lockbox> {
 
-        let enclave = RwLock::new(Enclave::new().expect("failed to start enclave"));
+    let enclave = RwLock::new(Enclave::new().expect("failed to start enclave"));
 
-	let database = get_db(&config_rs);
+	let (database,key_database) = get_db(&config_rs);
 		
-        let lb = Self {
-            config: config_rs,
-            enclave,
+    let lb = Self {
+        config: config_rs,
+        enclave,
 	    database,
-        };
+        key_database,
+    };
 
 	//Get the enclave id from the enclave
 	let report = lb.enclave_mut().get_self_report().unwrap();
 	let key_id = report.body.mr_enclave.m;
-        let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
-        let db_key = Key::from_uuid(&key_uuid.build());
+    let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
+    let db_key = Key::from_uuid(&key_uuid.build());
 
 	//Get the sealed enclave key from the database and store it in the enclave struct
 	lb.get_enclave_key(&db_key).unwrap();
@@ -71,8 +73,8 @@ impl Lockbox
 //    }
 
     pub fn enclave_mut(&self) -> RwLockWriteGuard<Enclave> {
-	let mut lock = self.enclave.write().expect("locking enclave to write");
-	lock
+	    let mut lock = self.enclave.write().expect("locking enclave to write");
+	    lock
     }
 }
 

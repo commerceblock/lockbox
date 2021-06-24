@@ -43,7 +43,6 @@ pub trait Attestation {
 pub fn test_create_session(
     lockbox: State<Lockbox>,
 ) -> Result<()> {
-    println!("...getting enclave id...");
     match lockbox.test_create_session(){
 	Ok(_) => Ok(()),
 	Err(e) => Err(e.into()),
@@ -110,7 +109,6 @@ pub fn proc_msg3(
 pub fn enclave_id(
     lockbox: State<Lockbox>,
 ) -> Result<Json<EnclaveIDMsg>> {
-    println!("...getting enclave id...");
     Ok(Json(lockbox.enclave_id()))
 }
 
@@ -126,41 +124,40 @@ pub fn end_session(
 
 impl Attestation for Lockbox{
     fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
-	self.enclave_mut().say_something(String::from("doing session request"));
+	println!("doing session request");
 	
 	match self.enclave_mut().session_request(id_msg) {
-	    Ok(r) => Ok(r),
-	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e)))
-	}
+	    	Ok(r) => Ok(r),
+	    	Err(e) => Err(LockboxError::Generic(format!("session_request error: {}",e)))
+		}
     }
 
     fn exchange_report(&self, er_msg: &ExchangeReportMsg) -> Result<DHMsg3> {
 
-	let (dh_msg3, db_key, sealed_log) = match self.enclave_mut().exchange_report(er_msg) {
-	    Ok((dh_msg3, sealed_log)) => {
-		let key_id = dh_msg3.inner.msg3_body.report.key_id.id;;
-		let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
-		let db_key = Key::from_uuid(&key_uuid.build());		
-		(dh_msg3, db_key, sealed_log)
-	    },
-	    Err(e) => return Err(LockboxError::Generic(format!("exchange report: {}",e)))
-	};
+		let (dh_msg3, db_key, sealed_log) = match self.enclave_mut().exchange_report(er_msg) {
+	    	Ok((dh_msg3, sealed_log)) => {
+			let key_id = dh_msg3.inner.msg3_body.report.body.mr_enclave.m;
+			let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
+			let db_key = Key::from_uuid(&key_uuid.build());		
+			(dh_msg3, db_key, sealed_log)
+	    	},
+	    	Err(e) => return Err(LockboxError::Generic(format!("exchange report: {}",e)))
+		};
 
-	match self.put_enclave_key(&db_key, sealed_log){
-	    Ok(_) => Ok(dh_msg3),
-	    Err(e) => Err(LockboxError::Generic(format!("exchange report: {}",e)))
-	}
+		match self.put_enclave_key(&db_key, sealed_log){
+	    	Ok(_) => Ok(dh_msg3),
+	    	Err(e) => Err(LockboxError::Generic(format!("exchange report: {}",e)))
+		}
 
     }
     
     fn end_session(&self) -> Result<()> {
-	self.enclave_mut().say_something(String::from("doing end session"));
+	println!("doing end session");
 	
 	Ok(())
     }
 
     fn enclave_id(&self) -> EnclaveIDMsg {
-	println!("...calling enclave.geteid()...");
         EnclaveIDMsg { inner: self.enclave_mut().geteid() }
     }
 
@@ -183,52 +180,49 @@ impl Attestation for Lockbox{
     }
 
     fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<()> {
-	let (db_key, sealed_log) = match self.enclave_mut().proc_msg3(dh_msg3) {
-	    Ok(sealed_log) => {
+		let (db_key, sealed_log) = match self.enclave_mut().proc_msg3(dh_msg3) {
+	    	Ok(sealed_log) => {
+				let key_id = dh_msg3.inner.msg3_body.report.body.mr_enclave.m;
+				let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
+				let db_key = Key::from_uuid(&key_uuid.build());
 
-		let key_id = dh_msg3.inner.msg3_body.report.key_id.id;
-		let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
-		let db_key = Key::from_uuid(&key_uuid.build());
-
-		(db_key, sealed_log)
-	    },
-	    Err(e) => return Err(LockboxError::Generic(format!("proc_msg3: {}",e))),
-	};
-
-	
-
-	self.put_enclave_key(&db_key, sealed_log)
+				(db_key, sealed_log)
+	    	},
+	    	Err(e) => return Err(LockboxError::Generic(format!("proc_msg3: {}",e))),
+		};
+		self.put_enclave_key(&db_key, sealed_log)
     }
 
     fn put_enclave_key(&self, db_key: &Key, sealed_log: [u8; 8192]) -> Result<()> {
-	let cf = match self.database.cf_handle("enclave_key"){
-	    Some(x) => x,
-	    None => return Err(LockboxError::Generic(String::from("enclave_key not found"))),
-	};
-	match self.database.put_cf(cf, db_key, &sealed_log){
-	    Ok(_) => {
-		self.enclave_mut().set_ec_key(Some(sealed_log));
-		Ok(())
-	    },
-	    Err(e) => Err(LockboxError::Generic(format!("{}",e))),
+		let cf = match self.key_database.cf_handle("enclave_key"){
+	    	Some(x) => x,
+	    	None => return Err(LockboxError::Generic(String::from("enclave_key not found"))),
+		};
+		match self.key_database.put_cf(cf, db_key, &sealed_log){
+	    	Ok(_) => {
+				self.enclave_mut().set_ec_key(Some(sealed_log));
+				Ok(())
+	    	},
+	    	Err(e) => Err(LockboxError::Generic(format!("{}",e))),
+		}
 	}
-
-    }
 
     fn get_enclave_key(&self, db_key: &Key) -> Result<Option<[u8; 8192]>> {
-	let cf = &self.database.cf_handle("enclave_key").unwrap();
-	match self.database.get_cf(cf, db_key){
-	    Ok(Some(x)) => match x.try_into() {
-		Ok(x) => {
-		    self.enclave_mut().set_ec_key(Some(x));
-		    self.enclave_mut().set_ec_key_enclave(x);
-		    Ok(*self.enclave_mut().get_ec_key())
-		},
-		Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
-	    },
-	    Ok(None) => Ok(None),
-	    Err(e) => Err(e.into()),
-	}
+		let cf = &self.key_database.cf_handle("enclave_key").unwrap();
+		match self.key_database.get_cf(cf, db_key){
+	    	Ok(Some(x)) => match x.try_into() {
+				Ok(x) => {
+		    		self.enclave_mut().set_ec_key(Some(x));
+		    		self.enclave_mut().set_ec_key_enclave(x);
+		    		Ok(*self.enclave_mut().get_ec_key())
+				},
+				Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
+	    	},
+	    	Ok(None) => {
+				Ok(None)
+			},
+	    	Err(e) => Err(e.into()),
+		}
     }
 
     /*

@@ -22,12 +22,14 @@ fn main() {
     let dh_msg2: DHMsg2 = post_lb(&lockbox_src, "attestation/proc_msg1", &dhmsg1).unwrap();
     
     let rep_msg = ExchangeReportMsg {
-	src_enclave_id: enclave_id_msg.inner,
-	dh_msg2,
+	    src_enclave_id: enclave_id_msg.inner,
+	    dh_msg2,
     };
     
+    println!("...exchange_report...\n");
     let dh_msg3: DHMsg3 = post_lb(&lockbox_dst, "attestation/exchange_report", &rep_msg).unwrap();
     
     println!("...proc_msg3...\n");
     let res: () = post_lb(&lockbox_src, "attestation/proc_msg3", &dh_msg3).unwrap();
+    println!("...init_shared completed.\n");
 }

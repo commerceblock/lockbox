@@ -23,12 +23,14 @@ pub fn get_config() -> Config {
 /// Storage specific config
 pub struct StorageConfig {
     pub db_path: String,
+    pub key_db_path: String,
 }
 
 impl Default for StorageConfig {
     fn default() -> StorageConfig {
         StorageConfig {
 	    db_path: String::from(""),
+        key_db_path: String::from(""),
         }
     }
 }
@@ -78,7 +80,7 @@ pub struct RocketConfig {
 impl Default for RocketConfig {
     fn default() -> RocketConfig {
         RocketConfig {
-            keep_alive: 0,
+            keep_alive: 100,
             address: "0.0.0.0".to_string(),
             port: 8000,
         }
@@ -132,6 +134,9 @@ impl Config {
 
         if let Ok(v) = env::var("LOCKBOX_DB_PATH") {
             let _ = conf_rs.set("storage.db_path", v)?;
+        }
+        if let Ok(v) = env::var("LOCKBOX_KEY_DB_PATH") {
+            let _ = conf_rs.set("storage.key_db_path", v)?;
         }
 	
 	if let Ok(v) = env::var("LOCKBOX_ENC_INDEX") {

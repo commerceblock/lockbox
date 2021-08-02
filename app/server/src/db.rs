@@ -6,8 +6,6 @@ use tempdir::TempDir;
 #[cfg(test)] 
 use uuid::Uuid;
 
-type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-
 pub fn get_db(config_rs: &Config) -> (DB, DB) {
     get_db_write_opt(config_rs, false)
 }

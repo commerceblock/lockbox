@@ -3,7 +3,7 @@ pub use super::super::Result;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
-use crate::enclave::{Enclave, ec_key_sealed};
+use crate::enclave::EcKeySealed;
 use shared_lib::{
     structs::{KeyGenMsg1, KeyGenMsg2, SignMsg1, SignMsg2, Protocol,
     KUSendMsg, KUReceiveMsg, KUFinalize, KUAttest},
@@ -22,7 +22,7 @@ use std::convert::TryInto;
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
 
-    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(ec_key_sealed, Key)>;
+    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(EcKeySealed, Key)>;
     
     fn get_sealed_secrets(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8;8192], Key)>;
 
@@ -39,10 +39,11 @@ pub trait Ecdsa {
     fn keyupdate_first(&self, receiver_msg: KUSendMsg) -> Result<KUReceiveMsg>;
 
     fn keyupdate_second(&self, finalize_data: KUFinalize) -> Result<KUAttest>;
+
 }
 
 impl Ecdsa for Lockbox {
-    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(ec_key_sealed, Key)>{
+    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(EcKeySealed, Key)>{
 
         let user_db_key = Key::from_uuid(user_id);
 
@@ -280,4 +281,6 @@ pub fn keyupdate_second(
         Err(e) => return Err(e),
     }
 }
+
+
 

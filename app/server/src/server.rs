@@ -15,7 +15,7 @@ use crate::enclave::Enclave;
 use crate::protocol::attestation::Attestation;
 use crate::Key;
 
-use rocksdb::{DB, Options as DBOptions, ColumnFamilyDescriptor};
+use rocksdb::DB;
 
 #[cfg(test)] 
 use tempdir::TempDir;
@@ -24,10 +24,7 @@ use uuid::Uuid;
 
 use crate::db::get_db;
 
-extern crate lazy_static;
-use lazy_static::lazy_static; 
-use std::sync::Mutex;
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{RwLock, RwLockWriteGuard};
 
 use std::convert::TryInto;
 
@@ -73,7 +70,7 @@ impl Lockbox
 //    }
 
     pub fn enclave_mut(&self) -> RwLockWriteGuard<Enclave> {
-	    let mut lock = self.enclave.write().expect("locking enclave to write");
+	    let lock = self.enclave.write().expect("locking enclave to write");
 	    lock
     }
 }
@@ -95,7 +92,7 @@ fn not_found(req: &Request) -> String {
 }
 
 pub fn get_server(config_rs: Config)-> Result<Rocket> {
-    let mut lbs = Lockbox::load(config_rs)?;
+    let lbs = Lockbox::load(config_rs)?;
 
     set_logging_config(&lbs.config.log_file);
     
@@ -122,6 +119,7 @@ pub fn get_server(config_rs: Config)-> Result<Rocket> {
 		attestation::test_create_session,
 		attestation::proc_msg1,
 		attestation::proc_msg3,
+        attestation::set_session_enclave_key,
             ],
         )
         .manage(lbs);

@@ -1,24 +1,17 @@
-
-    
-
 //! Lockbox Attestation
 //!
 //! Lockbox Attestation protocol trait and implementation.
 
 pub use super::super::Result;
 extern crate shared_lib;
-use shared_lib::{state_chain::*, structs::*};
+use shared_lib::structs::*;
 use shared_lib::structs::ExchangeReportMsg;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
-use enclave::ec_key_sealed;
 
-use bitcoin::Transaction;
 use rocket::State;
 use rocket_contrib::json::Json;
-use uuid::Uuid;
-use curv::FE;
 
 use std::convert::TryInto;
 use crate::Key;
@@ -33,10 +26,10 @@ pub trait Attestation {
     fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<()>;
     fn end_session(&self) -> Result<()>;
     fn test_create_session(&self) -> Result<()>;
-//    fn init_session(&self) -> Result<()>;
     fn enclave_id(&self) -> EnclaveIDMsg;
     fn put_enclave_key(&self, db_key: &Key, sealed_log: [u8; 8192]) -> Result<()>;
     fn get_enclave_key(&self, db_key: &Key) -> Result<Option<[u8; 8192]>>;
+	fn set_session_enclave_key(&self, key: &[u8; 8192]) -> Result<()>;
 }
 
 #[get("/attestation/test_create_session")]
@@ -48,18 +41,6 @@ pub fn test_create_session(
 	Err(e) => Err(e.into()),
     }
 }
-
-/*
-#[get("/attestation/init_session")]
-pub fn init_session(
-    lockbox: State<Lockbox>,
-) -> Result<> {
-    match lockbox.init_session() {
-        Ok(r) => Ok(Json(r)),
-        Err(e) => Err(e),
-    }
-}
- */
 
 #[post("/attestation/session_request", format = "json", data = "<enclave_id_msg>")]
 pub fn session_request(
@@ -100,7 +81,7 @@ pub fn proc_msg3(
     dh_msg3: Json<DHMsg3>,
 ) -> Result<Json<()>> {
     match lockbox.proc_msg3(&dh_msg3) {
-        Ok(r) => Ok(Json(())),
+        Ok(_) => Ok(Json(())),
         Err(e) => Err(e),
     }
 }
@@ -121,6 +102,15 @@ pub fn end_session(
         Err(e) => Err(e),
     }
 }
+
+#[post("/attestation/set_session_enclave_key", format = "json", data = "<set_session_enc_key_msg>")]
+pub fn set_session_enclave_key(
+    lockbox: State<Lockbox>,
+    set_session_enc_key_msg: Json<SetSessionEnclaveKeyMsg>,
+) -> Result<()> {
+    lockbox.set_session_enclave_key(&set_session_enc_key_msg.into_inner().data)
+}
+
 
 impl Attestation for Lockbox{
     fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
@@ -163,7 +153,7 @@ impl Attestation for Lockbox{
 
     fn test_create_session(&self) -> Result<()> {
 	match self.enclave_mut().test_create_session() {
-	    Ok(r) => {
+	    Ok(_) => {
 		Ok(())
 	    },
 	    Err(e) => Err(LockboxError::Generic(format!("session_request: {}",e))),
@@ -213,7 +203,7 @@ impl Attestation for Lockbox{
 	    	Ok(Some(x)) => match x.try_into() {
 				Ok(x) => {
 		    		self.enclave_mut().set_ec_key(Some(x));
-		    		self.enclave_mut().set_ec_key_enclave(x);
+		    		self.enclave_mut().set_ec_key_enclave(x).map_err(|e| LockboxError::Generic(format!("set_ec_key_enclave error: {}", e)))?;
 		    		Ok(*self.enclave_mut().get_ec_key())
 				},
 				Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
@@ -225,15 +215,8 @@ impl Attestation for Lockbox{
 		}
     }
 
-    /*
-    fn init_session(&self) -> Result<()> {
-	match self.enclave.init_session() {
-	    Ok(r) => {
-		Ok(())
-	    },
-	    Err(e) => Err(LockboxError::Generic(format!("init_session: {}",e))),
+	fn set_session_enclave_key(&self, key: &[u8; 8192]) -> Result<()>{
+		self.enclave_mut().set_session_enclave_key(key).map_err(|e| LockboxError::Generic(format!("{}",e)))
 	}
-    }
-    */
 
 }

@@ -161,7 +161,6 @@ impl Ecdsa for Lockbox {
 	    	},
 	    	Err(e) => {
 				let err_msg = format!("sign first: {}", e);
-				println!("{}", err_msg);
 				return Err(LockboxError::Generic(err_msg))
 			},
 		}
@@ -213,7 +212,7 @@ impl Ecdsa for Lockbox {
 		Ok(KUAttest { statechain_id: finalize_data.statechain_id, attestation: String::from("") })
 	    },
 	    Err(e) => return Err(LockboxError::Generic(format!("keyupdate second: error deleting transfer data: {}", e))),
-	}
+		}
     }
 
 }
@@ -254,8 +253,14 @@ pub fn sign_first(
 #[post("/ecdsa/sign/second", format = "json", data = "<sign_msg2>")]
 pub fn sign_second(lockbox: State<Lockbox>, sign_msg2: Json<SignMsg2>) -> Result<Json<Option<Vec<Vec<u8>>>>> {
     match lockbox.sign_second(sign_msg2.into_inner()) {
-        Ok(res) => return Ok(Json(res)),
-        Err(e) => return Err(e),
+        Ok(res) => {
+			dbg!("returning sign second result - {:?}", &res);
+			return Ok(Json(res))
+		},
+        Err(e) => {
+			dbg!("error in sign second - {:?}", &e);
+			return Err(e)
+		},
     }
 }
 

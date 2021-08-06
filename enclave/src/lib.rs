@@ -115,6 +115,7 @@ lazy_static!{
     static ref SESSIONINFO: Mutex<DhSessionInfo> = Mutex::new(DhSessionInfo::default());
     static ref SESSIONKEY: Mutex<sgx_align_key_128bit_t> = Mutex::new(sgx_align_key_128bit_t::default());
     static ref ECKEY: Mutex<sgx_align_key_128bit_t> = Mutex::new(sgx_align_key_128bit_t::default());
+    static ref INITIALIZED: Mutex<bool> = Mutex::new(false);
 }
 
 big_array! {
@@ -230,61 +231,60 @@ fn eckey_status() -> bool {
     }
 }
 
+fn is_initialized() -> SgxResult<bool> {
+    let result = INITIALIZED.lock().map_err(|_| sgx_status_t::SGX_ERROR_UNEXPECTED)?.clone();
+    Ok(result)
+}
+
+
+fn set_initialized() -> SgxResult<()> {
+    let mut i = INITIALIZED.lock().map_err(|_| sgx_status_t::SGX_ERROR_UNEXPECTED)?;
+    *i = true;
+    Ok(())
+}
 
 fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
-			dh_msg1: &mut [u8;1600]
+			dh_msg1: &mut [u8;1700]
     //,
 //			session_ptr: &mut usize
 ) -> ATTESTATION_STATUS {
-    println!("session request safe...");
-    if eckey_status() { return ATTESTATION_STATUS::INVALID_SESSION };
-    println!("gen msg 1 - default...");
-    let mut dh_msg1_inner = SgxDhMsg1::default();
-    println!("gen msg 1 - gen...");
-    let status = match RESPONDER.lock(){
-	    Ok(mut r) => {
-            println!("gen msg 1 - gen with responder {:?}", r);
-            r.gen_msg1(&mut dh_msg1_inner)
-        },
-	    Err(e) => {
-            println!("gen_msg1 err: {}", e);
-            return ATTESTATION_STATUS::INVALID_SESSION
-        }
+    match is_initialized() { 
+        Ok(true) => return ATTESTATION_STATUS::INVALID_SESSION,
+        Ok(false) => (),
+        Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
     };
+    let mut dh_msg1_inner = SgxDhMsg1::default();
+
+    let mut responder = SgxDhResponder::init_session();
+    let status = responder.gen_msg1(&mut dh_msg1_inner);
     
     if status.is_err() {
-        println!("error status");
         return ATTESTATION_STATUS::INVALID_SESSION;
     }
 
     match serde_json::to_string(& DHMsg1 { inner: dh_msg1_inner } ) {
-	Ok(v) => {
-	    let len = v.len();
-	    let mut v_sized=format!("{}", len);
-	    v_sized=format!("{}{}", v_sized.len(), v_sized);
-	    v_sized.push_str(&v);
-	    let mut v_bytes=v_sized.into_bytes();
-	    v_bytes.resize(1600,0);
-	    *dh_msg1 = v_bytes.as_slice().try_into().unwrap();
-	},
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+	    Ok(v) => {
+	        let len = v.len();
+	        let mut v_sized=format!("{}", len);
+            v_sized=format!("{}{}", v_sized.len(), v_sized);
+            v_sized.push_str(&v);
+            let mut v_bytes=v_sized.into_bytes();
+            v_bytes.resize(1700,0);
+            *dh_msg1 = match v_bytes.as_slice().try_into(){
+                Ok(r) => r,
+                Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
+            };
+        },
+	    Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
     match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
 	    session_info.enclave_id = src_enclave_id;
-	    session_info.session.session_status = match RESPONDER.lock() {
-		Ok(r) => {
-            DhSessionStatus::InProgress(*r.deref())
-        },
-		Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-		    
-	    };
-        println!("session request - success");
-	    ATTESTATION_STATUS::SUCCESS
-
+	    session_info.session.session_status = DhSessionStatus::InProgress(responder);
+    	ATTESTATION_STATUS::SUCCESS
 	    //	    let ptr = Box::into_raw(Box::new(session_info));
-//	    *session_ptr = ptr as * mut _ as usize;
+        //	    *session_ptr = ptr as * mut _ as usize;
 	},
 	Err(_) => ATTESTATION_STATUS::INVALID_SESSION,
     }
@@ -295,7 +295,7 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 //Handle the request from Source Enclave for a session
 #[no_mangle]
 pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
-				  dh_msg1: &mut [u8;1600])
+				  dh_msg1: &mut [u8;1700])
 	-> ATTESTATION_STATUS {
         session_request_safe(src_enclave_id, dh_msg1)
 }
@@ -322,7 +322,10 @@ fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
     
     
     let status = match INITIATOR.lock() {
-	    Ok(mut r) => r.proc_msg1(&dh_msg1, &mut dh_msg2_inner),
+	    Ok(mut r) => 
+        {   
+            r.proc_msg1(&dh_msg1, &mut dh_msg2_inner)
+        },
 	    Err(_) => {
     
             return ATTESTATION_STATUS::ATTESTATION_ERROR
@@ -363,6 +366,20 @@ pub extern "C" fn proc_msg1(dh_msg1_str: *const u8 , msg1_len: usize,
                            dh_msg2: &mut [u8;1700])
 				  -> ATTESTATION_STATUS {
         proc_msg1_safe(dh_msg1_str, msg1_len, dh_msg2)
+}
+
+fn internal_set_session_key(val: sgx_align_key_128bit_t) -> SgxResult<()> {
+    match SESSIONKEY.lock() {
+        Ok(mut key) => {
+            let default = sgx_align_key_128bit_t::default();
+            if key.key != default.key {
+                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
+            }
+            *key = val;
+            Ok(())
+        },
+        Err(_) => Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER),
+    }
 }
 
 fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log:  * mut u8) -> ATTESTATION_STATUS {
@@ -451,12 +468,16 @@ pub extern "C" fn proc_msg3(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log
 #[allow(unused_variables)]
 fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 			dh_msg2_str: *const u8 , msg2_len: usize,
-			dh_msg3_arr: &mut [u8;1600],
+			dh_msg3_arr: &mut [u8;1700],
 			sealed_log: *mut u8
 //			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
 
-    if eckey_status() { return ATTESTATION_STATUS::INVALID_SESSION };
+    match is_initialized() { 
+        Ok(true) => return ATTESTATION_STATUS::INVALID_SESSION,
+        Ok(false) => (),
+        Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
+    };
 
     let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
     
@@ -509,7 +530,7 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	    v_sized=format!("{}{}", v_sized.len(), v_sized);
 	    v_sized.push_str(&v);
 	    let mut v_bytes=v_sized.into_bytes();
-	    v_bytes.resize(1600,0);
+	    v_bytes.resize(1700,0);
 	    *dh_msg3_arr = v_bytes.as_slice().try_into().unwrap();
 	},
 	Err(e) => {
@@ -537,9 +558,9 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
 
-    match ECKEY.lock() {
-	    Ok(mut ec_key) => {
-	        *ec_key = dh_aek;
+    match SESSIONKEY.lock() {
+	    Ok(mut session_key) => {
+	        *session_key = dh_aek;
 	    },
 	Err(e) => {
             return ATTESTATION_STATUS::INVALID_SESSION
@@ -561,7 +582,7 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 #[no_mangle]
 pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
 				  dh_msg2_str: *const u8, msg2_len: usize,
-				  dh_msg3_arr: &mut [u8;1600],
+				  dh_msg3_arr: &mut [u8;1700],
 				  sealed_log: *mut u8,
 ) -> ATTESTATION_STATUS {
     
@@ -746,7 +767,7 @@ impl EncryptedData {
             &mut unsealed_data.decrypt,
         );
         if error.is_err() {
-	        println!("unencrypt error: {}", error.unwrap_err());
+	        println!("error: {}", error.unwrap_err());
             return Err(error.unwrap_err());
         }
 
@@ -2194,18 +2215,51 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8) -> sgx_status_t {
 
     let data = match SgxKey128BitSealed::try_from((sealed_log, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
-	Err(e) => return e
+	    Err(e) => return e
     };
 
     match ECKEY.lock() {
-	Ok(mut ec_key) => {
-	    let mut key_align = sgx_align_key_128bit_t::default();
-	    key_align.key = data.inner;
-	    *ec_key = key_align;
-	    sgx_status_t::SGX_SUCCESS
-	},
-	Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+	    Ok(mut ec_key) => {
+	        let mut key_align = sgx_align_key_128bit_t::default();
+            println!("set ec key: {:?}", &data.inner);
+	        key_align.key = data.inner;
+	        *ec_key = key_align;
+	        sgx_status_t::SGX_SUCCESS
+	    },
+	    Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     }
+}
+
+#[no_mangle]
+pub extern "C" fn get_ec_key(sealed_log: * mut u8) -> sgx_status_t {
+
+    match ECKEY.lock() {
+        Ok(ec_key) => {
+       
+            let key_sealed  = SgxKey128BitSealed {
+                inner: ec_key.key
+            };
+            
+            let sealable = match SgxSealable::try_from(key_sealed){
+            Ok(x) => x,
+                Err(_) => return  sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+            };
+        
+            let sealed_data = match sealable.to_sealed(){
+                Ok(x) => x,
+            Err(_) => return  sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+            };
+            
+            let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, EC_LOG_SIZE as u32);
+            if opt.is_none() {
+            return  sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+            }
+            sgx_status_t::SGX_SUCCESS
+        
+        },
+        Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+    }
+
 }
 
 #[no_mangle]
@@ -2250,11 +2304,11 @@ pub extern "C" fn create_ec_random_fe(ec_log: * mut u8) -> sgx_status_t {
     let fes = FESealed { inner: secret_share };
 
     let fes_vec = match serde_cbor::to_vec(&fes){
-	Ok(r) => r,
-	Err(e) => {
-	    println!("{}", e);
-	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-	},
+	    Ok(r) => r,
+	    Err(e) => {
+	        println!("error: {:?}", e);
+	        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	    },
     };
 
     match encrypt(&fes_vec){
@@ -2268,7 +2322,7 @@ pub extern "C" fn create_ec_random_fe(ec_log: * mut u8) -> sgx_status_t {
 	    sgx_status_t::SGX_SUCCESS
 	},
 	Err(e) => {
-	    println!("error encrypting - {}", e);
+	    println!("error: {:?}", e);
 	    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 	},
     }
@@ -2509,16 +2563,15 @@ pub extern "C" fn get_public_key(sealed_log: * mut u8, public_key: &mut[u8;33]) 
 }
 
 fn raw_encrypted_to_decrypted(raw_enc: * mut u8, raw_enc_len: usize) -> SgxResult<UnencryptedData> {
-
 //    let slice = unsafe { slice::from_raw_parts(raw_enc, EC_LOG_SIZE)};
     match from_encrypted_log_for_slice(raw_enc, raw_enc_len as u32) {
-   
-	Some(encrypted) => {
-	    unencrypt(&encrypted)
-	},
-	None =>  {
-        Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
-    },
+        
+	    Some(encrypted) => {
+	        unencrypt(&encrypted)
+	    },
+	    None =>  {
+            Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+        },
 
     }
 }
@@ -2578,27 +2631,29 @@ pub extern "C" fn test_sc_encrypt_unencrypt() -> sgx_status_t {
 
 #[no_mangle]
 pub extern "C" fn set_session_enclave_key(sealed_log_in: *const u8) -> sgx_status_t {
+    
+    match is_initialized() { 
+        Ok(true) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+        Ok(false) => (),
+        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
 
-    println!("set session enclave key - eckey_status...");
-    if eckey_status() { return sgx_status_t::SGX_ERROR_INVALID_PARAMETER };
-    println!("set session enclave key - decrypt...");
     match from_encrypted_log_for_slice(sealed_log_in, EC_LOG_SIZE as u32) {
         Some(encrypted) => {
-            println!("set session enclave key - session_unencrypt...");
             match session_unencrypt(&encrypted){
                 Ok(r) =>     {
                     match ECKEY.lock(){
                         Ok(mut k) => {
-                             println!("set session enclave key - got ec key lock...");
-                            k.key = match (*r.decrypt).try_into(){
+                            *k = sgx_align_key_128bit_t::default();
+                            k.key = match serde_cbor::from_slice(&(*r.decrypt)){
                                 Ok(r) => r,
-                                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+                                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
                             };
-                            println!("set session enclave key: {:?}", &k.key);
+                            set_initialized();
                             return sgx_status_t::SGX_SUCCESS
                         },
                         Err(e) => {
-                            println!("ECKEY error: {}", e);
+                            println!("error: {:?}", e);
                             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
                         }
                     }
@@ -2612,13 +2667,13 @@ pub extern "C" fn set_session_enclave_key(sealed_log_in: *const u8) -> sgx_statu
 
 fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
     match ECKEY.lock() {
-	Ok(mut k) => {
-	    EncryptedData::try_from(&[], encrypt, &[0;12], &mut k)
-	},
-	Err(e) => {
-	    println!("ECKEY error: {}", e);
-	    Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
-	}
+	    Ok(mut k) => {
+	        EncryptedData::try_from(&[], encrypt, &[0;12], &mut k)
+	    },
+	    Err(e) => {
+	        println!("error: {:?}", e);
+	        Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	    }
     }
 }
 
@@ -2635,11 +2690,11 @@ fn unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
 
 fn session_unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
     match SESSIONKEY.lock() {
-	Ok(mut k) => {
-	    encrypt.unencrypt(&mut k) 
-	},
-	Err(_) => {
-        Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
+	    Ok(mut k) => {
+            encrypt.unencrypt(&mut k) 
+	    },
+	    Err(_) => {
+            Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
         }
     }
 }
@@ -2684,17 +2739,16 @@ pub extern "C" fn test_in_to_decrypt(data_in: *const u8, data_len: usize) -> sgx
     };
 
     match unencrypt(&encrypted_data) {
-	Ok(ud) => {
-	    match *test_vec().as_slice() == *(ud.decrypt) {
-		true => sgx_status_t::SGX_SUCCESS,
-		false => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-		
+	    Ok(ud) => {
+	        match *test_vec().as_slice() == *(ud.decrypt) {
+		        true => sgx_status_t::SGX_SUCCESS,
+		        false => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+		    }
+	    },
+	    Err(e) => {
+	        println!("error: {:?}", e);
+	        sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 	    }
-	},
-	Err(e) => {
-	    println!("unencrypt error: {:?}", e);
-	    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-	}
     }
 }
 
@@ -2711,24 +2765,24 @@ fn first_message_common( secret_share: &mut FE, sealed_log_out: *mut u8,
     let first_message_sealed = FirstMessageSealed { comm_witness, ec_key_pair };
 
     let fms_vec = match serde_cbor::to_vec(&first_message_sealed){
-	Ok(r) => r,
-	Err(e) => {
-	    println!("{}", e);
-	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-	},
+	    Ok(r) => r,
+	    Err(e) => {
+	        println!("error: {:?}", e);
+	        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	    },
     };
 
     match encrypt(fms_vec.as_slice()){
-	Ok(ed) => {
-	    let opt = to_encrypted_log_for_slice(&ed, sealed_log_out, EC_LOG_SIZE as u32);
-	    if opt.is_none() {
-		return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-	    }
-	},
-	Err(e) => {
-	    println!("error encrypting - {}", e);
-	    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-	},
+	    Ok(ed) => {
+	        let opt = to_encrypted_log_for_slice(&ed, sealed_log_out, EC_LOG_SIZE as u32);
+	        if opt.is_none() {
+		        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+	        }
+	    },
+	    Err(e) => {
+	        println!("error: {:?}", e);
+	        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+	    },
     };
 
     
@@ -2852,21 +2906,21 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 		let sms_vec = match serde_cbor::to_vec(&second_message_sealed){
 		    Ok(r) => r,
 		    Err(e) => {
-			println!("{}", e);
-			return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+			    println!("error: {:?}", e);
+			    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 		    },
 		};
 
 		match encrypt(sms_vec.as_slice()){
 		    Ok(ed) => {
-			let opt = to_encrypted_log_for_slice(&ed, sealed_log_out, EC_LOG_SIZE as u32);
-			if opt.is_none() {
-			    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-			}
+			    let opt = to_encrypted_log_for_slice(&ed, sealed_log_out, EC_LOG_SIZE as u32);
+			    if opt.is_none() {
+			        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+			    }
 		    },
 		    Err(e) => {
-			println!("error encrypting - {}", e);
-			return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+			    println!("error: {:?}", e);
+			    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 		    },
 		};
 		
@@ -2884,7 +2938,7 @@ pub extern "C" fn second_message(sealed_log_in: * mut u8, sealed_log_out: * mut 
 pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 			     sign_msg1_str: *const u8, len: usize,
 			     sign_party_one_first_message: &mut [u8;480000]) -> sgx_status_t {
-
+    
     let str_slice = unsafe { slice::from_raw_parts(sign_msg1_str, len) };
 
     let sign_msg1_str = match std::str::from_utf8(&str_slice) {
@@ -2956,7 +3010,7 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 	Ok(x) => x,
 	Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     };
-
+    
     if let Ok(ud) = raw_encrypted_to_decrypted(sealed_log_in, EC_LOG_SIZE) {
 	match serde_cbor::from_slice::<SecondMessageSealed>(&ud.decrypt){
 	    Ok(data) => {
@@ -2974,14 +3028,14 @@ pub extern "C" fn sign_first(sealed_log_in: * mut u8, sealed_log_out: * mut u8,
 
 		match encrypt(sfs_vec.as_slice()){
 		    Ok(ed) => {
-			let opt = to_encrypted_log_for_slice(&ed, sealed_log_out, EC_LOG_SIZE as u32);
-			if opt.is_none() {
-			    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-			}
+			    let opt = to_encrypted_log_for_slice(&ed, sealed_log_out, EC_LOG_SIZE as u32);
+			    if opt.is_none() {
+			        return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+			    }
 		    },
 		    Err(e) => {
-			println!("error encrypting - {}", e);
-			return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+			    println!("error: {:?}", e);
+			    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
 		    },
 		};
 		

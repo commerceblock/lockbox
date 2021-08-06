@@ -38,6 +38,7 @@ use zk_paillier_client::zkproofs::EncryptedPairs as EncryptedPairsSgx;
 use zk_paillier_client::zkproofs::Proof as ProofSgx;
 use zk_paillier_client::zkproofs::range_proof::Response as ResponseSgx;
 pub use zk_paillier_client::zkproofs::CompositeDLogProof as CompositeDLogProofSgx;
+use crate::Key;
 
 static ENCLAVE_FILE: &'static str = "/opt/lockbox/bin/enclave.signed.so";
 
@@ -1262,7 +1263,7 @@ impl Enclave {
 
     pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
 		let mut retval = sgx_status_t::SGX_SUCCESS;
-		let mut dh_msg1 = [0u8;1600];
+		let mut dh_msg1 = [0u8;1700];
 
 		//	let mut session_ptr: usize = 0;
 		let src_enclave_id = id_msg.inner;
@@ -1273,8 +1274,7 @@ impl Enclave {
 	    	_ => return Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed - say something {}!", retval.as_str())).into()),
 		};
 	
-		println!("enclave do session request...");
-     	unsafe {
+     	let _result = unsafe {
             session_request(self.geteid(),
 			&mut retval,
 			src_enclave_id,
@@ -1282,8 +1282,7 @@ impl Enclave {
 		//,
 		//	    &mut session_ptr);
     	};
-		println!("finished enclave do session request...");
-		
+			
 		match retval {
 	    	sgx_status_t::SGX_SUCCESS  => {
 			let c = dh_msg1[0].clone();
@@ -1304,7 +1303,7 @@ impl Enclave {
 		let mut retval = sgx_status_t::SGX_SUCCESS;
 		let sealed_log = [0u8; EC_LOG_SIZE];
 
-		let mut dh_msg3_arr = [0u8;1600];
+		let mut dh_msg3_arr = [0u8;1700];
 //	let mut session_ptr: usize = ep_msg.session_ptr;
 		let src_enclave_id = ep_msg.src_enclave_id;
 		let dh_msg2_str = serde_json::to_string(&ep_msg.dh_msg2).unwrap();
@@ -1399,16 +1398,25 @@ impl Enclave {
 		}
     }
 
-	pub fn set_session_enclave_key(&self, sealed_log: &EcLog) -> Result<()> {
+	pub fn set_session_enclave_key(&self, sealed_log: &mut EcLog) -> Result<()> {
 		let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-		dbg!("enclave set session enclave key");
 		let _result = unsafe {
 			set_session_enclave_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * const u8)
 		};
-		dbg!("finished enclave set session enclave key");
 		match enclave_ret {
 			sgx_status_t::SGX_SUCCESS => {
-				Ok(())
+	
+				let _result = unsafe {
+					get_ec_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8)
+				};
+
+				match enclave_ret {
+					sgx_status_t::SGX_SUCCESS => {
+						info!("set session enclave key - success");
+						Ok(())
+					},
+					_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+				}
 			},
 			_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
 		}
@@ -1760,6 +1768,8 @@ impl Enclave {
 	    		plain_ret.as_mut_ptr() as *mut u8)
 	};
 
+	dbg!("finished signed second in enclave");
+
 	match enclave_ret {
 	    sgx_status_t::SGX_SUCCESS => {
 		let c = plain_ret[0].clone();
@@ -1852,6 +1862,9 @@ extern {
 			     sealed_log: * mut u8, sealed_log_size: u32);
 
     fn set_ec_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+			     sealed_log: * mut u8);
+
+    fn get_ec_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
 			     sealed_log: * mut u8);
 
     fn create_sealed_random_fe(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,

@@ -16,6 +16,9 @@ use rocket_contrib::json::Json;
 use std::convert::TryInto;
 use crate::Key;
 
+extern crate sgx_types;
+use self::sgx_types::*;
+
 type LB = Lockbox;
 
 /// Lockbox Attestation protocol trait
@@ -29,7 +32,7 @@ pub trait Attestation {
     fn enclave_id(&self) -> EnclaveIDMsg;
     fn put_enclave_key(&self, db_key: &Key, sealed_log: [u8; 8192]) -> Result<()>;
     fn get_enclave_key(&self, db_key: &Key) -> Result<Option<[u8; 8192]>>;
-	fn set_session_enclave_key(&self, key: &[u8; 8192]) -> Result<()>;
+	fn set_session_enclave_key(&self, key: &mut [u8; 8192]) -> Result<()>;
 }
 
 #[get("/attestation/test_create_session")]
@@ -96,25 +99,21 @@ pub fn enclave_id(
 #[get("/attestation/end_session")]
 pub fn end_session(
     lockbox: State<Lockbox>,
-) -> Result<()> {
-    match lockbox.end_session() {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
+) -> Result<Json<()>> {
+    lockbox.end_session().map(|x| Json(x))
 }
 
 #[post("/attestation/set_session_enclave_key", format = "json", data = "<set_session_enc_key_msg>")]
 pub fn set_session_enclave_key(
     lockbox: State<Lockbox>,
     set_session_enc_key_msg: Json<SetSessionEnclaveKeyMsg>,
-) -> Result<()> {
-    lockbox.set_session_enclave_key(&set_session_enc_key_msg.into_inner().data)
+) -> Result<Json<()>> {
+    lockbox.set_session_enclave_key(&mut set_session_enc_key_msg.into_inner().data).map(|x| Json(x))
 }
 
 
 impl Attestation for Lockbox{
     fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
-	println!("doing session request");
 	
 	match self.enclave_mut().session_request(id_msg) {
 	    	Ok(r) => Ok(r),
@@ -142,9 +141,7 @@ impl Attestation for Lockbox{
     }
     
     fn end_session(&self) -> Result<()> {
-	println!("doing end session");
-	
-	Ok(())
+		Ok(())
     }
 
     fn enclave_id(&self) -> EnclaveIDMsg {
@@ -215,8 +212,13 @@ impl Attestation for Lockbox{
 		}
     }
 
-	fn set_session_enclave_key(&self, key: &[u8; 8192]) -> Result<()>{
-		self.enclave_mut().set_session_enclave_key(key).map_err(|e| LockboxError::Generic(format!("{}",e)))
+	fn set_session_enclave_key(&self, key: &mut [u8; 8192]) -> Result<()>{
+		let report = self.enclave_mut().get_self_report().unwrap();
+		let key_id = report.body.mr_enclave.m;
+		let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
+		let db_key = Key::from_uuid(&key_uuid.build());	
+		self.enclave_mut().set_session_enclave_key(key).map_err(|e| LockboxError::Generic(format!("{}",e)))?;			
+		self.put_enclave_key(&db_key, *key).map_err(|e| LockboxError::Generic(format!("set_session_enclave_key: {}",e)))
 	}
 
 }

@@ -2,6 +2,7 @@ use crate::sgx_types::*;
 use crate::client;
 use crate::protocol::requests::{post_lb, get_lb};
 use crate::shared_lib::structs::{DHMsg1, DHMsg2, DHMsg3, EnclaveIDMsg, ExchangeReportMsg};
+use log::error;
 
 #[no_mangle]
 extern "C"
@@ -15,7 +16,7 @@ fn session_request_ocall(
     let enclave_id_msg = match get_lb::<EnclaveIDMsg>(&client_dest, "attestation/enclave_id") {
 	    Ok(r) => r,
 	    Err(e) => {
-	        println!("error: {}", &e.to_string());
+	        error!("error: {}", &e.to_string());
 	        return sgx_status_t::SGX_ERROR_UNEXPECTED;
 	    },
     };

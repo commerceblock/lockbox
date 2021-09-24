@@ -3,7 +3,7 @@ pub use super::super::Result;
 
 use crate::error::LockboxError;
 use crate::server::Lockbox;
-use crate::enclave::{Enclave, ec_key_sealed};
+use crate::enclave::EcKeySealed;
 use shared_lib::{
     structs::{KeyGenMsg1, KeyGenMsg2, SignMsg1, SignMsg2, Protocol,
     KUSendMsg, KUReceiveMsg, KUFinalize, KUAttest},
@@ -22,7 +22,7 @@ use std::convert::TryInto;
 /// 2P-ECDSA protocol trait
 pub trait Ecdsa {
 
-    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(ec_key_sealed, Key)>;
+    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(EcKeySealed, Key)>;
     
     fn get_sealed_secrets(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<([u8;8192], Key)>;
 
@@ -39,10 +39,11 @@ pub trait Ecdsa {
     fn keyupdate_first(&self, receiver_msg: KUSendMsg) -> Result<KUReceiveMsg>;
 
     fn keyupdate_second(&self, finalize_data: KUFinalize) -> Result<KUAttest>;
+
 }
 
 impl Ecdsa for Lockbox {
-    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(ec_key_sealed, Key)>{
+    fn get_sealed_secrets_ec_key(&self, cf: &ColumnFamily, user_id: &Uuid) -> Result<(EcKeySealed, Key)>{
 
         let user_db_key = Key::from_uuid(user_id);
 
@@ -160,7 +161,6 @@ impl Ecdsa for Lockbox {
 	    	},
 	    	Err(e) => {
 				let err_msg = format!("sign first: {}", e);
-				println!("{}", err_msg);
 				return Err(LockboxError::Generic(err_msg))
 			},
 		}
@@ -212,7 +212,7 @@ impl Ecdsa for Lockbox {
 		Ok(KUAttest { statechain_id: finalize_data.statechain_id, attestation: String::from("") })
 	    },
 	    Err(e) => return Err(LockboxError::Generic(format!("keyupdate second: error deleting transfer data: {}", e))),
-	}
+		}
     }
 
 }
@@ -253,8 +253,14 @@ pub fn sign_first(
 #[post("/ecdsa/sign/second", format = "json", data = "<sign_msg2>")]
 pub fn sign_second(lockbox: State<Lockbox>, sign_msg2: Json<SignMsg2>) -> Result<Json<Option<Vec<Vec<u8>>>>> {
     match lockbox.sign_second(sign_msg2.into_inner()) {
-        Ok(res) => return Ok(Json(res)),
-        Err(e) => return Err(e),
+        Ok(res) => {
+			dbg!("returning sign second result - {:?}", &res);
+			return Ok(Json(res))
+		},
+        Err(e) => {
+			dbg!("error in sign second - {:?}", &e);
+			return Err(e)
+		},
     }
 }
 
@@ -280,4 +286,6 @@ pub fn keyupdate_second(
         Err(e) => return Err(e),
     }
 }
+
+
 

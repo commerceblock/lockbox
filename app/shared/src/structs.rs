@@ -15,8 +15,8 @@ use uuid::Uuid;
 use crate::ecies;
 use crate::ecies::{Encryptable, SelfEncryptable};
 
-use std::mem::size_of;
-use std::convert::From;
+
+
 
 extern crate sgx_types;
 extern crate sgx_urts;
@@ -293,6 +293,12 @@ pub struct KUFinalize {        // Sent from server to lockbox
 pub struct KUAttest {      // Sent from lockbox back to server
     pub statechain_id: Uuid,
     pub attestation: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SetSessionEnclaveKeyMsg {
+    #[serde(with = "BigArray")]
+    pub data: [u8; 8192]
 }
 
 //Attestation

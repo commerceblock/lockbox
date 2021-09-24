@@ -62,7 +62,7 @@ where
     std::thread::sleep(std::time::Duration::from_millis(100));
     let start = Instant::now();
 
-    let mut b = lockbox
+    let b = lockbox
         .client
         .get(&format!("{}/{}", lockbox.endpoint, path));
 

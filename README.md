@@ -1,5 +1,5 @@
 # lockbox
-Key share management in SGX secure enclaves. This system is designed to interact with the mercury server to provide a secure computation and storage system for generating and using shared keys for the mercury state chain. Key secrets and proofs are generated in a secure SGX enclave. The SGX-encrypted (secret) and plain (public) parts of the key share proofs are then returned to the non-secure CPU. Once generated, the SGX-encrypted secrets and public proofs are stored in a key-value store database. The secrets/proofs can later be transferred back into the enclave when needed to perform signing operations for state chain transfers.
+Key share management in SGX secure enclaves. This system is designed to interact with the mercury server to provide a secure computation and storage system for generating and using shared keys for the mercury statechain system. Key secrets are generated in a secure SGX enclave. The SGX-encrypted (secret) and plain (public) parts of the key share proofs are then returned to the non-secure CPU. Once generated, the SGX-encrypted secrets and public proofs are stored in a key-value store database. The secrets/proofs can later be transferred back into the enclave when needed to perform signing operations for statechain transfers.
 
 ## Docker build
 
@@ -19,6 +19,25 @@ cd /root/lockbox/app
 docker run --rm -it --device /dev/isgx commerceblock/lockbox bash
 cd /root/lockbox/app
 ```
+
+## Enable SGX
+To enable SGX functionality on an Intel SGX capable device, clone the follow repository:
+```
+git clone https://github.com/intel/sgx-software-enable.git
+```
+Then build the application with:
+```
+$ make
+```
+and enable SGX with:
+```
+$ sudo ./sgx_enable
+```
+Then restart the device, and confirm the SGX status with:
+```
+$ sgx_enable --status
+```
+
 # Issue Tracker
 
 # License 

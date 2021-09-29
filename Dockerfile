@@ -19,7 +19,7 @@ RUN set -x \
     && mkdir $LOCKBOX_KEY_DB_PATH \
     && apt update \
     && apt install -y libgmp-dev llvm clang \
-    && git clone -b master --single-branch https://github.com/apache/incubator-teaclave-sgx-sdk.git /root/sgx \
+    && git clone --depth 1 -b v1.1.3 --single-branch https://github.com/apache/incubator-teaclave-sgx-sdk.git /root/sgx \
     && cd /opt/intel \
     && wget https://download.01.org/intel-sgx/sgx-linux/2.11/distro/ubuntu18.04-server/sgx_linux_x64_sdk_2.11.100.2.bin \
     && chmod +x sgx_linux_x64_sdk_2.11.100.2.bin \
@@ -35,7 +35,6 @@ RUN set -x \
     && bash -c "source /opt/intel/sgxsdk/environment && SGX_MODE=SW make" \
     && /docker-entrypoint.sh tests \
     && cd integration-tests && cargo test --no-default-features -- --test-threads=4 && cd .. ; else make ; fi \
-    && cd init_shared && cargo build --release && cp target/release/init_shared_exec /opt/lockbox/bin && cd .. \
     && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

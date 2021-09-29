@@ -73,7 +73,7 @@ sudo systemctl start tor
 Find the onion address:
 
 ```
-sudo -u debian-tor less /var/lib/tor/hidden_service/hostname
+sudo -u debian-tor cat /var/lib/tor/hidden_service/hostname
 ```
 
 # Issue Tracker

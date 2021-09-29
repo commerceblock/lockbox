@@ -44,7 +44,7 @@ $ sgx_enable --status
 First, install Tor on the system. In a terminal, type the following command to install tor:
 
 ```
-$ sudo apt install tor
+sudo apt install tor
 ```
 
 Then go to the tor config directory:

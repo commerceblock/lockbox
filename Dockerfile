@@ -35,7 +35,6 @@ RUN set -x \
     && bash -c "source /opt/intel/sgxsdk/environment && SGX_MODE=SW make" \
     && /docker-entrypoint.sh tests \
     && cd integration-tests && cargo test --no-default-features -- --test-threads=4 && cd .. ; else make ; fi \
-    && cd init_shared && cargo build --release && cp target/release/init_shared_exec /opt/lockbox/bin && cd .. \
     && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

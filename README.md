@@ -21,9 +21,10 @@ cd /root/lockbox/app
 ```
 
 ## Enable SGX
+
 To enable SGX functionality on an Intel SGX capable device, clone the follow repository:
 ```
-git clone https://github.com/intel/sgx-software-enable.git
+$ git clone https://github.com/intel/sgx-software-enable.git
 ```
 Then build the application with:
 ```
@@ -36,6 +37,45 @@ $ sudo ./sgx_enable
 Then restart the device, and confirm the SGX status with:
 ```
 $ sgx_enable --status
+```
+
+## Tor proxy instructions
+
+First, install Tor on the system. In a terminal, type the following command to install tor:
+
+```
+$ sudo apt install tor
+```
+
+Then go to the tor config directory:
+
+```
+cd /usr/local/etc/tor
+```
+
+List the files present, and there is a file named `torrc.sample` in the directory.
+
+Rename `torrc.sample` to `torrc`. 
+
+Then edit the torrc file using `vi torrc`.
+
+Add the following lines:
+
+```
+ HiddenServiceDir /usr/local/etc/tor/hidden_http_service/
+ HiddenServicePort 80 127.0.0.1:8000
+```
+
+Then run the service
+
+```
+$ tor 
+```
+
+Find the onion address:
+
+```
+$ cat /usr/local/etc/tor/hidden_http_service/
 ```
 
 # Issue Tracker

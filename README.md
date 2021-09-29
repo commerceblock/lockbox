@@ -50,12 +50,10 @@ $ sudo apt install tor
 Then go to the tor config directory:
 
 ```
-cd /usr/local/etc/tor
+cd /etc/tor
 ```
 
-List the files present, and there is a file named `torrc.sample` in the directory.
-
-Rename `torrc.sample` to `torrc`. 
+List the files present, and there is a file named `torrc` in the directory.
 
 Then edit the torrc file using `vi torrc`.
 
@@ -69,13 +67,13 @@ Add the following lines:
 Then run the service
 
 ```
-$ tor 
+sudo systemctl start tor
 ```
 
 Find the onion address:
 
 ```
-$ cat /usr/local/etc/tor/hidden_http_service/
+sudo -u debian-tor less /var/lib/tor/hidden_service/hostname
 ```
 
 # Issue Tracker

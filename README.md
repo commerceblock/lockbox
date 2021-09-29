@@ -24,19 +24,19 @@ cd /root/lockbox/app
 
 To enable SGX functionality on an Intel SGX capable device, clone the follow repository:
 ```
-$ git clone https://github.com/intel/sgx-software-enable.git
+git clone https://github.com/intel/sgx-software-enable.git
 ```
 Then build the application with:
 ```
-$ make
+make
 ```
 and enable SGX with:
 ```
-$ sudo ./sgx_enable
+sudo ./sgx_enable
 ```
 Then restart the device, and confirm the SGX status with:
 ```
-$ sgx_enable --status
+sgx_enable --status
 ```
 
 ## Tor proxy instructions

@@ -10,13 +10,13 @@ docker build -t commerceblock/lockbox .
 
 ### Run image without SGX driver:
 ```bash
-docker run --rm -it commerceblock/lockbox bash
+docker run --rm -it -p 8000:8000 commerceblock/lockbox bash
 cd /root/lockbox/app
 ```
 
 ### Run image with SGX driver:
 ```bash
-docker run --rm -it --device /dev/isgx commerceblock/lockbox bash
+docker run --rm -it --device /dev/isgx -p 8000:8000 commerceblock/lockbox bash
 cd /root/lockbox/app
 ```
 

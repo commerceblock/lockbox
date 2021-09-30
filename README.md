@@ -20,6 +20,21 @@ docker run --rm -it --device /dev/isgx commerceblock/lockbox bash
 cd /root/lockbox/app
 ```
 
+### Launch lockbox server
+
+From within container:
+```
+LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm/ /opt/intel/sgx-aesm-service/aesm/aesm_service &
+```
+Then:
+```
+cd /root/lockbox/app/target/release
+```
+Then:
+```
+./server_exec
+```
+
 ## Enable SGX
 
 To enable SGX functionality on an Intel SGX capable device, clone the follow repository:

@@ -76,6 +76,12 @@ Find the onion address:
 sudo -u debian-tor cat /var/lib/tor/hidden_service/hostname
 ```
 
+## Install SGX Driver for linux
+
+Follow instructions on:
+
+https://github.com/intel/linux-sgx-driver
+
 # Issue Tracker
 
 # License 

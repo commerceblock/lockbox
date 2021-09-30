@@ -2221,7 +2221,6 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8) -> sgx_status_t {
     match ECKEY.lock() {
 	    Ok(mut ec_key) => {
 	        let mut key_align = sgx_align_key_128bit_t::default();
-            println!("set ec key: {:?}", &data.inner);
 	        key_align.key = data.inner;
 	        *ec_key = key_align;
 	        sgx_status_t::SGX_SUCCESS

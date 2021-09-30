@@ -67,7 +67,7 @@ Add the following lines:
 Then run the service
 
 ```
-sudo systemctl start tor
+sudo systemctl restart tor
 ```
 
 Find the onion address:

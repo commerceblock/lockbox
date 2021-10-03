@@ -10,33 +10,48 @@ docker build -t commerceblock/lockbox .
 
 ### Run image without SGX driver:
 ```bash
-docker run --rm -it commerceblock/lockbox bash
+docker run --rm -it -p 8000:8000 commerceblock/lockbox bash
 cd /root/lockbox/app
 ```
 
 ### Run image with SGX driver:
 ```bash
-docker run --rm -it --device /dev/isgx commerceblock/lockbox bash
+docker run --rm -it --device /dev/isgx -p 8000:8000 commerceblock/lockbox bash
 cd /root/lockbox/app
+```
+
+### Launch lockbox server
+
+From within container:
+```
+LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm/ /opt/intel/sgx-aesm-service/aesm/aesm_service &
+```
+Then:
+```
+cd /root/lockbox/app/target/release
+```
+Then:
+```
+./server_exec
 ```
 
 ## Enable SGX
 
 To enable SGX functionality on an Intel SGX capable device, clone the follow repository:
 ```
-$ git clone https://github.com/intel/sgx-software-enable.git
+git clone https://github.com/intel/sgx-software-enable.git
 ```
 Then build the application with:
 ```
-$ make
+make
 ```
 and enable SGX with:
 ```
-$ sudo ./sgx_enable
+sudo ./sgx_enable
 ```
 Then restart the device, and confirm the SGX status with:
 ```
-$ sgx_enable --status
+sgx_enable --status
 ```
 
 ## Tor proxy instructions
@@ -44,7 +59,7 @@ $ sgx_enable --status
 First, install Tor on the system. In a terminal, type the following command to install tor:
 
 ```
-$ sudo apt install tor
+sudo apt install tor
 ```
 
 Then go to the tor config directory:
@@ -67,14 +82,20 @@ Add the following lines:
 Then run the service
 
 ```
-sudo systemctl start tor
+sudo systemctl restart tor
 ```
 
 Find the onion address:
 
 ```
-sudo -u debian-tor less /var/lib/tor/hidden_service/hostname
+sudo -u debian-tor cat /var/lib/tor/hidden_service/hostname
 ```
+
+## Install SGX Driver for linux
+
+Follow instructions on:
+
+https://github.com/intel/linux-sgx-driver
 
 # Issue Tracker
 

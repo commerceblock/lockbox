@@ -123,6 +123,8 @@ impl Attestation for Lockbox{
 
     fn exchange_report(&self, er_msg: &ExchangeReportMsg) -> Result<DHMsg3> {
 
+    	println!("{:?}","pos1");
+
 		let (dh_msg3, db_key, sealed_log) = match self.enclave_mut().exchange_report(er_msg) {
 	    	Ok((dh_msg3, sealed_log)) => {
 			let key_id = dh_msg3.inner.msg3_body.report.body.mr_enclave.m;
@@ -133,10 +135,14 @@ impl Attestation for Lockbox{
 	    	Err(e) => return Err(LockboxError::Generic(format!("exchange report: {}",e)))
 		};
 
+    	println!("{:?}","pos2");
+
 		match self.put_enclave_key(&db_key, sealed_log){
 	    	Ok(_) => Ok(dh_msg3),
 	    	Err(e) => Err(LockboxError::Generic(format!("exchange report: {}",e)))
 		}
+
+    	println!("{:?}","pos3");
 
     }
     

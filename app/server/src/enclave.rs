@@ -1300,6 +1300,9 @@ impl Enclave {
     }
 
     pub fn exchange_report(&self, ep_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<(DHMsg3, EcLog)> {
+
+    	println!("{:?}","pos8");
+
 		let mut retval = sgx_status_t::SGX_SUCCESS;
 		let sealed_log = [0u8; EC_LOG_SIZE];
 
@@ -1308,6 +1311,8 @@ impl Enclave {
 		let src_enclave_id = ep_msg.src_enclave_id;
 		let dh_msg2_str = serde_json::to_string(&ep_msg.dh_msg2).unwrap();
 		
+    	println!("{:?}","pos9");
+
      	unsafe {
             exchange_report(self.geteid(),
 			    &mut retval,
@@ -1319,6 +1324,8 @@ impl Enclave {
 		//,
 		//	    &mut session_ptr);
     	};
+
+    	println!("{:?}","pos10");
 
 		match retval {
 	    	sgx_status_t::SGX_SUCCESS  => {
@@ -1334,6 +1341,8 @@ impl Enclave {
 	    	},
 	    	_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
 		}
+
+    	println!("{:?}","pos11");
     }
     
     pub fn proc_msg1(&self, dh_msg1: &DHMsg1) -> Result<DHMsg2> {

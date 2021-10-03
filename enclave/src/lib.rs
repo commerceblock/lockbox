@@ -473,14 +473,20 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 //			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
 
+    println!("{:?}","pos13");
+
     match is_initialized() { 
         Ok(true) => return ATTESTATION_STATUS::INVALID_SESSION,
         Ok(false) => (),
         Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
     };
 
+    println!("{:?}","pos14");
+
     let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
     
+    println!("{:?}","pos15");
+
     let dh_msg2 = match std::str::from_utf8(&str_slice) {
 	Ok(v) =>{
 	    match serde_json::from_str::<DHMsg2>(v){
@@ -491,10 +497,15 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
     
+    println!("{:?}","pos16");
+
     let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
     
+    println!("{:?}","pos17");
+
     let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
 
+    println!("{:?}","pos18");
     
     let dh_msg3_r  = match SESSIONINFO.lock() {
 	Ok(session_info) => {
@@ -519,9 +530,13 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         }
     };
 
+    println!("{:?}","pos19");
+
     let raw_len = dh_msg3_r.calc_raw_sealed_data_size();
     let mut dh_msg3_inner = sgx_dh_msg3_t::default();
     let _ = unsafe{ dh_msg3_r.to_raw_dh_msg3_t(&mut dh_msg3_inner, raw_len ) };
+
+    println!("{:?}","pos20");
 
     match serde_json::to_string(& DHMsg3 { inner: dh_msg3_inner } ) {
 	Ok(v) => {
@@ -538,25 +553,34 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         }
     };
 
+    println!("{:?}","pos20");
 
     let key_sealed  = SgxKey128BitSealed {
 	    inner: dh_aek.key
     };
     
+    println!("{:?}","pos21");
+
     let sealable = match SgxSealable::try_from(key_sealed){
 	Ok(x) => x,
         Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
     };
+
+    println!("{:?}","pos22");
 
     let sealed_data = match sealable.to_sealed(){
         Ok(x) => x,
 	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
     };
     
+    println!("{:?}","pos23");
+
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, EC_LOG_SIZE as u32);
     if opt.is_none() {
 	return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
+
+    println!("{:?}","pos24");
 
     match SESSIONKEY.lock() {
 	    Ok(mut session_key) => {
@@ -567,6 +591,8 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         },
     };
     
+    println!("{:?}","pos25");
+
     match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
                 session_info
@@ -587,6 +613,8 @@ pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
 ) -> ATTESTATION_STATUS {
     
     rsgx_lfence();
+
+    println!("{:?}","pos12");
 
     exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr, sealed_log)
 }

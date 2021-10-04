@@ -1332,18 +1332,27 @@ impl Enclave {
 
 		let result = match retval {
 	    	sgx_status_t::SGX_SUCCESS  => {
+	    	    	println!("{:?}","pos10_1");	
 			let c = dh_msg3_arr[0].clone();
+	    	    	println!("{:?}","pos10_2");	
 			let c = &[c];
+	    	    	println!("{:?}","pos10_3");	
 			let nc_str = std::str::from_utf8(c).unwrap();
+	    	    	println!("{:?}","pos10_4");	
 			let nc = nc_str.parse::<usize>().unwrap();
+	    	    	println!("{:?}","pos10_5");	
 			let i1 = nc+1;
 			println!("array index 1: {}", i1);
 			let size_str = std::str::from_utf8(&dh_msg3_arr[1..i1]).unwrap();
+				    	    	println!("{:?}","pos10_6");	
 			let size = size_str.parse::<usize>().unwrap();
+	    	    	println!("{:?}","pos10_7");	
 			let i2 = size+nc+1;
 			println!("array index 2: {}", i2);
 			let msg_str = std::str::from_utf8(&dh_msg3_arr[i1..i2]).unwrap().to_string();
+	    	    	println!("{:?}","pos10_8");	
 			let dh_msg3 : DHMsg3  = serde_json::from_str(&msg_str).unwrap();
+	    	    	println!("{:?}","pos10_9");	
 			Ok((dh_msg3, sealed_log))
 	    	},
 	    	_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),

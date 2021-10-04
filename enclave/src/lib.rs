@@ -511,7 +511,7 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
     println!("{:?}","pos18");
     
     let dh_msg3_r  = match SESSIONINFO.lock() {
-	Ok(session_info) => {
+	Ok(mut session_info) => {
         println!("{:?}","pos18_1");
 	    let mut responder = match session_info.session.session_status {
 		    DhSessionStatus::InProgress(res) => {
@@ -539,7 +539,6 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         println!("{:?}","pos18_9");
         return ATTESTATION_STATUS::INVALID_SESSION
         }
-        println!("{:?}","pos18_10");
     };
 
     println!("{:?}","pos19");

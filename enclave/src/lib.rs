@@ -107,6 +107,9 @@ pub type EcLog = [u8; EC_LOG_SIZE];
 pub const EC_LOG_SIZE_LG: usize = 32400;
 pub type EcLogLg = [u8; EC_LOG_SIZE_LG];
 
+pub const DH_MSG_SIZE: usize = 1700;
+pub const DH_MSG3_SIZE: usize = 2000;
+
 //Using lazy_static in order to be able to use a heap-allocated
 //static variable requiring runtime executed code
 lazy_static!{
@@ -244,7 +247,7 @@ fn set_initialized() -> SgxResult<()> {
 }
 
 fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
-			dh_msg1: &mut [u8;1700]
+			dh_msg1: &mut [u8;DH_MSG_SIZE]
     //,
 //			session_ptr: &mut usize
 ) -> ATTESTATION_STATUS {
@@ -269,7 +272,7 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
             v_sized=format!("{}{}", v_sized.len(), v_sized);
             v_sized.push_str(&v);
             let mut v_bytes=v_sized.into_bytes();
-            v_bytes.resize(1700,0);
+            v_bytes.resize(DH_MSG_SIZE,0);
             *dh_msg1 = match v_bytes.as_slice().try_into(){
                 Ok(r) => r,
                 Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
@@ -295,13 +298,13 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
 //Handle the request from Source Enclave for a session
 #[no_mangle]
 pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
-				  dh_msg1: &mut [u8;1700])
+				  dh_msg1: &mut [u8;DH_MSG_SIZE])
 	-> ATTESTATION_STATUS {
         session_request_safe(src_enclave_id, dh_msg1)
 }
 
 fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
-		  dh_msg2: &mut [u8;1700]
+		  dh_msg2: &mut [u8;DH_MSG_SIZE]
 ) -> ATTESTATION_STATUS {
     
     let str_slice = unsafe { slice::from_raw_parts(dh_msg1_str, msg1_len) };
@@ -348,7 +351,7 @@ fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
     
 	    let mut v_bytes=v_sized.into_bytes();
     
-	    v_bytes.resize(1700,0);
+	    v_bytes.resize(DH_MSG_SIZE,0);
     
 	    *dh_msg2 = v_bytes.as_slice().try_into().unwrap();
 	},
@@ -363,7 +366,7 @@ fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
 //Handle the request from Source Enclave for a session
 #[no_mangle]
 pub extern "C" fn proc_msg1(dh_msg1_str: *const u8 , msg1_len: usize,
-                           dh_msg2: &mut [u8;1700])
+                           dh_msg2: &mut [u8;DH_MSG_SIZE])
 				  -> ATTESTATION_STATUS {
         proc_msg1_safe(dh_msg1_str, msg1_len, dh_msg2)
 }
@@ -468,10 +471,12 @@ pub extern "C" fn proc_msg3(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log
 #[allow(unused_variables)]
 fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 			dh_msg2_str: *const u8 , msg2_len: usize,
-			dh_msg3_arr: &mut [u8;1700],
+			dh_msg3_arr: &mut [u8;DH_MSG3_SIZE],
 			sealed_log: *mut u8
 //			session_info: &mut DhSessionInfo
 ) -> ATTESTATION_STATUS {
+
+    println!("{:?}","pos13");
 
     match is_initialized() { 
         Ok(true) => return ATTESTATION_STATUS::INVALID_SESSION,
@@ -479,8 +484,12 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
     };
 
+    println!("{:?}","pos14");
+
     let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
     
+    println!("{:?}","pos15");
+
     let dh_msg2 = match std::str::from_utf8(&str_slice) {
 	Ok(v) =>{
 	    match serde_json::from_str::<DHMsg2>(v){
@@ -491,10 +500,15 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
     
+    println!("{:?}","pos16");
+
     let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
     
+    println!("{:?}","pos17");
+
     let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
 
+    println!("{:?}","pos18");
     
     let dh_msg3_r  = match SESSIONINFO.lock() {
 	Ok(session_info) => {
@@ -519,9 +533,13 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         }
     };
 
+    println!("{:?}","pos19");
+
     let raw_len = dh_msg3_r.calc_raw_sealed_data_size();
     let mut dh_msg3_inner = sgx_dh_msg3_t::default();
     let _ = unsafe{ dh_msg3_r.to_raw_dh_msg3_t(&mut dh_msg3_inner, raw_len ) };
+
+    println!("{:?}","pos20");
 
     match serde_json::to_string(& DHMsg3 { inner: dh_msg3_inner } ) {
 	Ok(v) => {
@@ -530,7 +548,7 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	    v_sized=format!("{}{}", v_sized.len(), v_sized);
 	    v_sized.push_str(&v);
 	    let mut v_bytes=v_sized.into_bytes();
-	    v_bytes.resize(1700,0);
+	    v_bytes.resize(DH_MSG3_SIZE,0);
 	    *dh_msg3_arr = v_bytes.as_slice().try_into().unwrap();
 	},
 	Err(e) => {
@@ -538,25 +556,34 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         }
     };
 
+    println!("{:?}","pos20");
 
     let key_sealed  = SgxKey128BitSealed {
 	    inner: dh_aek.key
     };
     
+    println!("{:?}","pos21");
+
     let sealable = match SgxSealable::try_from(key_sealed){
 	Ok(x) => x,
         Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
     };
+
+    println!("{:?}","pos22");
 
     let sealed_data = match sealable.to_sealed(){
         Ok(x) => x,
 	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
     };
     
+    println!("{:?}","pos23");
+
     let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, EC_LOG_SIZE as u32);
     if opt.is_none() {
 	return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
+
+    println!("{:?}","pos24");
 
     match SESSIONKEY.lock() {
 	    Ok(mut session_key) => {
@@ -567,6 +594,8 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         },
     };
     
+    println!("{:?}","pos25");
+
     match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
                 session_info
@@ -582,11 +611,13 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 #[no_mangle]
 pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
 				  dh_msg2_str: *const u8, msg2_len: usize,
-				  dh_msg3_arr: &mut [u8;1700],
+				  dh_msg3_arr: &mut [u8;DH_MSG3_SIZE],
 				  sealed_log: *mut u8,
 ) -> ATTESTATION_STATUS {
     
     rsgx_lfence();
+
+    println!("{:?}","pos12");
 
     exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr, sealed_log)
 }

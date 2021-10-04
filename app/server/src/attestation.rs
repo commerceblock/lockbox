@@ -43,21 +43,28 @@ fn exchange_report_ocall(dh_msg2: *mut sgx_dh_msg2_t,
     let client_dest = client::get_client_dest();
     let client_src = client::get_client_src();
 
+    println!("{:?}","pos4");
+
     let enclave_id_msg = match get_lb::<EnclaveIDMsg>(&client_src, "attestation/enclave/id") {
 	Ok(r) => r,
 	Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
 
-    
+    println!("{:?}","pos5");
+
     let er_msg = ExchangeReportMsg {
 	src_enclave_id: enclave_id_msg.inner,
 	dh_msg2: unsafe{DHMsg2{ inner: *dh_msg2 }}
     };
     
+    println!("{:?}","pos6");
+
     let _response: DHMsg3 = match post_lb(&client_dest, "attestation/exchange_report", &er_msg) {
 	    Ok(r) => r,
 	    Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
+
+    println!("{:?}","pos7");
 
     sgx_status_t::SGX_SUCCESS
 }

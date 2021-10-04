@@ -51,6 +51,9 @@ pub type EcKeySealed = [u8; EC_KEY_SEALED_SIZE];
 pub const EC_LOG_SIZE: usize = 8192;
 pub type EcLog = [u8; EC_LOG_SIZE];
 
+pub const DH_MSG_SIZE: usize = 1700;
+pub const DH_MSG3_SIZE: usize = 2000;
+
 pub struct Enclave {
     inner: SgxEnclave,
     ec_key: Option<EcLog>
@@ -1263,7 +1266,7 @@ impl Enclave {
 
     pub fn session_request(&self, id_msg: &EnclaveIDMsg) -> Result<DHMsg1> {
 		let mut retval = sgx_status_t::SGX_SUCCESS;
-		let mut dh_msg1 = [0u8;1700];
+		let mut dh_msg1 = [0u8;DH_MSG_SIZE];
 
 		//	let mut session_ptr: usize = 0;
 		let src_enclave_id = id_msg.inner;
@@ -1300,14 +1303,19 @@ impl Enclave {
     }
 
     pub fn exchange_report(&self, ep_msg: &shared_lib::structs::ExchangeReportMsg) -> Result<(DHMsg3, EcLog)> {
+
+    	println!("{:?}","pos8");
+
 		let mut retval = sgx_status_t::SGX_SUCCESS;
 		let sealed_log = [0u8; EC_LOG_SIZE];
 
-		let mut dh_msg3_arr = [0u8;1700];
+		let mut dh_msg3_arr = [0u8;DH_MSG3_SIZE];
 //	let mut session_ptr: usize = ep_msg.session_ptr;
 		let src_enclave_id = ep_msg.src_enclave_id;
 		let dh_msg2_str = serde_json::to_string(&ep_msg.dh_msg2).unwrap();
 		
+    	println!("{:?}","pos9");
+
      	unsafe {
             exchange_report(self.geteid(),
 			    &mut retval,
@@ -1320,27 +1328,46 @@ impl Enclave {
 		//	    &mut session_ptr);
     	};
 
-		match retval {
+    	println!("{:?}","pos10");
+
+		let result = match retval {
 	    	sgx_status_t::SGX_SUCCESS  => {
+	    	    	println!("{:?}","pos10_1");	
 			let c = dh_msg3_arr[0].clone();
+	    	    	println!("{:?}","pos10_2");	
 			let c = &[c];
+	    	    	println!("{:?}","pos10_3");	
 			let nc_str = std::str::from_utf8(c).unwrap();
+	    	    	println!("{:?}","pos10_4");	
 			let nc = nc_str.parse::<usize>().unwrap();
-			let size_str = std::str::from_utf8(&dh_msg3_arr[1..(nc+1)]).unwrap();
+	    	    	println!("{:?}","pos10_5");	
+			let i1 = nc+1;
+			println!("array index 1: {}", i1);
+			let size_str = std::str::from_utf8(&dh_msg3_arr[1..i1]).unwrap();
+				    	    	println!("{:?}","pos10_6");	
 			let size = size_str.parse::<usize>().unwrap();
-			let msg_str = std::str::from_utf8(&dh_msg3_arr[(nc+1)..(size+nc+1)]).unwrap().to_string();
+	    	    	println!("{:?}","pos10_7");	
+			let i2 = size+nc+1;
+			println!("array index 2: {}", i2);
+			let msg_str = std::str::from_utf8(&dh_msg3_arr[i1..i2]).unwrap().to_string();
+	    	    	println!("{:?}","pos10_8");	
 			let dh_msg3 : DHMsg3  = serde_json::from_str(&msg_str).unwrap();
+	    	    	println!("{:?}","pos10_9");	
 			Ok((dh_msg3, sealed_log))
 	    	},
 	    	_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
-		}
+		};
+
+    	println!("{:?}","pos11");
+
+		return result;
     }
     
     pub fn proc_msg1(&self, dh_msg1: &DHMsg1) -> Result<DHMsg2> {
 	let mut retval = sgx_status_t::SGX_SUCCESS;
 
 
-	let mut dh_msg2_arr = [0u8;1700];
+	let mut dh_msg2_arr = [0u8;DH_MSG_SIZE];
 	
 	let dh_msg1_str = serde_json::to_string(dh_msg1).unwrap();
 	

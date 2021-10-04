@@ -46,7 +46,7 @@ enclave {
 
 	public uint32_t exchange_report(sgx_enclave_id_t src_enclave_id,
 		[in, size=msg2_len] const uint8_t* msg2_str, size_t msg2_len,	 
-	       [out, size=1700] uint8_t *dh_msg3,
+	       [out, size=2000] uint8_t *dh_msg3,
 	       [out, size=8192] uint8_t *sealed_log);
 	       //,
 	       //	       [user_check]size_t* session_ptr

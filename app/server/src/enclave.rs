@@ -1327,7 +1327,7 @@ impl Enclave {
 
     	println!("{:?}","pos10");
 
-		match retval {
+		let result = match retval {
 	    	sgx_status_t::SGX_SUCCESS  => {
 			let c = dh_msg3_arr[0].clone();
 			let c = &[c];
@@ -1340,9 +1340,11 @@ impl Enclave {
 			Ok((dh_msg3, sealed_log))
 	    	},
 	    	_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
-		}
+		};
 
     	println!("{:?}","pos11");
+
+		return result;
     }
     
     pub fn proc_msg1(&self, dh_msg1: &DHMsg1) -> Result<DHMsg2> {

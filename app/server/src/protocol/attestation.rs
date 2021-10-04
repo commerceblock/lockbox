@@ -137,13 +137,15 @@ impl Attestation for Lockbox{
 
     	println!("{:?}","pos2");
 
-		match self.put_enclave_key(&db_key, sealed_log){
+		let result = match self.put_enclave_key(&db_key, sealed_log){
 	    	Ok(_) => Ok(dh_msg3),
 	    	Err(e) => Err(LockboxError::Generic(format!("exchange report: {}",e)))
-		}
+		};
 
     	println!("{:?}","pos3");
 
+
+		return result;
     }
     
     fn end_session(&self) -> Result<()> {

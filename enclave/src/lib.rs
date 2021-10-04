@@ -512,25 +512,34 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
     
     let dh_msg3_r  = match SESSIONINFO.lock() {
 	Ok(session_info) => {
-    
+        println!("{:?}","pos18_1");
 	    let mut responder = match session_info.session.session_status {
-		    DhSessionStatus::InProgress(res) => {res},
+		    DhSessionStatus::InProgress(res) => {
+                println!("{:?}","pos18_2");
+                res
+            },
 		    _ => {
+                println!("{:?}","pos18_3");
 		        return ATTESTATION_STATUS::INVALID_SESSION;
 		    }
 	    };
-
+        println!("{:?}","pos18_4");
 	    let mut result = SgxDhMsg3::default();
-        
+        println!("{:?}","pos18_5");
 	    let status = responder.proc_msg2(&dh_msg2, &mut result, &mut dh_aek.key, &mut initiator_identity);
+        println!("{:?}","pos18_6");
 	    if status.is_err() {
+            println!("{:?}","pos18_7");
         	return ATTESTATION_STATUS::ATTESTATION_ERROR;
 	    }
+        println!("{:?}","pos18_8");
 	    result
 	},
 	Err(e) => {
+        println!("{:?}","pos18_9");
         return ATTESTATION_STATUS::INVALID_SESSION
         }
+        println!("{:?}","pos18_10");
     };
 
     println!("{:?}","pos19");

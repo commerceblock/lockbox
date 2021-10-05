@@ -54,6 +54,14 @@ extern crate serde_big_array;
 extern crate lazy_static;
 extern crate hex;
 
+use sgx_tcrypto::*;
+use sgx_trts::memeq::ConsttimeMemEq;
+use sgx_trts::trts::*;
+use sgx_tse::*;
+use sgx_types::*;
+
+const AES_CMAC_KDF_ID: [u8; 2] = [1, 0];
+
 use secp256k1::Secp256k1;
 use sgx_types::*;
 use sgx_tcrypto::*;  
@@ -503,7 +511,16 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 	},
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
-    
+
+    let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
+
+    initiator_identity.isv_svn = dh_msg2.report.body.isv_svn;
+    initiator_identity.isv_prod_id = dh_msg2.report.body.isv_prod_id;
+    initiator_identity.attributes = dh_msg2.report.body.attributes;
+    initiator_identity.mr_signer = dh_msg2.report.body.mr_signer;
+    initiator_identity.mr_enclave = dh_msg2.report.body.mr_enclave;
+    let g_b = dh_msg2.g_b;
+
     println!("{:?}","pos16");
 
     let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
@@ -533,10 +550,14 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 
         if !rsgx_data_is_within_enclave(&responder){
             println!("resp. not within enc.");
+        } else {
+            println!("resp. is within enc.");
         }
 
         if !rsgx_data_is_within_enclave(&dh_msg2){
             println!("dh_msg2 not within enc.");
+        } else {
+            println!("dh_msg2 is within enc.");
         }
 
         if result.msg3_body.additional_prop.len() > 0
@@ -546,16 +567,45 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 
         {
           println!("msg3 err");
+        } else {
+            println!("msg3 ok");
         }
-   
-        //if (responder.state != SgxDhSessionState::SGX_DH_SESSION_RESPONDER_WAIT_M2) {
-        //    println!("responder state err");
-        //} 
 
+        //verify msg2
+        let msg2 = dh_msg2;
+        let kdf_id =
+        &msg2.report.body.report_data.d[SGX_SHA256_HASH_SIZE..SGX_SHA256_HASH_SIZE + 2];
+        let data_hash = &msg2.report.body.report_data.d[..SGX_SHA256_HASH_SIZE];
+
+        if !kdf_id.eq(&AES_CMAC_KDF_ID) {
+            println!("kdf mismatch");
+            return ATTESTATION_STATUS::ATTESTATION_ERROR;
+        } else {
+            println!("msg2 kdf ok");
+        }
+
+        let report = msg2.report;
+    
+        match rsgx_verify_report(&report){
+            Ok(()) => println!("msg2 report verify ok"),
+            Err(e) => {
+                println!("msg2 report verify failed: {:?}", e);
+                return ATTESTATION_STATUS::ATTESTATION_ERROR;
+            }
+        }
+
+        let sha_handle = SgxShaHandle::new();
+        match sha_handle.init(){
+            Ok(()) => println!("sha_handle.init ok"),
+            Err(_) => {
+                println!("sha_handle.init failed");
+                return ATTESTATION_STATUS::ATTESTATION_ERROR;
+            }
+        }
 
         let ecc_state = SgxEccHandle::new();
         match ecc_state.open(){
-            Ok(_) => (),
+            Ok(_) => println!("ecc_state.open ok"),
             Err(_) => {
                 println!("{:?}","fail ecc");
                 return ATTESTATION_STATUS::ATTESTATION_ERROR;

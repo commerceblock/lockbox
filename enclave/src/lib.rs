@@ -29,7 +29,11 @@ extern crate sgx_tse;
 extern crate sgx_tdh;
 extern crate sgx_trts;
 use sgx_tdh::{SgxDhMsg1, SgxDhMsg2, SgxDhMsg3, SgxDhInitiator, SgxDhResponder};
-use sgx_trts::trts::{rsgx_raw_is_outside_enclave, rsgx_lfence, rsgx_raw_is_within_enclave};
+use sgx_tcrypto::{SgxEccHandle};
+use sgx_trts::trts::{rsgx_raw_is_outside_enclave, rsgx_lfence, 
+    rsgx_raw_is_within_enclave, rsgx_data_is_within_enclave,
+    rsgx_slice_is_within_enclave
+};
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
@@ -526,6 +530,38 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         println!("{:?}","pos18_4");
 	    let mut result = SgxDhMsg3::default();
         println!("{:?}","pos18_5");
+
+        if !rsgx_data_is_within_enclave(&responder){
+            println!("resp. not within enc.");
+        }
+
+        if !rsgx_data_is_within_enclave(&dh_msg2){
+            println!("resp. not within enc.");
+        }
+
+        if result.msg3_body.additional_prop.len() > 0
+            && (!(rsgx_slice_is_within_enclave(&result.msg3_body.additional_prop))
+                || (result.msg3_body.additional_prop.len()
+                    > (u32::MAX as usize) - mem::size_of::<sgx_dh_msg3_t>()))
+
+        {
+          println!("msg3 err");
+        }
+   
+        //if (responder.state != SgxDhSessionState::SGX_DH_SESSION_RESPONDER_WAIT_M2) {
+        //    println!("responder state err");
+        //} 
+
+
+        let ecc_state = SgxEccHandle::new();
+        match ecc_state.open(){
+            Ok(_) => (),
+            Err(_) => {
+                println!("{:?}","fail ecc");
+                return ATTESTATION_STATUS::ATTESTATION_ERROR;
+            }
+        };
+
 	    let status = responder.proc_msg2(&dh_msg2, &mut result, &mut dh_aek.key, &mut initiator_identity);
         println!("{:?}","pos18_6");
 	    if status.is_err() {

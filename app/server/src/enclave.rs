@@ -1402,7 +1402,7 @@ impl Enclave {
 		Ok(dh_msg2)
 	    },
 	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", retval.as_str())).into()),
-	}
+		}
     }
 
     pub fn proc_msg3(&self, dh_msg3: &DHMsg3) -> Result<EcLog> {

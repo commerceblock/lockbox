@@ -536,7 +536,7 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         }
 
         if !rsgx_data_is_within_enclave(&dh_msg2){
-            println!("resp. not within enc.");
+            println!("dh_msg2 not within enc.");
         }
 
         if result.msg3_body.additional_prop.len() > 0

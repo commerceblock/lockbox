@@ -564,7 +564,21 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
 
 	    let status = responder.proc_msg2(&dh_msg2, &mut result, &mut dh_aek.key, &mut initiator_identity);
         println!("{:?}","pos18_6");
+        println!("status: {:?}",status);
+        
+        match status {
+            Err(e) => match e {
+                sgx_status_t::SGX_ERROR_INVALID_PARAMETER => println!("invalid parameter"),
+                sgx_status_t::SGX_ERROR_INVALID_STATE=> println!("invalid state"),
+                _ => println!("unknown error")
+            },
+            _ => (),
+        };
+
+        
 	    if status.is_err() {
+            
+
             println!("{:?}","pos18_7");
         	return ATTESTATION_STATUS::ATTESTATION_ERROR;
 	    }

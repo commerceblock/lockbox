@@ -119,7 +119,7 @@ pub type EcLog = [u8; EC_LOG_SIZE];
 pub const EC_LOG_SIZE_LG: usize = 32400;
 pub type EcLogLg = [u8; EC_LOG_SIZE_LG];
 
-pub const DH_MSG_SIZE: usize = 1700;
+pub const DH_MSG_SIZE: usize = 1800;
 pub const DH_MSG3_SIZE: usize = 2000;
 
 //Using lazy_static in order to be able to use a heap-allocated

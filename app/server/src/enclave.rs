@@ -51,7 +51,7 @@ pub type EcKeySealed = [u8; EC_KEY_SEALED_SIZE];
 pub const EC_LOG_SIZE: usize = 8192;
 pub type EcLog = [u8; EC_LOG_SIZE];
 
-pub const DH_MSG_SIZE: usize = 1700;
+pub const DH_MSG_SIZE: usize = 1800;
 pub const DH_MSG3_SIZE: usize = 2000;
 
 pub struct Enclave {

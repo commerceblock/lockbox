@@ -277,9 +277,12 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
         return ATTESTATION_STATUS::INVALID_SESSION;
     }
 
+    //let dhmsg1_vec = serde_cbor::to_vec(&dh_msg1_inner).unwrap();
+    let dh_msg1_bytes;
     match serde_json::to_string(& DHMsg1 { inner: dh_msg1_inner } ) {
 	    Ok(v) => {
 	        let len = v.len();
+            dh_msg1_bytes = v.clone().into_bytes();
 	        let mut v_sized=format!("{}", len);
             v_sized=format!("{}{}", v_sized.len(), v_sized);
             v_sized.push_str(&v);
@@ -292,6 +295,77 @@ fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
         },
 	    Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
+
+    //Verify msg1 serialization
+    match std::str::from_utf8(&dh_msg1_bytes) {
+        Ok(v) =>{
+            match serde_json::from_str::<DHMsg1>(v){
+                Ok(v) => {
+                    match v.inner.g_a.gx == dh_msg1_inner.g_a.gx {
+                        true => println!("msg1.g_a.gx ser. ok"),
+                        false => println!("msg1.g_a.gx ser. not ok"),
+                    }
+                    match v.inner.g_a.gy == dh_msg1_inner.g_a.gy {
+                        true => println!("msg1.g_a.gy ser. ok"),
+                        false => println!("msg1.g_a.gy ser. not ok"),
+                    }
+                    match v.inner.target.mr_enclave.m == dh_msg1_inner.target.mr_enclave.m {
+                        true => println!("msg2 mr_enclave ok"),
+                        false => println!("msg2 mr_enclave not ok"),
+                    }
+                    match v.inner.target.attributes.flags == dh_msg1_inner.target.attributes.flags {
+                        true => println!("msg2 attributes.flags ok"),
+                        false => println!("msg2 attributes.flags not ok"),
+                    }
+                    match v.inner.target.attributes.xfrm == dh_msg1_inner.target.attributes.xfrm {
+                        true => println!("msg2 attributes.xfrm ok"),
+                        false => println!("msg2 attributes.xfrm not ok"),
+                    }
+                    match v.inner.target.reserved1 == dh_msg1_inner.target.reserved1 {
+                        true => println!("msg2 reserved1 ok"),
+                        false => println!("msg2 reserved1 not ok"),
+                    }
+                    match v.inner.target.reserved2 == dh_msg1_inner.target.reserved2 {
+                        true => println!("msg2 reserved2 ok"),
+                        false => println!("msg2 reserved2 not ok"),
+                    }
+                    match v.inner.target.reserved3 == dh_msg1_inner.target.reserved3 {
+                        true => println!("msg2 reserved3 ok"),
+                        false => println!("msg2 reserved3 not ok"),
+                    }
+                    match v.inner.target.config_svn == dh_msg1_inner.target.config_svn {
+                        true => println!("msg2 config_svn ok"),
+                        false => println!("msg2 config_svn not ok"),
+                    }
+                    match v.inner.target.misc_select == dh_msg1_inner.target.misc_select {
+                        true => println!("msg2 misc_select ok"),
+                        false => println!("msg2 misc_select not ok"),
+                    }
+                    match v.inner.target.config_id == dh_msg1_inner.target.config_id {
+                        true => println!("msg2 config_id ok"),
+                        false => println!("msg2 config_id not ok"),
+                    }
+                    let report_data = sgx_report_data_t::default(); 
+                    let rep1 = rsgx_create_report(&v.inner.target, &report_data).unwrap();
+                    match rsgx_verify_report(&rep1){
+                        Ok(_) => println!("msg1 rep1 ok"),
+                        Err(e) => println!("msg1 rep1 err: {:?}", e)
+                    }
+            
+                },
+                Err(_) => {
+                    println!("msg1 ser. check failed");
+                }
+            }
+        },
+        Err(_) => println!("msg1 str from utf8 failed"),
+    };
+    let report_data = sgx_report_data_t::default(); 
+    let rep2 = rsgx_create_report(&dh_msg1_inner.target, &report_data).unwrap();
+    match rsgx_verify_report(&rep2){
+        Ok(_) => println!("msg1 rep2 ok"),
+        Err(e) => println!("msg1 rep2 err: {:?}", e)
+    }
 
     match SESSIONINFO.lock() {
 	Ok(mut session_info) => {
@@ -352,11 +426,11 @@ fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
         return ATTESTATION_STATUS::ATTESTATION_ERROR;
     }
 
-    
+    let dh_msg2_bytes;
     match serde_json::to_string(& DHMsg2 { inner: dh_msg2_inner } ) {
 	Ok(v) => {
 	    let len = v.len();
-    
+        dh_msg2_bytes = v.clone().into_bytes();
 	    let mut v_sized=format!("{}", len);
 	    v_sized=format!("{}{}", v_sized.len(), v_sized);
 	    v_sized.push_str(&v);
@@ -370,6 +444,7 @@ fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
 	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
     };
 
+    
     
     ATTESTATION_STATUS::SUCCESS
 }
@@ -587,10 +662,10 @@ fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
         let report = msg2.report;
     
         match rsgx_verify_report(&report){
-            Ok(()) => println!("msg2 report verify ok"),
+            Ok(_) => println!("msg2 report verify ok"),
             Err(e) => {
                 println!("msg2 report verify failed: {:?}", e);
-                return ATTESTATION_STATUS::ATTESTATION_ERROR;
+                //return ATTESTATION_STATUS::ATTESTATION_ERROR;
             }
         }
 
@@ -1556,7 +1631,7 @@ impl TryFrom<(* mut u8, u32)> for SgxKey128BitSealed {
 impl TryFrom<SgxKey128BitSealed> for SgxSealable {
     type Error = sgx_status_t;
     fn try_from(item: SgxKey128BitSealed) -> Result<Self, Self::Error> {
-	let encoded_vec = match serde_cbor::to_vec(&item){
+    let encoded_vec = match serde_cbor::to_vec(&item){
 	    Ok(v) => v,
 	    Err(e) => {
 		println!("error: {:?}",e);

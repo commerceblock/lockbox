@@ -12,7 +12,7 @@ use rocket::{
     Request, Rocket,
 };
 use crate::enclave::Enclave;
-use crate::protocol::attestation::Attestation;
+use crate::protocol::initialization::Initialization;
 use crate::Key;
 
 use rocksdb::DB;
@@ -112,14 +112,7 @@ pub fn get_server(config_rs: Config)-> Result<Rocket> {
 		        ecdsa::keyupdate_second,
 		        transfer::transfer_sender,
                 transfer::transfer_receiver,
-		        attestation::enclave_id,
-		        attestation::session_request,
-		        attestation::exchange_report,
-		        attestation::end_session,
-		        attestation::test_create_session,
-		        attestation::proc_msg1,
-		        attestation::proc_msg3,
-                attestation::set_session_enclave_key,
+		        initialization::init_ec_key,
             ],
         )
         .manage(lbs);
@@ -160,8 +153,7 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared_lib::structs::{KeyGenMsg1, Protocol, EnclaveIDMsg,
-			      DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
+    use shared_lib::structs::{KeyGenMsg1, Protocol};
     use crate::client;
     
     use crate::protocol::ecdsa::Ecdsa;

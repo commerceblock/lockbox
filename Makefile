@@ -72,7 +72,7 @@ Enclave_EDL_Files := enclave/Enclave_t.c enclave/Enclave_t.h app/Enclave_u.c app
 App_Test_Flags ?= -- --nocapture
 App_Rust_Flags := --release
 App_SRC_Files := $(shell find app/ -type f -name '*.rs') $(shell find app/ -type f -name 'Cargo.toml')
-App_Include_Paths := -I ./app -I./include -I$(SGX_SDK)/include -I./attestation -I$(CUSTOM_EDL_PATH)
+App_Include_Paths := -I ./app -I./include -I$(SGX_SDK)/include -I$(CUSTOM_EDL_PATH)
 App_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
 
 App_Rust_Path := ./app/target/release
@@ -92,7 +92,7 @@ Crypto_Library_Name := sgx_tcrypto
 KeyExchange_Library_Name := sgx_tkey_exchange
 ProtectedFs_Library_Name := sgx_tprotected_fs
 
-RustEnclave_C_Files := $(wildcard ./enclave/*.c ./attestation/*.c)
+RustEnclave_C_Files := $(wildcard ./enclave/*.c)
 RustEnclave_C_Objects := $(RustEnclave_C_Files:.c=.o)
 RustEnclave_Include_Paths := -I$(CUSTOM_COMMON_PATH)/inc -I$(CUSTOM_EDL_PATH) -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/stlport -I$(SGX_SDK)/include/epid -I ./enclave -I./include
 
@@ -157,7 +157,6 @@ clean:
 	@rm -f $(App_Name) $(RustEnclave_Name) $(Signed_RustEnclave_Name) enclave/*_t.* app/*_u.* lib/*.a
 	@cd enclave && cargo clean && rm -f Cargo.lock
 	@cd app && cargo clean && rm -f Cargo.lock
-	@cd attestation && cargo clean && rm -f Cargo.lock
 
 .PHONY: test
 test:

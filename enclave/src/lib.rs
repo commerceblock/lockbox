@@ -133,11 +133,9 @@ fn eckey_status() -> bool {
     match ECKEY.lock() {
         Ok(key) => {
             let result = key.key != sgx_align_key_128bit_t::default().key;
-            println!("eckey_status: {:?}, {}", key.key, result);
             result
         },
         Err(_) => {
-            println!("eckey_status err - returning false");
             false
         }
     }

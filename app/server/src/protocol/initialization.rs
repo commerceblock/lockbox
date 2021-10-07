@@ -70,6 +70,7 @@ impl Initialization for Lockbox{
 				Err(e) => return Err(LockboxError::Generic(format!("sealed enclave key format error: {:?}", e))),
 	    	},
 	    	Ok(None) => {
+				self.gen_init_key().map_err(|e| LockboxError::Generic(format!("gen_init_key: {}",e)))?;
 				Ok(None)
 			},
 	    	Err(e) => Err(e.into()),
@@ -82,7 +83,7 @@ impl Initialization for Lockbox{
 		let mut key_uuid = uuid::Builder::from_bytes(key_id[..16].try_into().unwrap());
 		let db_key = Key::from_uuid(&key_uuid.build());	
 		//let key_arr: = key.try_into().expect("failed to convert key");
-		self.enclave_mut().init_ec_key(key);
+		self.enclave_mut().init_ec_key(key).map_err(|e| LockboxError::Generic(format!("init_ec_key: {}",e)))?;
 		//Get sealed ec key
 		let ec_key_log = self.enclave_mut().get_ec_key_enclave().map_err(|e| LockboxError::Generic(format!("init_ec_key: {}",e)))?;
 		self.put_enclave_key(&db_key, ec_key_log).map_err(|e| LockboxError::Generic(format!("init_ec_key: {}",e)))
@@ -91,7 +92,6 @@ impl Initialization for Lockbox{
 	fn gen_init_key(&self) -> Result<()> {
 		let k = self.enclave_mut().gen_init_key().map_err(|e| LockboxError::Generic(format!("gen_init_key: {}",e)))?;
 		let mut file = File::create(self.config.storage.init_path.clone()).map_err(|e| LockboxError::Generic(format!("gen_init_key: {}",e)))?;
-		//let hex_str = hex::encode(&k);
 		file.write_all(&k).map_err(|e| LockboxError::Generic(format!("gen_init_key: {}",e)))?;
 		Ok(())
 	} 

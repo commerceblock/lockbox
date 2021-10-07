@@ -131,8 +131,15 @@ fn test_vec() -> Vec<u8>{
 
 fn eckey_status() -> bool {
     match ECKEY.lock() {
-        Ok(key) => key.key != sgx_align_key_128bit_t::default().key,
-        Err(_) => false
+        Ok(key) => {
+            let result = key.key != sgx_align_key_128bit_t::default().key;
+            println!("eckey_status: {:?}, {}", key.key, result);
+            result
+        },
+        Err(_) => {
+            println!("eckey_status err - returning false");
+            false
+        }
     }
 }
 
@@ -140,7 +147,6 @@ fn is_initialized() -> SgxResult<bool> {
     let result = INITIALIZED.lock().map_err(|_| sgx_status_t::SGX_ERROR_UNEXPECTED)?.clone();
     Ok(result)
 }
-
 
 fn set_initialized() -> SgxResult<()> {
     let mut i = INITIALIZED.lock().map_err(|_| sgx_status_t::SGX_ERROR_UNEXPECTED)?;
@@ -1526,7 +1532,7 @@ pub extern "C" fn init_ec_key(in_data: *const u8, in_size: usize) -> sgx_status_
         Ok(false) => (),
         Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
-   
+    
     let key_slice = unsafe { slice::from_raw_parts(in_data, in_size)};
     
     match INITKEY_SK.lock() {
@@ -1541,6 +1547,7 @@ pub extern "C" fn init_ec_key(in_data: *const u8, in_size: usize) -> sgx_status_
                     let mut key_align = sgx_align_key_128bit_t::default();
 	                key_align.key = (*key_slice).try_into().unwrap();
 	                *k = key_align;
+                    set_initialized().expect("failed to set initialized");
 	                sgx_status_t::SGX_SUCCESS
                 },
                 Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -1600,7 +1607,13 @@ pub extern "C" fn verify_sealed_bytes32(sealed_log: * mut u8, sealed_log_size: u
 
 #[no_mangle]
 pub extern "C" fn set_ec_key(sealed_log: * mut u8) -> sgx_status_t {
-
+    
+    match is_initialized() { 
+        Ok(true) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+        Ok(false) => (),
+        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+    
     let data = match SgxKey128BitSealed::try_from((sealed_log, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	    Err(e) => return e
@@ -1611,6 +1624,7 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8) -> sgx_status_t {
 	        let mut key_align = sgx_align_key_128bit_t::default();
 	        key_align.key = data.inner;
 	        *ec_key = key_align;
+            set_initialized().expect("failed to set initialized");
 	        sgx_status_t::SGX_SUCCESS
 	    },
 	    Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
@@ -1619,6 +1633,12 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8) -> sgx_status_t {
 
 #[no_mangle]
 pub extern "C" fn get_ec_key(sealed_log: * mut u8) -> sgx_status_t {
+    
+    match is_initialized() { 
+        Ok(false) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+        Ok(true) => (),
+        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
 
     match ECKEY.lock() {
         Ok(ec_key) => {
@@ -1981,7 +2001,6 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 #[no_mangle]
 pub extern "C" fn first_message_transfer(sealed_log_in: * mut u8, sealed_log_out: *mut u8,
 				key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
-
     let data = match KeyupdateSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
@@ -2017,6 +2036,13 @@ pub extern "C" fn test_sc_encrypt_unencrypt() -> sgx_status_t {
 }
 
 fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
+    
+    match is_initialized() { 
+        Ok(false) => return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER),
+        Ok(true) => (),
+        Err(_) => return Err(sgx_status_t::SGX_ERROR_UNEXPECTED),
+    };
+    
     match ECKEY.lock() {
 	    Ok(mut k) => {
 	        EncryptedData::try_from(&[], encrypt, &[0;12], &mut k)
@@ -2029,6 +2055,13 @@ fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
 }
 
 fn unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
+    
+    match is_initialized() { 
+        Ok(false) => return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER),
+        Ok(true) => (),
+        Err(_) => return Err(sgx_status_t::SGX_ERROR_UNEXPECTED),
+    };
+    
     match ECKEY.lock() {
 	Ok(mut k) => {
 	    encrypt.unencrypt(&mut k) 

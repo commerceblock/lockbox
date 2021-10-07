@@ -244,14 +244,43 @@ mod tests {
     fn init() -> Lockbox {
         let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
         let pubkey_file: &str = &env::var("LOCKBOX_INIT_PATH").unwrap();
+        println!("pubkey file: {}\n", pubkey_file);
         let pubkey_bytes_vec = std::fs::read(&pubkey_file).expect("failed to read file");
         assert_eq!(pubkey_bytes_vec.len(), PUBKEY_LEN);
         let secret_key: Vec::<u8> = vec![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
         let sk_encrypted = ecies::encrypt(&pubkey_bytes_vec, &secret_key).expect("failed to encrypt");
         let init_ec_msg = InitECKeyMsg{data:sk_encrypted};
-        println!("...initializing lockbox...\n");
         let lockbox = Lockbox::new(lockbox_url.to_string());
+
+
+        
+        println!("...keygen calls before init should fail...\n");
+        
+        
+        let shared_key_id = Uuid::new_v4();
+        let key_gen_msg1 = KeyGenMsg1 {
+            shared_key_id: shared_key_id,
+            protocol: Protocol::Deposit,
+        };
+        println!("keygen first");
+        let path: &str = "ecdsa/keygen/first";
+        println!("int test: first message");
+        let m1_result: Result<(Uuid, party_one::KeyGenFirstMsg)> = post_lb(&lockbox, path, &key_gen_msg1);
+        assert!(m1_result.is_err(), "keygen msg1 request before init should fail");
+        
+        println!("...initializing lockbox...\n");
         let result: () = post_lb(&lockbox, "initialization/init_ec_key", &init_ec_msg).unwrap();
+
+        
+        println!("...second call to attestation/init_ec_key should fail.\n");
+        let result: () = match post_lb(&lockbox, "initialization/init_ec_key", &init_ec_msg){
+            Ok(r) => {
+                assert!(false, "expected second call to initialization/init_ec_key to fail");
+                r
+            },
+            Err(_) => ()
+        };
+        
         println!("...finished.\n");
         lockbox
     }

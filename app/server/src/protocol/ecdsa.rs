@@ -102,7 +102,7 @@ impl Ecdsa for Lockbox {
 	
 	let (key_gen_first_mess, sealed_secrets) =
 	    if key_gen_msg1.protocol == Protocol::Deposit {
-		let mut rsd1 = self.enclave_mut().get_random_ec_fe_log().unwrap();
+		let mut rsd1 = self.enclave_mut().get_random_ec_fe_log().map_err(|e| LockboxError::Generic(format!("get_random_ec_fe_log: {}",e)))?;
 		match self.enclave_mut().first_message(&mut rsd1) {
 		    Ok(x) => x,
 		    Err(e) => return Err(LockboxError::Generic(format!("generating first message: {}", e)))

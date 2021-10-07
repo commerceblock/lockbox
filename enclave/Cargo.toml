@@ -1,6 +1,6 @@
 [package]
 name = "lockbox_enclave"
-version = "0.1.4"
+version = "0.2.0"
 authors = ["The Teaclave Authors"]
 
 [lib]

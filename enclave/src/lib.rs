@@ -28,8 +28,11 @@ extern crate sgx_tcrypto;
 extern crate sgx_tse;
 extern crate sgx_tdh;
 extern crate sgx_trts;
-use sgx_tdh::{SgxDhMsg1, SgxDhMsg2, SgxDhMsg3, SgxDhInitiator, SgxDhResponder};
-use sgx_trts::trts::{rsgx_raw_is_outside_enclave, rsgx_lfence, rsgx_raw_is_within_enclave};
+use sgx_tcrypto::{SgxEccHandle};
+use sgx_trts::trts::{rsgx_raw_is_outside_enclave, rsgx_lfence, 
+    rsgx_raw_is_within_enclave, rsgx_data_is_within_enclave,
+    rsgx_slice_is_within_enclave
+};
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
 extern crate sgx_tstd as std;
@@ -85,11 +88,6 @@ use num_traits::{One, Pow};
 use core::ptr;
 use std::string::ToString;
 
-extern crate attestation;
-use attestation::types::*;
-use attestation::err::*;
-use attestation::func::*;
-
 use std::boxed::Box;
 use lazy_static::lazy_static;
 
@@ -107,16 +105,17 @@ pub type EcLog = [u8; EC_LOG_SIZE];
 pub const EC_LOG_SIZE_LG: usize = 32400;
 pub type EcLogLg = [u8; EC_LOG_SIZE_LG];
 
-pub const DH_MSG_SIZE: usize = 1700;
-pub const DH_MSG3_SIZE: usize = 2000;
+pub const ECIES_SECRET_KEY_SIZE: usize = 32;
+pub type EciesSecretKey = [u8; ECIES_SECRET_KEY_SIZE];
+
+pub const ECIES_FULL_PUBLIC_KEY_SIZE: usize = 65;
+pub type EciesFullPublicKey = [u8; ECIES_FULL_PUBLIC_KEY_SIZE];
 
 //Using lazy_static in order to be able to use a heap-allocated
 //static variable requiring runtime executed code
 lazy_static!{
-    static ref INITIATOR: Mutex<SgxDhInitiator> = Mutex::new(SgxDhInitiator::init_session());
-    static ref RESPONDER: Mutex<SgxDhResponder> = Mutex::new(SgxDhResponder::init_session());
-    static ref SESSIONINFO: Mutex<DhSessionInfo> = Mutex::new(DhSessionInfo::default());
-    static ref SESSIONKEY: Mutex<sgx_align_key_128bit_t> = Mutex::new(sgx_align_key_128bit_t::default());
+    static ref INITKEY_SK: Mutex<EciesSecretKey> = Mutex::new([0u8; ECIES_SECRET_KEY_SIZE]);
+    static ref INITKEY_PK: Mutex<EciesFullPublicKey> = Mutex::new([0u8; ECIES_FULL_PUBLIC_KEY_SIZE]);
     static ref ECKEY: Mutex<sgx_align_key_128bit_t> = Mutex::new(sgx_align_key_128bit_t::default());
     static ref INITIALIZED: Mutex<bool> = Mutex::new(false);
 }
@@ -130,107 +129,15 @@ fn test_vec() -> Vec<u8>{
     vec![123, 34, 105, 110, 110, 101, 114, 34, 58, 34, 57, 50, 53, 48, 98, 52, 48, 98, 57, 55, 53, 49, 97, 57, 50, 50, 51, 57, 56, 50, 50, 56, 50, 52, 98, 49, 52, 56, 97, 55, 54, 54, 52, 48, 102, 100, 100, 56, 98, 49, 50, 53, 51, 97, 97, 102, 100, 50, 99, 100, 50, 101, 56, 49, 53, 50, 53, 49, 98, 99, 98, 51, 102, 49, 34, 125]
 }
 
-fn verify_peer_enclave_trust(peer_enclave_identity: &sgx_dh_session_enclave_identity_t )-> u32 {
-
-    if peer_enclave_identity.isv_prod_id != 0 || peer_enclave_identity.attributes.flags & SGX_FLAGS_INITTED == 0 {
-        // || peer_enclave_identity->attributes.xfrm !=3)// || peer_enclave_identity->mr_signer != xx //TODO: To be hardcoded with values to check
-        ATTESTATION_STATUS::ENCLAVE_TRUST_ERROR as u32
-    } else {
-        ATTESTATION_STATUS::SUCCESS as u32
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn test_enclave_init() {
-    let cb = Callback{
-        verify: verify_peer_enclave_trust,
-    };
-    init(cb);
-}
-
-#[no_mangle]
-pub extern "C" fn test_create_session() -> u32 {
-    create_session() as u32
-}
-
-
-#[no_mangle]
-#[allow(unused_variables)]
-pub extern "C" fn test_close_session() -> u32 {
-    close_session() as u32
-}
-
-
-pub fn create_session() -> ATTESTATION_STATUS {
-
-    let mut dh_msg1: SgxDhMsg1 = SgxDhMsg1::default(); //Diffie-Hellman Message 1
-    let mut dh_msg2: SgxDhMsg2 = SgxDhMsg2::default(); //Diffie-Hellman Message 2
-    let mut dh_aek: sgx_align_key_128bit_t = sgx_align_key_128bit_t::default(); // Session Key
-    let mut responder_identity: sgx_dh_session_enclave_identity_t = sgx_dh_session_enclave_identity_t::default();
-    let ret = 0;
-
-
-    let status = unsafe { session_request_ocall(&mut dh_msg1) };
-    if status != sgx_status_t::SGX_SUCCESS {
-        return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
-    }
-    let err = ATTESTATION_STATUS::from_repr(ret).unwrap();
-    if err != ATTESTATION_STATUS::SUCCESS{
-        return err;
-    }
-
-    let status = match INITIATOR.lock() {
-	Ok(mut r) => r.proc_msg1(&dh_msg1, &mut dh_msg2),
-	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
-    };
-    
-    if status.is_err() {
-        return ATTESTATION_STATUS::ATTESTATION_ERROR;
-    }
-
-    let mut dh_msg3_raw = sgx_dh_msg3_t::default();
-    let status = sgx_status_t::SGX_SUCCESS;
-//    unsafe { exchange_report_ocall(&mut ret, src_enclave_id, dest_enclave_id, &mut dh_msg2, &mut dh_msg3_raw as *mut sgx_dh_msg3_t) };
-    if status != sgx_status_t::SGX_SUCCESS {
-        return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
-    }
-    if ret != ATTESTATION_STATUS::SUCCESS as u32 {
-        return ATTESTATION_STATUS::from_repr(ret).unwrap();
-    }
-
-    let dh_msg3_raw_len = mem::size_of::<sgx_dh_msg3_t>() as u32 + dh_msg3_raw.msg3_body.additional_prop_length;
-    let dh_msg3 = unsafe{ SgxDhMsg3::from_raw_dh_msg3_t(&mut dh_msg3_raw, dh_msg3_raw_len ) };
-    if dh_msg3.is_none() {
-        return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
-    }
-    let dh_msg3 = dh_msg3.unwrap();
-
-    let status = match INITIATOR.lock() {
-	Ok(mut r) => r.proc_msg3(&dh_msg3, &mut dh_aek.key, &mut responder_identity),
-	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR,
-    };
-    
-    if status.is_err() {
-        return ATTESTATION_STATUS::ATTESTATION_ERROR;
-    }
-
-    /*
-    let cb = get_callback();
-    if cb.is_some() {
-        let ret = (cb.unwrap().verify)(&responder_identity);
-        if ret != ATTESTATION_STATUS::SUCCESS as u32{
-            return ATTESTATION_STATUS::INVALID_SESSION;
-        }
-    }
-     */
-
-    ATTESTATION_STATUS::SUCCESS 
-}
-
 fn eckey_status() -> bool {
     match ECKEY.lock() {
-        Ok(key) => key.key != sgx_align_key_128bit_t::default().key,
-        Err(_) => false
+        Ok(key) => {
+            let result = key.key != sgx_align_key_128bit_t::default().key;
+            result
+        },
+        Err(_) => {
+            false
+        }
     }
 }
 
@@ -239,414 +146,11 @@ fn is_initialized() -> SgxResult<bool> {
     Ok(result)
 }
 
-
 fn set_initialized() -> SgxResult<()> {
     let mut i = INITIALIZED.lock().map_err(|_| sgx_status_t::SGX_ERROR_UNEXPECTED)?;
     *i = true;
     Ok(())
 }
-
-fn session_request_safe(src_enclave_id: sgx_enclave_id_t,
-			dh_msg1: &mut [u8;DH_MSG_SIZE]
-    //,
-//			session_ptr: &mut usize
-) -> ATTESTATION_STATUS {
-    match is_initialized() { 
-        Ok(true) => return ATTESTATION_STATUS::INVALID_SESSION,
-        Ok(false) => (),
-        Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
-    };
-    let mut dh_msg1_inner = SgxDhMsg1::default();
-
-    let mut responder = SgxDhResponder::init_session();
-    let status = responder.gen_msg1(&mut dh_msg1_inner);
-    
-    if status.is_err() {
-        return ATTESTATION_STATUS::INVALID_SESSION;
-    }
-
-    match serde_json::to_string(& DHMsg1 { inner: dh_msg1_inner } ) {
-	    Ok(v) => {
-	        let len = v.len();
-	        let mut v_sized=format!("{}", len);
-            v_sized=format!("{}{}", v_sized.len(), v_sized);
-            v_sized.push_str(&v);
-            let mut v_bytes=v_sized.into_bytes();
-            v_bytes.resize(DH_MSG_SIZE,0);
-            *dh_msg1 = match v_bytes.as_slice().try_into(){
-                Ok(r) => r,
-                Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-            };
-        },
-	    Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-    };
-
-    match SESSIONINFO.lock() {
-	Ok(mut session_info) => {
-	    session_info.enclave_id = src_enclave_id;
-	    session_info.session.session_status = DhSessionStatus::InProgress(responder);
-    	ATTESTATION_STATUS::SUCCESS
-	    //	    let ptr = Box::into_raw(Box::new(session_info));
-        //	    *session_ptr = ptr as * mut _ as usize;
-	},
-	Err(_) => ATTESTATION_STATUS::INVALID_SESSION,
-    }
-    
-}
-
-
-//Handle the request from Source Enclave for a session
-#[no_mangle]
-pub extern "C" fn session_request(src_enclave_id: sgx_enclave_id_t,
-				  dh_msg1: &mut [u8;DH_MSG_SIZE])
-	-> ATTESTATION_STATUS {
-        session_request_safe(src_enclave_id, dh_msg1)
-}
-
-fn proc_msg1_safe(dh_msg1_str: *const u8 , msg1_len: usize,
-		  dh_msg2: &mut [u8;DH_MSG_SIZE]
-) -> ATTESTATION_STATUS {
-    
-    let str_slice = unsafe { slice::from_raw_parts(dh_msg1_str, msg1_len) };
-    
-    
-    let dh_msg1 = match std::str::from_utf8(&str_slice) {
-        Ok(v) =>{
-            match serde_json::from_str::<DHMsg1>(v){
-                Ok(v) => v.inner,
-                Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-            }
-        },
-        Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-    };
-
-    
-    let mut dh_msg2_inner: SgxDhMsg2 = SgxDhMsg2::default(); //Diffie-Hellman Message 2
-    
-    
-    let status = match INITIATOR.lock() {
-	    Ok(mut r) => 
-        {   
-            r.proc_msg1(&dh_msg1, &mut dh_msg2_inner)
-        },
-	    Err(_) => {
-    
-            return ATTESTATION_STATUS::ATTESTATION_ERROR
-        }
-    };
-
-    if status.is_err() {
-    
-        return ATTESTATION_STATUS::ATTESTATION_ERROR;
-    }
-
-    
-    match serde_json::to_string(& DHMsg2 { inner: dh_msg2_inner } ) {
-	Ok(v) => {
-	    let len = v.len();
-    
-	    let mut v_sized=format!("{}", len);
-	    v_sized=format!("{}{}", v_sized.len(), v_sized);
-	    v_sized.push_str(&v);
-    
-	    let mut v_bytes=v_sized.into_bytes();
-    
-	    v_bytes.resize(DH_MSG_SIZE,0);
-    
-	    *dh_msg2 = v_bytes.as_slice().try_into().unwrap();
-	},
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-    };
-
-    
-    ATTESTATION_STATUS::SUCCESS
-}
-
-
-//Handle the request from Source Enclave for a session
-#[no_mangle]
-pub extern "C" fn proc_msg1(dh_msg1_str: *const u8 , msg1_len: usize,
-                           dh_msg2: &mut [u8;DH_MSG_SIZE])
-				  -> ATTESTATION_STATUS {
-        proc_msg1_safe(dh_msg1_str, msg1_len, dh_msg2)
-}
-
-fn internal_set_session_key(val: sgx_align_key_128bit_t) -> SgxResult<()> {
-    match SESSIONKEY.lock() {
-        Ok(mut key) => {
-            let default = sgx_align_key_128bit_t::default();
-            if key.key != default.key {
-                return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
-            }
-            *key = val;
-            Ok(())
-        },
-        Err(_) => Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER),
-    }
-}
-
-fn proc_msg3_safe(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log:  * mut u8) -> ATTESTATION_STATUS {
-
-    let str_slice = unsafe{ slice::from_raw_parts(dh_msg3_str, msg3_len) };
-
-    let mut dh_msg3_raw = match std::str::from_utf8(&str_slice) {
-        Ok(v) =>{
-            match serde_json::from_str::<DHMsg3>(v){
-                Ok(v) => v.inner,
-                Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-            }
-        },
-        Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-    };
-
-    let mut dh_aek: sgx_align_key_128bit_t = sgx_align_key_128bit_t::default(); // Session Key
-    let mut responder_identity: sgx_dh_session_enclave_identity_t = sgx_dh_session_enclave_identity_t::default();
-
-
-    let dh_msg3_raw_len = mem::size_of::<sgx_dh_msg3_t>() as u32 + dh_msg3_raw.msg3_body.additional_prop_length;
-    let dh_msg3 = unsafe{ SgxDhMsg3::from_raw_dh_msg3_t(&mut dh_msg3_raw, dh_msg3_raw_len ) };
-    if dh_msg3.is_none() {
-        return ATTESTATION_STATUS::ATTESTATION_SE_ERROR;
-    }
-    let dh_msg3 = dh_msg3.unwrap();
-    
-    let status = match INITIATOR.lock() {
-	Ok(mut r) => r.proc_msg3(&dh_msg3, &mut dh_aek.key, &mut responder_identity),
-	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR,
-    };
-    
-    if status.is_err() {
-        return ATTESTATION_STATUS::ATTESTATION_ERROR;
-    }
-
-    /*
-    let cb = get_callback();
-    if cb.is_some() {
-        let ret = (cb.unwrap().verify)(&responder_identity);
-        if ret != ATTESTATION_STATUS::SUCCESS as u32{
-            return ATTESTATION_STATUS::INVALID_SESSION;
-        }
-    }
-     */
-    
-
-    let key_sealed  = SgxKey128BitSealed {
-	inner: dh_aek.key
-    };
-    
-    let sealable = match SgxSealable::try_from(key_sealed){
-	Ok(x) => x,
-        Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
-    };
-
-    let sealed_data = match sealable.to_sealed(){
-        Ok(x) => x,
-	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
-    };
-
-    
-    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, EC_LOG_SIZE as u32);
-    if opt.is_none() {
-	return ATTESTATION_STATUS::ATTESTATION_ERROR;
-    }
-
-    match ECKEY.lock() {
-	Ok(mut ec_key) => {
-	    *ec_key = dh_aek;
-	},
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
-    };
-
-    ATTESTATION_STATUS::SUCCESS
-}
-
-
-//Handle the request from Source Enclave for a session
-#[no_mangle]
-pub extern "C" fn proc_msg3(dh_msg3_str: *const u8 , msg3_len: usize, sealed_log:  * mut u8)
-				  -> ATTESTATION_STATUS {
-    proc_msg3_safe(dh_msg3_str, msg3_len, sealed_log)
-}
-
-#[allow(unused_variables)]
-fn exchange_report_safe(src_enclave_id: sgx_enclave_id_t,
-			dh_msg2_str: *const u8 , msg2_len: usize,
-			dh_msg3_arr: &mut [u8;DH_MSG3_SIZE],
-			sealed_log: *mut u8
-//			session_info: &mut DhSessionInfo
-) -> ATTESTATION_STATUS {
-
-    println!("{:?}","pos13");
-
-    match is_initialized() { 
-        Ok(true) => return ATTESTATION_STATUS::INVALID_SESSION,
-        Ok(false) => (),
-        Err(_) => return ATTESTATION_STATUS::INVALID_SESSION,
-    };
-
-    println!("{:?}","pos14");
-
-    let str_slice = unsafe { slice::from_raw_parts(dh_msg2_str, msg2_len) };
-    
-    println!("{:?}","pos15");
-
-    let dh_msg2 = match std::str::from_utf8(&str_slice) {
-	Ok(v) =>{
-	    match serde_json::from_str::<DHMsg2>(v){
-		Ok(v) => v.inner,
-		Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-	    }
-	},
-	Err(_) => return ATTESTATION_STATUS::INVALID_SESSION
-    };
-    
-    println!("{:?}","pos16");
-
-    let mut dh_aek = sgx_align_key_128bit_t::default() ;   // Session key
-    
-    println!("{:?}","pos17");
-
-    let mut initiator_identity = sgx_dh_session_enclave_identity_t::default();
-
-    println!("{:?}","pos18");
-    
-    let dh_msg3_r  = match SESSIONINFO.lock() {
-	Ok(mut session_info) => {
-        println!("{:?}","pos18_1");
-	    let mut responder = match session_info.session.session_status {
-		    DhSessionStatus::InProgress(res) => {
-                println!("{:?}","pos18_2");
-                res
-            },
-		    _ => {
-                println!("{:?}","pos18_3");
-		        return ATTESTATION_STATUS::INVALID_SESSION;
-		    }
-	    };
-        println!("{:?}","pos18_4");
-	    let mut result = SgxDhMsg3::default();
-        println!("{:?}","pos18_5");
-	    let status = responder.proc_msg2(&dh_msg2, &mut result, &mut dh_aek.key, &mut initiator_identity);
-        println!("{:?}","pos18_6");
-	    if status.is_err() {
-            println!("{:?}","pos18_7");
-        	return ATTESTATION_STATUS::ATTESTATION_ERROR;
-	    }
-        println!("{:?}","pos18_8");
-	    result
-	},
-	Err(e) => {
-        println!("{:?}","pos18_9");
-        return ATTESTATION_STATUS::INVALID_SESSION
-        }
-    };
-
-    println!("{:?}","pos19");
-
-    let raw_len = dh_msg3_r.calc_raw_sealed_data_size();
-    let mut dh_msg3_inner = sgx_dh_msg3_t::default();
-    let _ = unsafe{ dh_msg3_r.to_raw_dh_msg3_t(&mut dh_msg3_inner, raw_len ) };
-
-    println!("{:?}","pos20");
-
-    match serde_json::to_string(& DHMsg3 { inner: dh_msg3_inner } ) {
-	Ok(v) => {
-	    let len = v.len();
-	    let mut v_sized=format!("{}", len);
-	    v_sized=format!("{}{}", v_sized.len(), v_sized);
-	    v_sized.push_str(&v);
-	    let mut v_bytes=v_sized.into_bytes();
-	    v_bytes.resize(DH_MSG3_SIZE,0);
-	    *dh_msg3_arr = v_bytes.as_slice().try_into().unwrap();
-	},
-	Err(e) => {
-            return ATTESTATION_STATUS::INVALID_SESSION
-        }
-    };
-
-    println!("{:?}","pos20");
-
-    let key_sealed  = SgxKey128BitSealed {
-	    inner: dh_aek.key
-    };
-    
-    println!("{:?}","pos21");
-
-    let sealable = match SgxSealable::try_from(key_sealed){
-	Ok(x) => x,
-        Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
-    };
-
-    println!("{:?}","pos22");
-
-    let sealed_data = match sealable.to_sealed(){
-        Ok(x) => x,
-	Err(_) => return ATTESTATION_STATUS::ATTESTATION_ERROR
-    };
-    
-    println!("{:?}","pos23");
-
-    let opt = to_sealed_log_for_slice(&sealed_data, sealed_log, EC_LOG_SIZE as u32);
-    if opt.is_none() {
-	return ATTESTATION_STATUS::ATTESTATION_ERROR;
-    }
-
-    println!("{:?}","pos24");
-
-    match SESSIONKEY.lock() {
-	    Ok(mut session_key) => {
-	        *session_key = dh_aek;
-	    },
-	Err(e) => {
-            return ATTESTATION_STATUS::INVALID_SESSION
-        },
-    };
-    
-    println!("{:?}","pos25");
-
-    match SESSIONINFO.lock() {
-	Ok(mut session_info) => {
-                session_info
-				 .session.session_status = DhSessionStatus::Active(dh_aek);
-				 ATTESTATION_STATUS::SUCCESS},
-	Err(e) => {
-            ATTESTATION_STATUS::INVALID_SESSION
-        },
-    }
-    
-}
-//Verify Message 2, generate Message3 and exchange Message 3 with Source Enclave
-#[no_mangle]
-pub extern "C" fn exchange_report(src_enclave_id: sgx_enclave_id_t,
-				  dh_msg2_str: *const u8, msg2_len: usize,
-				  dh_msg3_arr: &mut [u8;DH_MSG3_SIZE],
-				  sealed_log: *mut u8,
-) -> ATTESTATION_STATUS {
-    
-    rsgx_lfence();
-
-    println!("{:?}","pos12");
-
-    exchange_report_safe(src_enclave_id, dh_msg2_str, msg2_len, dh_msg3_arr, sealed_log)
-}
-
-//Respond to the request from the Source Enclave to close the session
-#[no_mangle]
-#[allow(unused_variables)]
-pub extern "C" fn end_session(src_enclave_id: sgx_enclave_id_t)
-        -> ATTESTATION_STATUS {
-
-    rsgx_lfence();
-
-    match SESSIONINFO.lock() {
-	    Ok(mut session_info) => {
-	        *session_info = DhSessionInfo::default();
-	        ATTESTATION_STATUS::SUCCESS
-	    },
-	    Err(_) => ATTESTATION_STATUS::INVALID_SESSION
-    }
-}
-
 
 // A sample struct to show the usage of serde + seal
 // This struct could not be used in sgx_seal directly because it is
@@ -668,34 +172,6 @@ struct SgxPayload {
     encrypt: Box<[u8]>,
     additional: Box<[u8]>,
 }
-
-/*
-impl_struct! {
-    pub struct encrypted_data_t {
-        pub plain_text_offset: uint32_t,
-        pub reserved: [uint8_t; 12],
-        pub aes_data: sgx_aes_gcm_data_t,
-    }
-}
- */
-
-/*
-impl_struct! {
-    pub struct sgx_aes_gcm_data_t {
-        pub payload_size: uint32_t,
-        pub reserved: [uint8_t; 12],
-        pub payload_tag: [uint8_t; SGX_SEAL_TAG_SIZE],
-        pub payload: [uint8_t; 0],
-    }
-
-    pub struct sgx_sealed_data_t {
-        pub key_request: sgx_key_request_t,
-        pub plain_text_offset: uint32_t,
-        pub reserved: [uint8_t; 12],
-	pub aes_data: sgx_aes_gcm_data_t,
-    }
-}
-*/
 
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
@@ -988,174 +464,6 @@ impl UnencryptedData {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_dh_msg2_t")]
-struct DHMsg2Def {
-    #[serde(with = "EC256PublicDef")]
-    pub g_b: sgx_ec256_public_t,
-    #[serde(with = "ReportDef")]
-    pub report: sgx_report_t,
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub cmac: [uint8_t; SGX_DH_MAC_SIZE],
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_report_t")]
-pub struct ReportDef {
-    #[serde(with = "ReportBodyDef")]
-    pub body: sgx_report_body_t,
-    #[serde(with = "KeyIDDef")]
-    pub key_id: sgx_key_id_t,
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub mac: sgx_mac_t,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_key_id_t")]
-pub struct KeyIDDef {
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub id: [uint8_t; SGX_KEYID_SIZE],
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_report_body_t")]
-pub struct ReportBodyDef {
-    #[serde(with = "CpuSvnDef")]
-    pub cpu_svn: sgx_cpu_svn_t,
-    pub misc_select: sgx_misc_select_t,
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub reserved1: [uint8_t; SGX_REPORT_BODY_RESERVED1_BYTES],
-    pub isv_ext_prod_id: sgx_isvext_prod_id_t,
-    #[serde(with = "AttributesDef")]
-    pub attributes: sgx_attributes_t,
-    #[serde(with = "MeasurementDef")]
-    pub mr_enclave: sgx_measurement_t,
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub reserved2: [uint8_t; SGX_REPORT_BODY_RESERVED2_BYTES],
-    #[serde(with = "MeasurementDef")]
-    pub mr_signer: sgx_measurement_t,
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub reserved3: [uint8_t; SGX_REPORT_BODY_RESERVED3_BYTES],
-    #[serde(with = "BigArray")]
-    pub config_id: sgx_config_id_t,
-    pub isv_prod_id: sgx_prod_id_t,
-    pub isv_svn: sgx_isv_svn_t,
-    pub config_svn: sgx_config_svn_t,
-    #[serde(with = "BigArray")]
-    pub reserved4: [uint8_t; SGX_REPORT_BODY_RESERVED4_BYTES],
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub isv_family_id: sgx_isvfamily_id_t,
-    #[serde(with = "ReportDataDef")]
-    pub report_data: sgx_report_data_t,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_report_data_t")]
-pub struct ReportDataDef {
-    #[serde(with = "BigArray")]
-    pub d: [uint8_t; SGX_REPORT_DATA_SIZE],
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_cpu_svn_t")]
-pub struct CpuSvnDef {
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub svn: [uint8_t; SGX_CPUSVN_SIZE],
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_target_info_t")]
-struct TargetInfoDef {
-    #[serde(with = "MeasurementDef")]
-    pub mr_enclave: sgx_measurement_t,
-    #[serde(with = "AttributesDef")]
-    pub attributes: sgx_attributes_t,
-    pub reserved1: [uint8_t; SGX_TARGET_INFO_RESERVED1_BYTES],
-    pub config_svn: sgx_config_svn_t,
-    pub misc_select: sgx_misc_select_t,
-    pub reserved2: [uint8_t; SGX_TARGET_INFO_RESERVED2_BYTES],
-    #[serde(with = "BigArray")]
-    pub config_id: sgx_config_id_t,
-    #[serde(with = "BigArray")]
-    pub reserved3: [uint8_t; SGX_TARGET_INFO_RESERVED3_BYTES],
-}
-
-//impl_struct! {
-    #[derive(Serialize, Deserialize)]
-    #[serde(remote = "sgx_measurement_t")]
-    pub struct MeasurementDef {
-	#[serde(serialize_with = "<[_]>::serialize")]
-        pub m: [uint8_t; SGX_HASH_SIZE],
-    }
-//}
-
-
-
-impl_struct! {
-    #[derive(Serialize, Deserialize)]
-    #[serde(remote = "sgx_attributes_t")]
-    pub struct AttributesDef {
-        pub flags: uint64_t,
-        pub xfrm: uint64_t,
-    }
-}
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct DHMsg1 {
-    #[serde(with = "DHMsg1Def")]
-    pub inner: sgx_dh_msg1_t,
-}
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct DHMsg2 {
-    #[serde(with = "DHMsg2Def")]
-    pub inner: sgx_dh_msg2_t,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_dh_msg3_body_t")]
-struct DHMsg3BodyDef {
-    #[serde(with = "ReportDef")]
-    pub report: sgx_report_t,
-    pub additional_prop_length: uint32_t,
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub additional_prop: [uint8_t; 0],
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_dh_msg3_t")]
-pub struct DHMsg3Def {
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub cmac: [uint8_t; SGX_DH_MAC_SIZE],
-    #[serde(with = "DHMsg3BodyDef")]
-    pub msg3_body: sgx_dh_msg3_body_t,
-}
-
-
-#[derive(Serialize, Deserialize, Default)]
-pub struct DHMsg3 {
-    #[serde(with = "DHMsg3Def")]
-    pub inner: sgx_dh_msg3_t,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_dh_msg1_t")]
-struct DHMsg1Def {
-    #[serde(with = "EC256PublicDef")]
-    pub g_a: sgx_ec256_public_t,
-    #[serde(with = "TargetInfoDef")]
-    pub target: sgx_target_info_t,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(remote = "sgx_ec256_public_t")]
-struct EC256PublicDef {
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub gx: [uint8_t; SGX_ECP256_KEY_SIZE],
-    #[serde(serialize_with = "<[_]>::serialize")]
-    pub gy: [uint8_t; SGX_ECP256_KEY_SIZE],
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct KeyGenMsg2 {
     pub shared_key_id: Uuid,
@@ -1427,11 +735,6 @@ impl TryFrom<SgxSealable> for RandDataSerializable {
     }
 }
 
-//#[derive(Serialize, Deserialize, Clone, Default, Debug)]
-//struct SessionKey {
-//    inner: sgx_key_128bit_t
-//}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct SgxKey128BitSealed {
     inner: sgx_key_128bit_t
@@ -1452,11 +755,10 @@ impl TryFrom<(* mut u8, u32)> for SgxKey128BitSealed {
     }
 }
 
-
 impl TryFrom<SgxKey128BitSealed> for SgxSealable {
     type Error = sgx_status_t;
     fn try_from(item: SgxKey128BitSealed) -> Result<Self, Self::Error> {
-	let encoded_vec = match serde_cbor::to_vec(&item){
+    let encoded_vec = match serde_cbor::to_vec(&item){
 	    Ok(v) => v,
 	    Err(e) => {
 		println!("error: {:?}",e);
@@ -1618,7 +920,6 @@ impl KeyGenFirstMsg {
         )
     }
 }
-
 
 impl TryFrom<KeyGenFirstMsg> for SgxSealable {
     type Error = sgx_status_t;
@@ -2203,6 +1504,59 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 }
 
 #[no_mangle]
+pub extern "C" fn gen_init_key(p_key: &mut [u8; ECIES_FULL_PUBLIC_KEY_SIZE]) -> sgx_status_t {
+    let (sk, pk) = ecies::utils::generate_keypair();
+    let (sk, pk) = (&sk.serialize(), &pk.serialize());
+    match INITKEY_SK.lock() {
+        Ok(mut ssk) => {
+            match INITKEY_PK.lock() {
+                Ok(mut spk) => {
+                    *ssk = *sk;
+                    *spk = pk.clone();
+                    *p_key = *pk;
+                    sgx_status_t::SGX_SUCCESS
+                },
+                Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+            }
+        },
+        Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn init_ec_key(in_data: *const u8, in_size: usize) -> sgx_status_t {
+    match is_initialized() { 
+        Ok(true) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+        Ok(false) => (),
+        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+    
+    let key_slice = unsafe { slice::from_raw_parts(in_data, in_size)};
+    
+    match INITKEY_SK.lock() {
+        Ok(sk) => {
+            let key = match ecies::decrypt(&(*sk), key_slice){
+                Ok(k) => k,
+                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+            };
+            let key_slice = key.as_slice();
+            match ECKEY.lock(){
+                Ok(mut k) => {
+                    let mut key_align = sgx_align_key_128bit_t::default();
+	                key_align.key = (*key_slice).try_into().unwrap();
+	                *k = key_align;
+                    set_initialized().expect("failed to set initialized");
+	                sgx_status_t::SGX_SUCCESS
+                },
+                Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+            }    
+        },
+        Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER
+    }
+    
+}
+
+#[no_mangle]
 pub extern "C" fn get_self_report(p_report: &mut sgx_report_t) -> sgx_status_t {
 
     let self_report = sgx_tse::rsgx_self_report();
@@ -2251,7 +1605,13 @@ pub extern "C" fn verify_sealed_bytes32(sealed_log: * mut u8, sealed_log_size: u
 
 #[no_mangle]
 pub extern "C" fn set_ec_key(sealed_log: * mut u8) -> sgx_status_t {
-
+    
+    match is_initialized() { 
+        Ok(true) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+        Ok(false) => (),
+        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
+    
     let data = match SgxKey128BitSealed::try_from((sealed_log, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	    Err(e) => return e
@@ -2262,6 +1622,7 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8) -> sgx_status_t {
 	        let mut key_align = sgx_align_key_128bit_t::default();
 	        key_align.key = data.inner;
 	        *ec_key = key_align;
+            set_initialized().expect("failed to set initialized");
 	        sgx_status_t::SGX_SUCCESS
 	    },
 	    Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
@@ -2270,6 +1631,12 @@ pub extern "C" fn set_ec_key(sealed_log: * mut u8) -> sgx_status_t {
 
 #[no_mangle]
 pub extern "C" fn get_ec_key(sealed_log: * mut u8) -> sgx_status_t {
+    
+    match is_initialized() { 
+        Ok(false) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+        Ok(true) => (),
+        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+    };
 
     match ECKEY.lock() {
         Ok(ec_key) => {
@@ -2632,7 +1999,6 @@ pub extern "C" fn first_message(sealed_log_in: * mut u8, sealed_log_out: * mut u
 #[no_mangle]
 pub extern "C" fn first_message_transfer(sealed_log_in: * mut u8, sealed_log_out: *mut u8,
 				key_gen_first_msg: &mut [u8;256]) -> sgx_status_t {
-
     let data = match KeyupdateSealed::try_from((sealed_log_in, SgxSealedLog::size() as u32)) {
         Ok(v) => v,
 	Err(e) => return e
@@ -2667,43 +2033,14 @@ pub extern "C" fn test_sc_encrypt_unencrypt() -> sgx_status_t {
     }
 }
 
-#[no_mangle]
-pub extern "C" fn set_session_enclave_key(sealed_log_in: *const u8) -> sgx_status_t {
+fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
     
     match is_initialized() { 
-        Ok(true) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-        Ok(false) => (),
-        Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
+        Ok(false) => return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER),
+        Ok(true) => (),
+        Err(_) => return Err(sgx_status_t::SGX_ERROR_UNEXPECTED),
     };
-
-    match from_encrypted_log_for_slice(sealed_log_in, EC_LOG_SIZE as u32) {
-        Some(encrypted) => {
-            match session_unencrypt(&encrypted){
-                Ok(r) =>     {
-                    match ECKEY.lock(){
-                        Ok(mut k) => {
-                            *k = sgx_align_key_128bit_t::default();
-                            k.key = match serde_cbor::from_slice(&(*r.decrypt)){
-                                Ok(r) => r,
-                                Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-                            };
-                            set_initialized();
-                            return sgx_status_t::SGX_SUCCESS
-                        },
-                        Err(e) => {
-                            println!("error: {:?}", e);
-                            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
-                        }
-                    }
-            },
-            _ =>  return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-            }
-        },
-        None =>  return sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-    }
-}
-
-fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
+    
     match ECKEY.lock() {
 	    Ok(mut k) => {
 	        EncryptedData::try_from(&[], encrypt, &[0;12], &mut k)
@@ -2716,23 +2053,19 @@ fn encrypt(encrypt: &[u8]) -> SgxResult<EncryptedData> {
 }
 
 fn unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
+    
+    match is_initialized() { 
+        Ok(false) => return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER),
+        Ok(true) => (),
+        Err(_) => return Err(sgx_status_t::SGX_ERROR_UNEXPECTED),
+    };
+    
     match ECKEY.lock() {
 	Ok(mut k) => {
 	    encrypt.unencrypt(&mut k) 
 	},
 	Err(_) => {
         Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
-        }
-    }
-}
-
-fn session_unencrypt(encrypt: &EncryptedData) -> SgxResult<UnencryptedData> {
-    match SESSIONKEY.lock() {
-	    Ok(mut k) => {
-            encrypt.unencrypt(&mut k) 
-	    },
-	    Err(_) => {
-            Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER)
         }
     }
 }

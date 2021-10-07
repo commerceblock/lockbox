@@ -1,6 +1,6 @@
 [package]
 name = "server"
-version = "0.1.4"
+version = "0.2.0"
 authors = [
 	"Lawrence Deacon <lawrence.deacon@gmail.com>",
 ]
@@ -50,6 +50,7 @@ lazy_static = "1.4.0"
 reqwest = { version = "0.10", features = ["socks", "blocking", "json"] }
 floating-duration = "0.1.2"
 serde-big-array = "0.3.1"
+ecies = { git = "https://github.com/commerceblock/rs.git" }
 
 [dev-dependencies]
 mockito = "0.27.0"

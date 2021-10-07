@@ -88,11 +88,6 @@ use num_traits::{One, Pow};
 use core::ptr;
 use std::string::ToString;
 
-extern crate attestation;
-use attestation::types::*;
-use attestation::err::*;
-use attestation::func::*;
-
 use std::boxed::Box;
 use lazy_static::lazy_static;
 
@@ -110,11 +105,17 @@ pub type EcLog = [u8; EC_LOG_SIZE];
 pub const EC_LOG_SIZE_LG: usize = 32400;
 pub type EcLogLg = [u8; EC_LOG_SIZE_LG];
 
+pub const ECIES_SECRET_KEY_SIZE: usize = 32;
+pub type EciesSecretKey = [u8; ECIES_SECRET_KEY_SIZE];
+
+pub const ECIES_FULL_PUBLIC_KEY_SIZE: usize = 65;
+pub type EciesFullPublicKey = [u8; ECIES_FULL_PUBLIC_KEY_SIZE];
+
 //Using lazy_static in order to be able to use a heap-allocated
 //static variable requiring runtime executed code
 lazy_static!{
-    static ref INITKEY_SK: Mutex<[u8; ecies::util::SECRET_KEY_SIZE]> = Mutex::new([0u8; ecies::util::SECRET_KEY_SIZE]);
-    static ref INITKEY_PK: Mutex<[u8; ecies::util::FULL_PUBLIC_KEY_SIZE]> = Mutex::new([0u8; ecies::util::FULL_PUBLIC_KEY_SIZE]);
+    static ref INITKEY_SK: Mutex<EciesSecretKey> = Mutex::new([0u8; ECIES_SECRET_KEY_SIZE]);
+    static ref INITKEY_PK: Mutex<EciesFullPublicKey> = Mutex::new([0u8; ECIES_FULL_PUBLIC_KEY_SIZE]);
     static ref ECKEY: Mutex<sgx_align_key_128bit_t> = Mutex::new(sgx_align_key_128bit_t::default());
     static ref INITIALIZED: Mutex<bool> = Mutex::new(false);
 }
@@ -1499,16 +1500,16 @@ pub extern "C" fn say_something(some_string: *const u8, some_len: usize) -> sgx_
 }
 
 #[no_mangle]
-pub extern "C" fn gen_init_key(p_key: &mut [u8; ecies::utils::FULL_PUBLIC_KEY_SIZE]) -> sgx_status_t {
+pub extern "C" fn gen_init_key(p_key: &mut [u8; ECIES_FULL_PUBLIC_KEY_SIZE]) -> sgx_status_t {
     let (sk, pk) = ecies::utils::generate_keypair();
     let (sk, pk) = (&sk.serialize(), &pk.serialize());
     match INITKEY_SK.lock() {
-        Ok(ssk) => {
+        Ok(mut ssk) => {
             match INITKEY_PK.lock() {
-                Ok(spk) => {
-                    *ssk = sk;
+                Ok(mut spk) => {
+                    *ssk = *sk;
                     *spk = pk.clone();
-                    *p_key = pk
+                    *p_key = *pk;
                     sgx_status_t::SGX_SUCCESS
                 },
                 Err(_) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER
@@ -1526,17 +1527,19 @@ pub extern "C" fn init_ec_key(in_data: *const u8, in_size: usize) -> sgx_status_
         Err(_) => return sgx_status_t::SGX_ERROR_UNEXPECTED,
     };
    
-    let key_slice = unsafe { slice::from_raw_parts(ec_key_encrypted, len)};
+    let key_slice = unsafe { slice::from_raw_parts(in_data, in_size)};
+    
     match INITKEY_SK.lock() {
         Ok(sk) => {
-            let key_slice = match decrypt(sk, key_slice){
-                Ok(k) => k.as_slice(),
+            let key = match ecies::decrypt(&(*sk), key_slice){
+                Ok(k) => k,
                 Err(_) => return sgx_status_t::SGX_ERROR_INVALID_PARAMETER
             };
+            let key_slice = key.as_slice();
             match ECKEY.lock(){
-                Ok(k) => {
+                Ok(mut k) => {
                     let mut key_align = sgx_align_key_128bit_t::default();
-	                key_align.key = key_slice;
+	                key_align.key = (*key_slice).try_into().unwrap();
 	                *k = key_align;
 	                sgx_status_t::SGX_SUCCESS
                 },
@@ -1583,9 +1586,6 @@ pub extern "C" fn create_sealed_random_bytes32(sealed_log: * mut u8, sealed_log_
 
     sgx_status_t::SGX_SUCCESS
 }
-
-#[no_mangle]
-pub
 
 #[no_mangle]
 pub extern "C" fn verify_sealed_bytes32(sealed_log: * mut u8, sealed_log_size: u32) -> sgx_status_t {

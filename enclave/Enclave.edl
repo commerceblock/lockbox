@@ -24,12 +24,10 @@ enclave {
     from "sgx_file.edl" import *;
     include "sgx_report.h"
     include "sgx_eid.h"
-    from "attestation/attestation.edl" import *;
 
     trusted {
         /* define ECALLs here. */	
 
-	public void test_enclave_init();		
 
 	public uint32_t test_sc_encrypt_unencrypt();
 

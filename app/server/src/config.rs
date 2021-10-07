@@ -24,6 +24,7 @@ pub fn get_config() -> Config {
 pub struct StorageConfig {
     pub db_path: String,
     pub key_db_path: String,
+    pub init_path: String,
 }
 
 impl Default for StorageConfig {
@@ -31,6 +32,7 @@ impl Default for StorageConfig {
         StorageConfig {
 	    db_path: String::from(""),
         key_db_path: String::from(""),
+        init_path: String::from(""),
         }
     }
 }
@@ -111,8 +113,8 @@ impl Default for Config {
             testing_mode: true,
             storage: StorageConfig::default(),
             rocket: RocketConfig::default(),
-	    enclave: EnclaveConfig::default(),
-	    client: ClientConfig::default(),
+	        enclave: EnclaveConfig::default(),
+	        client: ClientConfig::default(),
         }
     }
 }
@@ -137,6 +139,9 @@ impl Config {
         }
         if let Ok(v) = env::var("LOCKBOX_KEY_DB_PATH") {
             let _ = conf_rs.set("storage.key_db_path", v)?;
+        }
+        if let Ok(v) = env::var("LOCKBOX_INIT_PATH") {
+            let _ = conf_rs.set("storage.init_path", v)?;
         }
 	
 	if let Ok(v) = env::var("LOCKBOX_ENC_INDEX") {

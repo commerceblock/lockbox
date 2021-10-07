@@ -69,7 +69,6 @@ pub mod server;
 pub mod client;
 pub mod storage;
 pub mod enclave;
-pub mod attestation;
 pub mod db;
 
 pub type Result<T> = std::result::Result<T, error::LockboxError>;

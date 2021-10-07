@@ -34,8 +34,8 @@ use multi_party_ecdsa::protocols::two_party_ecdsa::lindell_2017::*;
 use reqwest::Error as ReqwestError;
 use bitcoin::secp256k1::{Signature, PublicKey, Message, Secp256k1};
 use subtle::ConstantTimeEq;
-use std::env;
-use shared_lib::structs::{EnclaveIDMsg, DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
+use std::{env, fs::File, io::Read};
+use shared_lib::structs::InitECKeyMsg;
 
 pub struct Lockbox {
     pub client: reqwest::blocking::Client,
@@ -238,51 +238,28 @@ pub fn verify(r: &BigInt, s: &BigInt, pubkey: &GE, message: &BigInt) -> bool {
 mod tests {
     use super::*;
 
-    fn init_dh() -> Lockbox {
-    let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
-    
+    const SK_LEN: usize = 16;
+    const PUBKEY_LEN: usize = 65;
+
+    fn init() -> Lockbox {
+        let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
+        let pubkey_file: &str = &env::var("LOCKBOX_INIT_PATH").unwrap();
+        let pubkey_bytes_vec = std::fs::read(&pubkey_file).expect("failed to read file");
+        assert_eq!(pubkey_bytes_vec.len(), PUBKEY_LEN);
+        let secret_key: Vec::<u8> = vec![0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15];
+        let sk_encrypted = ecies::encrypt(&pubkey_bytes_vec, &secret_key).expect("failed to encrypt");
+        let init_ec_msg = InitECKeyMsg{data:sk_encrypted};
+        println!("...initializing lockbox...\n");
         let lockbox = Lockbox::new(lockbox_url.to_string());
-
-    println!("...getting src enclave id...\n");
-    let enclave_id_msg = get_lb::<EnclaveIDMsg>(&lockbox, "attestation/enclave_id").unwrap();
-
-    println!("enclave id: {:?}", enclave_id_msg);
-
-    println!("...requesting session...\n");
-    let dhmsg1: DHMsg1 = post_lb(&lockbox, "attestation/session_request", &enclave_id_msg).unwrap();
-
-    println!("...proc_msg1...\n");
-    let dh_msg2: DHMsg2 = post_lb(&lockbox, "attestation/proc_msg1", &dhmsg1).unwrap();
-
-    let rep_msg = ExchangeReportMsg {
-        src_enclave_id: enclave_id_msg.inner,
-        dh_msg2,
-    };
-    
-    let dh_msg3: DHMsg3 = post_lb(&lockbox, "attestation/exchange_report", &rep_msg).unwrap();
-
-    println!("...proc_msg3...\n");
-    let res: () = post_lb(&lockbox, "attestation/proc_msg3", &dh_msg3).unwrap();
-    
-    
-    let shared_key_id = Uuid::new_v4();
-        let key_gen_msg1 = KeyGenMsg1 {
-            shared_key_id: shared_key_id,
-            protocol: Protocol::Deposit,
-        };
-    println!("keygen first");
-    
-        let path: &str = "ecdsa/keygen/first";
-    println!("int test: first message");
-        let (return_id, key_gen_first_msg): (Uuid, party_one::KeyGenFirstMsg) = post_lb(&lockbox, path, &key_gen_msg1).unwrap();
-     
+        let result: () = post_lb(&lockbox, "initialization/init_ec_key", &init_ec_msg).unwrap();
+        println!("...finished.\n");
         lockbox
     }
     
     #[serial]
     #[test]
-    fn test_dh() {
-    let _lockbox = init_dh();
+    fn test_init() {
+    let _lockbox = init();
     }
 
     

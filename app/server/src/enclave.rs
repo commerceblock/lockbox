@@ -51,6 +51,12 @@ pub type EcKeySealed = [u8; EC_KEY_SEALED_SIZE];
 pub const EC_LOG_SIZE: usize = 8192;
 pub type EcLog = [u8; EC_LOG_SIZE];
 
+pub const ECIES_SECRET_KEY_SIZE: usize = 32;
+pub type EciesSecretKey = [u8; ECIES_SECRET_KEY_SIZE];
+
+pub const ECIES_FULL_PUBLIC_KEY_SIZE: usize = 65;
+pub type EciesFullPublicKey = [u8; ECIES_FULL_PUBLIC_KEY_SIZE];
+
 pub struct Enclave {
     inner: SgxEnclave,
     ec_key: Option<EcLog>
@@ -1153,7 +1159,7 @@ impl Enclave {
     }
 
     pub fn get_ec_key(&self) -> &Option<EcLog> {
-	&self.ec_key
+		&self.ec_key
     }
 
     pub fn set_ec_key(&mut self, key: Option<EcLog>) {
@@ -1220,7 +1226,7 @@ impl Enclave {
     	}
     }
 
-    pub fn init_ec_key(&self, in_data: Vec::<uint8_t>) -> Result<()> {
+    pub fn init_ec_key(&self, in_data: &Vec::<uint8_t>) -> Result<()> {
 		let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 		let _result = unsafe {
 			init_ec_key(self.geteid(), &mut enclave_ret, (&in_data).as_ptr() as * const u8, in_data.len());
@@ -1231,38 +1237,14 @@ impl Enclave {
 		}
 	} 
 
-	pub fn gen_init_key(&self) -> Result<[u8; ecies::utils::FULL_PUBLIC_KEY_SIZE]> {
-		let mut init_key = [0u8; ecies::utils::FULL_PUBLIC_KEY_SIZE];
+	pub fn gen_init_key(&self) -> Result<EciesFullPublicKey> {
+		let mut init_key = [0u8; ECIES_FULL_PUBLIC_KEY_SIZE];
 		let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
 		let _result = unsafe {
-			gen_init_key(self.geteid(), &mut enclave_ret, init_key.as_ptr() as * const u8)
+			gen_init_key(self.geteid(), &mut enclave_ret, init_key.as_mut_ptr() as * mut u8)
 		};
 		match enclave_ret {
 			sgx_status_t::SGX_SUCCESS => Ok(init_key),
-			_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
-		}
-	}
-    
-	pub fn set_session_enclave_key(&self, sealed_log: &mut EcLog) -> Result<()> {
-		let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
-		let _result = unsafe {
-			set_session_enclave_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * const u8)
-		};
-		match enclave_ret {
-			sgx_status_t::SGX_SUCCESS => {
-	
-				let _result = unsafe {
-					get_ec_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8)
-				};
-
-				match enclave_ret {
-					sgx_status_t::SGX_SUCCESS => {
-						info!("set session enclave key - success");
-						Ok(())
-					},
-					_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
-				}
-			},
 			_ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
 		}
 	}
@@ -1321,6 +1303,24 @@ impl Enclave {
 		match enclave_ret {
 	    	sgx_status_t::SGX_SUCCESS => {
 				Ok(())
+			},
+       	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
+		}
+    }
+
+	pub fn get_ec_key_enclave(&self) -> Result<EcLog> {
+		
+		let mut enclave_ret = sgx_status_t::SGX_SUCCESS;
+	
+		let mut sealed_log: EcLog = [0u8; EC_LOG_SIZE];
+
+		let _result = unsafe {
+	    	get_ec_key(self.geteid(), &mut enclave_ret, sealed_log.as_ptr() as * mut u8);
+		};
+	
+		match enclave_ret {
+	    	sgx_status_t::SGX_SUCCESS => {
+				Ok(sealed_log)
 			},
        	    _ => Err(LockboxError::Generic(format!("[-] ECALL Enclave Failed {}!", enclave_ret.as_str())).into())
 		}
@@ -1782,9 +1782,9 @@ extern {
     );
 
 	fn init_ec_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-		in_data: *const u8, in_size: size_t);
+		in_data: *const u8, in_size: size_t)-> sgx_status_t;
 
-	fn gen_init_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t);
+	fn gen_init_key(eid: sgx_enclave_id_t, retval: *mut sgx_status_t, pubkey: *mut u8) -> sgx_status_t;
 
 }
 

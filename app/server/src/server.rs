@@ -153,8 +153,7 @@ fn get_rocket_config(config: &Config) -> RocketConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use shared_lib::structs::{KeyGenMsg1, Protocol, EnclaveIDMsg,
-			      DHMsg1, DHMsg2, DHMsg3, ExchangeReportMsg};
+    use shared_lib::structs::{KeyGenMsg1, Protocol};
     use crate::client;
     
     use crate::protocol::ecdsa::Ecdsa;

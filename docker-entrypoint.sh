@@ -21,7 +21,7 @@ case "$1" in
              export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$SGX_SDK/sdk_libs
              export LOCKBOX_DB_PATH=/tmp/lockbox
              export LOCKBOX_KEY_DB_PATH=/tmp/lockbox_key
-	     export LOCKBOX_INIT_PATH=/tmp/init_pub.dat
+	         export LOCKBOX_INIT_PATH=/tmp/init_pub.dat
              /opt/lockbox/bin/server_exec &
              ;;
         *)

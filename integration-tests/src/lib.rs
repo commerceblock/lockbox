@@ -243,7 +243,7 @@ mod tests {
 
     fn init() -> Lockbox {
         let lockbox_url: &str = &env::var("LOCKBOX_URL").unwrap_or("http://0.0.0.0:8000".to_string());
-        let pubkey_file: &str = &env::var("LOCKBOX_INIT_PATH").unwrap();
+        let pubkey_file: &str = &env::var("LOCKBOX_INIT_PATH").unwrap_or("/tmp/init_pub.dat".to_string());
         println!("pubkey file: {}\n", pubkey_file);
         let pubkey_bytes_vec = std::fs::read(&pubkey_file).expect("failed to read file");
         assert_eq!(pubkey_bytes_vec.len(), PUBKEY_LEN);

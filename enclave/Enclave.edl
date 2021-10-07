@@ -37,30 +37,6 @@ enclave {
 
 	public uint32_t test_in_to_decrypt([in, size=data_len] uint8_t* data_in, size_t data_len);
 
-        public uint32_t session_request(sgx_enclave_id_t src_enclave_id,
-			[out, size=1800] uint8_t* dh_msg1);
-	//, [out] size_t* session_ptr);
-
-        public uint32_t proc_msg1([in, size=msg1_len] const uint8_t* msg1_str, size_t msg1_len,		
-	[out, size=1800] uint8_t* dh_msg2);
-
-	public uint32_t exchange_report(sgx_enclave_id_t src_enclave_id,
-		[in, size=msg2_len] const uint8_t* msg2_str, size_t msg2_len,	 
-	       [out, size=2000] uint8_t *dh_msg3,
-	       [out, size=8192] uint8_t *sealed_log);
-	       //,
-	       //	       [user_check]size_t* session_ptr
-	       //	       );
-
-        public uint32_t proc_msg3([in, size=msg3_len] const uint8_t* msg3_str, size_t msg3_len,
-	       [out, size=8192] uint8_t* sealed_log);
-
-	public uint32_t test_create_session();
-
-	public uint32_t test_close_session();
-
-	public sgx_status_t set_session_enclave_key([in, size=8192] uint8_t* sealed_log);
-
     public sgx_status_t create_sealed_random_bytes32([out, size=sealed_log_size]
         uint8_t* sealed_log, uint32_t sealed_log_size );
 
@@ -81,6 +57,10 @@ enclave {
         public sgx_status_t calc_sha256([in, size=len] const uint8_t* input_str,
                                         size_t len,
                                         [out] uint8_t hash[32]);
+
+		public sgx_status_t gen_init_key([out] uint8_t pubkey[65]);
+
+		public sgx_status_t init_ec_key([in, size=in_size] uint8_t* in_data, uint32_t in_size);
 
         public sgx_status_t create_sealed_random_fe([out, size=sealed_log_size]
             uint8_t* sealed_log, uint32_t sealed_log_size );

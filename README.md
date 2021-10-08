@@ -54,42 +54,17 @@ Then restart the device, and confirm the SGX status with:
 sgx_enable --status
 ```
 
-## Tor proxy instructions
+## Run using docker-compose
 
-First, install Tor on the system. In a terminal, type the following command to install tor:
+Install `docker-compose`.
 
-```
-sudo apt install tor
-```
+Download the `docker-compose.yml` file in this repo. 
 
-Then go to the tor config directory:
+In the directory of the file, enter:
 
-```
-cd /etc/tor
-```
+`docker-compose up -d`
 
-List the files present, and there is a file named `torrc` in the directory.
-
-Then edit the torrc file using `vi torrc`.
-
-Add the following lines:
-
-```
- HiddenServiceDir /usr/local/etc/tor/hidden_http_service/
- HiddenServicePort 80 127.0.0.1:8000
-```
-
-Then run the service
-
-```
-sudo systemctl restart tor
-```
-
-Find the onion address:
-
-```
-sudo -u debian-tor cat /var/lib/tor/hidden_service/hostname
-```
+Once pulled from docker hub and run for the first time, the enclave pubkey is in the file `/data/pub/init_pub.dat`. 
 
 ## Install SGX Driver for linux
 

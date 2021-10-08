@@ -58,6 +58,15 @@ sgx_enable --status
 
 Install `docker-compose`.
 
+```
+$ sudo curl -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+$ sudo chmod +x /usr/local/bin/docker-compose
+$ which docker-compose
+/usr/local/bin/docker-compose
+$ docker-compose -v
+docker-compose version 1.27.4, build 40524192
+```
+
 Download the `docker-compose.yml` file in this repo. 
 
 In the directory of the file, enter:

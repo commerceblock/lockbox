@@ -78,7 +78,25 @@ Follow instructions on:
 
 https://github.com/intel/linux-sgx-driver
 
-# Issue Tracker
+## Run a test instance
+
+`docker pull commerceblock/lockbox:tests`
+
+Then, run:
+
+`docker run --rm -it -p 8000:8000 commerceblock/lockbox:tests bash`
+
+When in the container, run:
+
+```
+export LOCKBOX_INIT_PATH=/tmp/init_pub.dat
+export LOCKBOX_KEY_DB_PATH=/tmp/lockbox_key
+cd lockbox/app/target/release/
+```
+
+And then start the server:
+
+`./server_exec`
 
 # License 
 

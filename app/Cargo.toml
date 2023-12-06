@@ -1,4 +1,0 @@
-#![feature(stdsimd)]
-[workspace]
-members = ["server", "client", "shared"]
-

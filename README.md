@@ -1,5 +1,18 @@
-# lockbox
-Key share management in SGX secure enclaves. This system is designed to interact with the mercury server to provide a secure computation and storage system for generating and using shared keys for the mercury statechain system. Key secrets are generated in a secure SGX enclave. The SGX-encrypted (secret) and plain (public) parts of the key share proofs are then returned to the non-secure CPU. Once generated, the SGX-encrypted secrets and public proofs are stored in a key-value store database. The secrets/proofs can later be transferred back into the enclave when needed to perform signing operations for statechain transfers.
+# Lockbox
+
+Key management in SGX secure enclaves. 
+
+`/mercury`
+
+Key management server for mercury layer
+
+`/mainstay`
+
+Mainstay transaction signing server
+
+`/vls_hsm`
+
+Signing server for Lightning VLS
 
 ## Docker build
 
@@ -78,26 +91,6 @@ Follow instructions on:
 
 https://github.com/intel/linux-sgx-driver
 
-## Run a test instance
-
-`docker pull commerceblock/lockbox:tests`
-
-Then, run:
-
-`docker run --rm -it -p 8000:8000 commerceblock/lockbox:tests bash`
-
-When in the container, run:
-
-```
-export LOCKBOX_INIT_PATH=/tmp/init_pub.dat
-export LOCKBOX_KEY_DB_PATH=/tmp/lockbox_key
-cd lockbox/app/target/release/
-```
-
-And then start the server:
-
-`./server_exec`
-
 # License 
 
-Mercury Wallet is released under the terms of the GNU General Public License. See for more information https://opensource.org/licenses/GPL-3.0
+Released under the terms of the GNU General Public License. See for more information https://opensource.org/licenses/GPL-3.0

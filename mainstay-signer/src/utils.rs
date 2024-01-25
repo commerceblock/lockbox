@@ -1,14 +1,15 @@
 use bip32::{ExtendedPrivateKey, ChildNumber};
 use bip32;
+use bitcoin::hashes::hex::ToHex;
 use hex::{encode, decode};
-use secp256k1;
+use secp256k1::{self, ecdsa::SerializedSignature};
 use btc_transaction_utils::p2wsh::InputSigner;
 use btc_transaction_utils::multisig::RedeemScript;
 use btc_transaction_utils::TxInRef;
 use bitcoin::{self, PrivateKey};
 use std::str::FromStr;
-use secp256k1::key::SecretKey;
-use secp256k1::key::PublicKey;
+use secp256k1::SecretKey;
+use secp256k1::PublicKey;
 use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode::deserialize;
 use hex::FromHex;
@@ -73,30 +74,43 @@ fn derive_child_priv_key(parent: &ExtendedPrivateKey<bip32::secp256k1::SecretKey
     private_key
 }
 
-pub fn sign_tx(tx_hex: String, value: u64, merkle_root: String) -> Option<String> {
+pub fn sign_tx(sighash_string: Vec<String>, merkle_root: String) -> Vec<String> {
     let merkle_root_bytes = decode(merkle_root).expect("Invalid merkle root hex string");
     dotenv().ok();
     let priv_key = env::var("PRIVATE_KEY").expect("You've not set the PRIVATE_KEY in .env");
+    let topup_key_string = env::var("TOPUP_KEY").expect("You've not set the TOPUP_KEY in .env");
     let secret_key = derive_privkey_from_merkle_root(merkle_root_bytes, priv_key);
 
-    let privatekey = PrivateKey::from_str(str::from_utf8(&secret_key).unwrap()).unwrap();
-    let hex_tx = Vec::<u8>::from_hex(tx_hex).unwrap();
-    let tx: Transaction = deserialize(&hex_tx).expect("deserialize tx");
+    println!("secret_key: {}", secret_key.to_hex().as_str());
+    println!("topup_key: {}", topup_key_string.as_str());
 
-    let sighash_components = bip143::SighashComponents::new(&tx);
+    let secretkey = SecretKey::from_slice(&secret_key).unwrap();
+    let topup_key: SecretKey = SecretKey::from_slice(&decode(topup_key_string).unwrap()).unwrap();
 
-    let pubkey = privatekey.public_key(&secp256k1::Secp256k1::new());
+    let secp = secp256k1::Secp256k1::new();
+    let public_key = PublicKey::from_secret_key(&secp, &secretkey);
+    let topup_pubkey = PublicKey::from_secret_key(&secp, &topup_key);
 
-    let script_code = bitcoin::Address::p2pkh(&pubkey, privatekey.network).script_pubkey();
-    let sighash = sighash_components.sighash_all(
-        &tx.input[0],
-        &script_code,
-        value,
-    );
-    let msg = secp256k1::Message::from_slice(&sighash[..]).unwrap();
-    let mut signature = secp256k1::Secp256k1::new().sign(&msg, &privatekey.key).serialize_der();
+    let sighash: [u8; 32] = FromHex::from_hex(sighash_string[0].clone()).unwrap();
 
+    let msg = secp256k1::Message::from_digest_slice(&sighash[..]).unwrap();
+    let signature = secp.sign_ecdsa(&msg, &secretkey).serialize_der();
 
-    Some(encode(signature))
+    let witness = signature.to_hex().as_str().to_owned() + " " + public_key.to_string().to_owned().as_str();
+
+    let mut witness_vec = Vec::new();
+    witness_vec.push(witness);
+    
+    if sighash_string.len() > 1 {
+        let sighash_topup: [u8; 32] = FromHex::from_hex(sighash_string[1].clone()).unwrap();
+        let msg_topup = secp256k1::Message::from_digest_slice(&sighash_topup[..]).unwrap();
+        let signature_topup = secp.sign_ecdsa(&msg_topup, &topup_key).serialize_der();
+        let witness_topup = signature_topup.to_hex().as_str().to_owned() + " " + topup_pubkey.to_string().to_owned().as_str();
+
+        witness_vec.push(witness_topup);
+    }
+
+    return witness_vec;
+
 }
 

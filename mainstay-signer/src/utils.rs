@@ -5,14 +5,17 @@ use secp256k1;
 use btc_transaction_utils::p2wsh::InputSigner;
 use btc_transaction_utils::multisig::RedeemScript;
 use btc_transaction_utils::TxInRef;
-use bitcoin;
+use bitcoin::{self, PrivateKey};
 use std::str::FromStr;
 use secp256k1::key::SecretKey;
+use secp256k1::key::PublicKey;
 use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode::deserialize;
 use hex::FromHex;
 use std::env;
 use dotenv::dotenv;
+use bitcoin::util::bip143;
+use std::str;
 
 fn derive_privkey_from_merkle_root(merkle_root: Vec<u8>, initial_priv_key_hex: String) -> [u8; 32] {
     let rev_merkle_root: Vec<u8> = merkle_root.iter().rev().cloned().collect();
@@ -70,17 +73,30 @@ fn derive_child_priv_key(parent: &ExtendedPrivateKey<bip32::secp256k1::SecretKey
     private_key
 }
 
-pub fn sign_tx(tx_hex: String, value: u64, merkle_root: String, redeem_script_hex: String) -> Option<String> {
+pub fn sign_tx(tx_hex: String, value: u64, merkle_root: String) -> Option<String> {
     let merkle_root_bytes = decode(merkle_root).expect("Invalid merkle root hex string");
     dotenv().ok();
     let priv_key = env::var("PRIVATE_KEY").expect("You've not set the PRIVATE_KEY in .env");
     let secret_key = derive_privkey_from_merkle_root(merkle_root_bytes, priv_key);
-    let redeem_script = RedeemScript::from_str(&redeem_script_hex).unwrap(); 
-    let mut input_signer = InputSigner::new(redeem_script);
-    let secretkey = SecretKey::from_slice(&secret_key).unwrap();
+
+    let privatekey = PrivateKey::from_str(str::from_utf8(&secret_key).unwrap()).unwrap();
     let hex_tx = Vec::<u8>::from_hex(tx_hex).unwrap();
     let tx: Transaction = deserialize(&hex_tx).expect("deserialize tx");
-    let tx_in_ref = TxInRef::new(&tx, 0);
-    let sign = input_signer.sign_input(tx_in_ref, value, &secretkey).unwrap();
-    Some(encode(sign))
+
+    let sighash_components = bip143::SighashComponents::new(&tx);
+
+    let pubkey = privatekey.public_key(&secp256k1::Secp256k1::new());
+
+    let script_code = bitcoin::Address::p2pkh(&pubkey, privatekey.network).script_pubkey();
+    let sighash = sighash_components.sighash_all(
+        &tx.input[0],
+        &script_code,
+        value,
+    );
+    let msg = secp256k1::Message::from_slice(&sighash[..]).unwrap();
+    let mut signature = secp256k1::Secp256k1::new().sign(&msg, &privatekey.key).serialize_der();
+
+
+    Some(encode(signature))
 }
+

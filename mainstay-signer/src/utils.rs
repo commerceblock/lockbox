@@ -1,4 +1,4 @@
-use bip32::{ExtendedPrivateKey, ChildNumber};
+use bip32::{ExtendedPrivateKey, ExtendedKeyAttrs, ExtendedKey, ChildNumber, Prefix};
 use bip32;
 use bitcoin::hashes::hex::ToHex;
 use hex::{encode, decode};
@@ -26,11 +26,29 @@ fn derive_privkey_from_merkle_root(merkle_root: Vec<u8>, initial_priv_key_hex: S
     let initial_priv_key_bytes = decode(initial_priv_key_hex).expect("Invalid public key hex string");
     let mut priv_key_bytes = [0u8; 32];
     priv_key_bytes.copy_from_slice(&initial_priv_key_bytes);
-
-    let initial_extended_privkey = ExtendedPrivateKey::new(priv_key_bytes).unwrap();
-    let child_privkey = derive_child_priv_key(&initial_extended_privkey, &path.to_string());
     
-    child_privkey
+    if merkle_root != &[0; 32] {
+        let mut key_bytes = [0x00u8; 33];
+        key_bytes[1..].copy_from_slice(&initial_priv_key_bytes);
+        let (depth, parent_fp, child_number, chain_code) = get_config_values();
+        let attrs = ExtendedKeyAttrs {
+            depth: depth,
+            parent_fingerprint: parent_fp,
+            child_number: ChildNumber(child_number),
+            chain_code: chain_code
+        };
+        let initial_extended_key = ExtendedKey {
+            prefix: Prefix::XPRV,
+            attrs: attrs,
+            key_bytes: key_bytes
+        };
+        let initial_extended_privkey = ExtendedPrivateKey::try_from(initial_extended_key).unwrap();
+        let child_privkey = derive_child_priv_key(&initial_extended_privkey, &path.to_string());
+        
+        return child_privkey;
+    }
+    
+    priv_key_bytes
 }
 
 fn get_path_from_commitment(commitment: String) -> Option<String> {
@@ -114,3 +132,23 @@ pub fn sign_tx(sighash_string: Vec<String>, merkle_root: String) -> Vec<String> 
 
 }
 
+pub fn get_config_values() -> (u8, [u8; 4], u32, [u8; 32]) {
+
+    let depth_str = env::var("DEPTH").expect("You've not set the DEPTH in .env");
+    let depth = depth_str.parse::<u8>().unwrap();
+
+    let parent_fp_str = env::var("PARENT_FINGERPRINT").expect("You've not set the DEPTH in .env");
+    let parent_fp = decode(parent_fp_str).unwrap();
+    let mut parent_fp_bytes = [0u8; 4];
+    parent_fp_bytes.copy_from_slice(&parent_fp);
+
+    let child_number_str = env::var("CHILD_NUMBER").expect("You've not set the CHILD_NUMBER in .env");
+    let child_number = child_number_str.parse().unwrap();
+
+    let chain_code_str = env::var("CHAINCODE").expect("You've not set the CHAINCODE in .env");
+    let chain_code = decode(chain_code_str).unwrap();
+    let mut chain_code_bytes = [0u8; 32];
+    chain_code_bytes.copy_from_slice(&chain_code);
+
+    return (depth, parent_fp_bytes, child_number, chain_code_bytes);
+}

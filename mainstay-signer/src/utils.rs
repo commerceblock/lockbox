@@ -17,6 +17,8 @@ use std::env;
 use dotenv::dotenv;
 use bitcoin::util::bip143;
 use std::str;
+use rocket::State;
+use crate::GlobalState;
 
 fn derive_privkey_from_merkle_root(merkle_root: Vec<u8>, initial_priv_key_hex: String) -> [u8; 32] {
     let rev_merkle_root: Vec<u8> = merkle_root.iter().rev().cloned().collect();
@@ -92,11 +94,11 @@ fn derive_child_priv_key(parent: &ExtendedPrivateKey<bip32::secp256k1::SecretKey
     private_key
 }
 
-pub fn sign_tx(sighash_string: Vec<String>, merkle_root: String) -> Vec<String> {
+pub fn sign_tx(state: &State<GlobalState>, sighash_string: Vec<String>, merkle_root: String) -> Vec<String> {
     let merkle_root_bytes = decode(merkle_root).expect("Invalid merkle root hex string");
     dotenv().ok();
-    let priv_key = env::var("PRIVATE_KEY").expect("You've not set the PRIVATE_KEY in .env");
-    let topup_key_string = env::var("TOPUP_KEY").expect("You've not set the TOPUP_KEY in .env");
+    let priv_key = state.signing.recovered_secret.lock().unwrap().clone().unwrap().to_str_radix(16);
+    let topup_key_string = state.topup.recovered_secret.lock().unwrap().clone().unwrap().to_str_radix(16);
     let secret_key = derive_privkey_from_merkle_root(merkle_root_bytes, priv_key);
 
     println!("secret_key: {}", secret_key.to_hex().as_str());

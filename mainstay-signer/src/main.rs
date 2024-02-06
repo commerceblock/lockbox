@@ -46,15 +46,20 @@ pub fn get_default_global_state() -> GlobalState {
         share_amount: SHAMIR_SHARES,
         prime: BigInt::parse_bytes(CURVE.as_bytes(), 16).unwrap()
     };
-    let keys_attr = KeysAttr {
+    let keys_attr_signing = KeysAttr {
+        keys: Arc::new(Mutex::new(Vec::with_capacity(SHAMIR_SHARES))),
+        sss: sss.clone(),
+        recovered_secret: Arc::new(Mutex::new(None))
+    };
+    let keys_attr_topup = KeysAttr {
         keys: Arc::new(Mutex::new(Vec::with_capacity(SHAMIR_SHARES))),
         sss: sss.clone(),
         recovered_secret: Arc::new(Mutex::new(None))
     };
 
     let global_state = GlobalState {
-        signing: keys_attr.clone(),
-        topup: keys_attr.clone()
+        signing: keys_attr_signing,
+        topup: keys_attr_topup
     };
 
     return global_state;

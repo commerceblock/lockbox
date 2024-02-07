@@ -17,7 +17,7 @@ use std::env;
 use dotenv::dotenv;
 use bitcoin::util::bip143;
 use std::str;
-use rocket::State;
+use std::sync::Arc;
 use crate::GlobalState;
 
 fn derive_privkey_from_merkle_root(merkle_root: Vec<u8>, initial_priv_key_hex: String) -> [u8; 32] {
@@ -94,9 +94,8 @@ fn derive_child_priv_key(parent: &ExtendedPrivateKey<bip32::secp256k1::SecretKey
     private_key
 }
 
-pub fn sign_tx(state: &State<GlobalState>, sighash_string: Vec<String>, merkle_root: String) -> Vec<String> {
+pub fn sign_tx(state: &Arc<GlobalState>, sighash_string: Vec<String>, merkle_root: String) -> Vec<String> {
     let merkle_root_bytes = decode(merkle_root).expect("Invalid merkle root hex string");
-    dotenv().ok();
     let priv_key = state.signing.recovered_secret.lock().unwrap().clone().unwrap().to_str_radix(16);
     let topup_key_string = state.topup.recovered_secret.lock().unwrap().clone().unwrap().to_str_radix(16);
     let secret_key = derive_privkey_from_merkle_root(merkle_root_bytes, priv_key);
@@ -135,7 +134,7 @@ pub fn sign_tx(state: &State<GlobalState>, sighash_string: Vec<String>, merkle_r
 }
 
 pub fn get_config_values() -> (u8, [u8; 4], u32, [u8; 32]) {
-
+    dotenv().ok();
     let depth_str = env::var("DEPTH").expect("You've not set the DEPTH in .env");
     let depth = depth_str.parse::<u8>().unwrap();
 

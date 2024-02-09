@@ -1,4 +1,5 @@
 mod utils;
+mod sealing;
 use serde::Serialize;
 use serde::Deserialize;
 use serde_json::json;
@@ -94,6 +95,8 @@ fn handle_initialize(state: Arc<GlobalState>, key_type: String, share: String) -
         }
         let recovered_secret = keys_attr.sss.recover(&shares);
         *keys_attr.recovered_secret.lock().unwrap() = Some(recovered_secret.clone());
+
+        let sealed_recovered_secret = sealing::seal_recovered_secret(recovered_secret.clone());
 
         return serde_json::to_string(&json!({
             "status": format!("accepted key for {:?}, threshold reached", key_type),

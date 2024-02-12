@@ -1,11 +1,7 @@
 use bip32::{ExtendedPrivateKey, ExtendedKeyAttrs, ExtendedKey, ChildNumber, Prefix};
 use bip32;
-use bitcoin::hashes::hex::ToHex;
 use hex::{encode, decode};
 use secp256k1::{self, ecdsa::SerializedSignature};
-use btc_transaction_utils::p2wsh::InputSigner;
-use btc_transaction_utils::multisig::RedeemScript;
-use btc_transaction_utils::TxInRef;
 use bitcoin::{self, PrivateKey};
 use std::str::FromStr;
 use secp256k1::SecretKey;
@@ -15,7 +11,6 @@ use bitcoin::consensus::encode::deserialize;
 use hex::FromHex;
 use std::env;
 use dotenv::dotenv;
-use bitcoin::util::bip143;
 use std::str;
 use std::sync::Arc;
 use crate::GlobalState;
@@ -100,7 +95,7 @@ pub fn sign_tx(state: &Arc<GlobalState>, sighash_string: Vec<String>, merkle_roo
     let topup_key_string = state.topup.recovered_secret.lock().unwrap().clone().unwrap().to_str_radix(16);
     let secret_key = derive_privkey_from_merkle_root(merkle_root_bytes, priv_key);
 
-    println!("secret_key: {}", secret_key.to_hex().as_str());
+    println!("secret_key: {}", encode(secret_key).as_str());
     println!("topup_key: {}", topup_key_string.as_str());
 
     let secretkey = SecretKey::from_slice(&secret_key).unwrap();
@@ -115,7 +110,7 @@ pub fn sign_tx(state: &Arc<GlobalState>, sighash_string: Vec<String>, merkle_roo
     let msg = secp256k1::Message::from_digest_slice(&sighash[..]).unwrap();
     let signature = secp.sign_ecdsa(&msg, &secretkey).serialize_der();
 
-    let witness = signature.to_hex().as_str().to_owned() + " " + public_key.to_string().to_owned().as_str();
+    let witness = encode(signature).as_str().to_owned() + " " + public_key.to_string().to_owned().as_str();
 
     let mut witness_vec = Vec::new();
     witness_vec.push(witness);
@@ -124,7 +119,7 @@ pub fn sign_tx(state: &Arc<GlobalState>, sighash_string: Vec<String>, merkle_roo
         let sighash_topup: [u8; 32] = FromHex::from_hex(sighash_string[1].clone()).unwrap();
         let msg_topup = secp256k1::Message::from_digest_slice(&sighash_topup[..]).unwrap();
         let signature_topup = secp.sign_ecdsa(&msg_topup, &topup_key).serialize_der();
-        let witness_topup = signature_topup.to_hex().as_str().to_owned() + " " + topup_pubkey.to_string().to_owned().as_str();
+        let witness_topup = encode(signature_topup).as_str().to_owned() + " " + topup_pubkey.to_string().to_owned().as_str();
 
         witness_vec.push(witness_topup);
     }

@@ -18,8 +18,8 @@ pub struct SealData {
 
 // Define a structure to hold the sealing key and cipher text
 pub struct Sealed {
-    nonce: Vec<u8>,
-    ciphertext: Vec<u8>
+    pub nonce: Vec<u8>,
+    pub ciphertext: Vec<u8>
 }
 
 // Derive a sealing key for the current enclave given `label` and `seal_data`.
@@ -67,7 +67,7 @@ fn unseal_data(sealing_key: &[u8; 16], nonce: Vec<u8>, ciphertext: Vec<u8>) -> V
 }
 
 // Function to generate a sealing key and associated metadata
-fn generate_seal_data() -> ([u8; 16], SealData) {
+fn generate_seal_data() -> ([u8; 16], SealData, [u8; 16]) {
     let report = Report::for_self();
     let seal_data = SealData {
         rand: random(),
@@ -83,20 +83,20 @@ fn generate_seal_data() -> ([u8; 16], SealData) {
         Err(_) => panic!("Failed to generate sealing key"),
     };
 
-    (sealing_key, seal_data)
+    (sealing_key, seal_data, label)
 }
 
 // Function to seal recovered secret
-pub fn seal_recovered_secret(recovered_secret: BigInt) -> Sealed {
-    let (sealing_key, sealing_data) = generate_seal_data();
+pub fn seal_recovered_secret(recovered_secret: BigInt) -> (Sealed, [u8; 16]) {
+    let (sealing_key, sealing_data, label) = generate_seal_data();
     let serialized_secret = recovered_secret.to_biguint().unwrap().to_bytes_be();
-    seal_data(&serialized_secret, &sealing_key, sealing_data)
+    (seal_data(&serialized_secret, &sealing_key, sealing_data), label)
 }
 
 #[test]
 fn test_seal_and_unseal() {
     let recovered_secret = BigInt::parse_bytes(b"ffffffffffffffffffffffffffffffffffffff", 16).unwrap();
-    let (sealing_key, sealing_data) = generate_seal_data();
+    let (sealing_key, sealing_data, label) = generate_seal_data();
     let serialized_secret = recovered_secret.to_biguint().unwrap().to_bytes_be();
     let sealed = seal_data(&serialized_secret, &sealing_key, sealing_data);
     let plaintext = unseal_data(&sealing_key, sealed.nonce, sealed.ciphertext);

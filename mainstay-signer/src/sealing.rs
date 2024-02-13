@@ -4,7 +4,7 @@ use rand::random;
 use rand::rngs::OsRng;
 use aes_gcm::{Key, Aes128Gcm, KeyInit, AeadCore};
 use aes_gcm::aead::Aead;
-use bitcoin::psbt::raw::Key as OtherKey;
+use hex::encode;
 
 // Define a structure to keep metadata about the sealed data that should be stored alongside the sealed data.
 #[derive(Debug, Clone)]
@@ -100,5 +100,5 @@ fn test_seal_and_unseal() {
     let serialized_secret = recovered_secret.to_biguint().unwrap().to_bytes_be();
     let sealed = seal_data(&serialized_secret, &sealing_key, sealing_data);
     let plaintext = unseal_data(&sealing_key, sealed.nonce, sealed.ciphertext);
-    assert_eq!(recovered_secret.to_str_radix(16), encode(secret));
+    assert_eq!(recovered_secret.to_str_radix(16), encode(plaintext));
 }

@@ -1,27 +1,10 @@
 use num_bigint::BigInt;
 use sgx_isa::{Attributes, Miscselect, Keyname, Keypolicy, Keyrequest, ErrorCode, Report};
 use rand::random;
-use ring::aead::{Aad, Nonce, UnboundKey, BoundKey, SealingKey, OpeningKey, NonceSequence, AES_256_GCM};
-use ring::hkdf::{Salt, HKDF_SHA256};
-use sha2::{Sha256, Digest};
-use secrecy::zeroize::{Zeroize, Zeroizing};
-
-struct OnlyOnce(Option<Nonce>);
-
-impl OnlyOnce {
-    fn new(nonce: Nonce) -> Self {
-        Self(Some(nonce))
-    }
-}
-
-impl NonceSequence for OnlyOnce {
-    fn advance(&mut self) -> Result<Nonce, ring::error::Unspecified> {
-        Ok(self
-            .0
-            .take()
-            .expect("sealed / unseal more than once with the same key"))
-    }
-}
+use rand::rngs::OsRng;
+use aes_gcm::{Key, Aes128Gcm, KeyInit, AeadCore};
+use aes_gcm::aead::Aead;
+use bitcoin::psbt::raw::Key as OtherKey;
 
 // Define a structure to keep metadata about the sealed data that should be stored alongside the sealed data.
 #[derive(Debug, Clone)]
@@ -35,11 +18,9 @@ pub struct SealData {
 
 // Define a structure to hold the sealing key and cipher text
 pub struct Sealed {
-    keyrequest: Keyrequest,
-    ciphertext: [u8; 16]
+    nonce: Vec<u8>,
+    ciphertext: Vec<u8>
 }
-
-const HKDF_SALT_STRING: &str = "MAINSTAY::SgxSealing";
 
 // Derive a sealing key for the current enclave given `label` and `seal_data`.
 fn egetkey(label: [u8; 16], seal_data: &SealData) -> Result<[u8; 16], ErrorCode> {
@@ -62,73 +43,28 @@ fn egetkey(label: [u8; 16], seal_data: &SealData) -> Result<[u8; 16], ErrorCode>
 
 // Function to seal data using the sealing key
 fn seal_data(secret_data: &[u8], sealing_key: &[u8; 16], sealing_data: SealData) -> Sealed {
-    let mut ciphertext: &mut [u8] = &mut secret_data.to_vec();
-    let keyrequest = Keyrequest::try_copy_from(sealing_key).unwrap();
-    let key_material = Zeroizing::new(keyrequest.egetkey().unwrap());
-    let keyid_len = keyrequest.keyid.len();
-    let (_, nonce) = keyrequest.keyid.split_at(keyid_len - 12);
-    let mut nonce_array = [0u8; 12];
-    nonce_array.copy_from_slice(nonce);
-    let single_use_nonce = OnlyOnce(Some(Nonce::assume_unique_for_key(nonce_array)));
+    let key = &Key::<Aes128Gcm>::from_slice(sealing_key);
 
-    let mut hasher = Sha256::new();
-    hasher.update(HKDF_SALT_STRING);
-    let hkdf_salt = hasher.finalize();
+    let cipher = Aes128Gcm::new(key);
+    let mut nonce = Aes128Gcm::generate_nonce(&mut OsRng);
 
-    let aesgcm_key = UnboundKey::from(
-        Salt::new(HKDF_SHA256, &hkdf_salt)
-            .extract(key_material.as_slice())
-            .expand(&[&sealing_data.rand], &AES_256_GCM)
-            .expect("Failed to derive sealing key from key material"),
-    );
-    let mut sealing_key = SealingKey::new(
-        aesgcm_key, 
-        single_use_nonce
-    );
-
-    let mut tag = sealing_key.seal_in_place_separate_tag(Aad::empty(), &mut ciphertext).unwrap();
-    ciphertext.copy_from_slice(tag.as_ref());
-    let mut ciphertext_array = [0u8; 16];
-    ciphertext_array.copy_from_slice(&ciphertext[..16]);
+    let ciphertext = cipher.encrypt(&nonce, secret_data).unwrap();
+    
     Sealed {
-        keyrequest: keyrequest,
-        ciphertext: ciphertext_array
+        nonce: nonce.to_vec(),
+        ciphertext
     }
 }
 
 // Function to unseal sealed data using the sealing key
-// fn unseal_data(label: &[u8], sealed: &Sealed) -> Vec<u8> {
-//     let keyrequest = sealed.keyrequest;
-//     let key_material = Zeroizing::new(keyrequest.egetkey().unwrap());
-//     let keyid_len = keyrequest.keyid.len();
-//     let (_, nonce) = keyrequest.keyid.split_at(keyid_len - 12);
-//     let mut nonce_array = [0u8; 12];
-//     nonce_array.copy_from_slice(nonce);
-//     let single_use_nonce = OnlyOnce(Some(Nonce::assume_unique_for_key(nonce_array)));
+fn unseal_data(sealing_key: &[u8; 16], nonce: Vec<u8>, ciphertext: Vec<u8>) -> Vec<u8> {
+    let key = &Key::<Aes128Gcm>::from_slice(sealing_key);
 
-//     let mut hasher = Sha256::new();
-//     hasher.update(HKDF_SALT_STRING);
-//     let hkdf_salt = hasher.finalize();
+    let cipher = Aes128Gcm::new(key);
+    let plaintext = cipher.decrypt(nonce.as_slice().into(), ciphertext.as_ref()).unwrap();
 
-//     let aesgcm_key = UnboundKey::from(
-//         Salt::new(HKDF_SHA256, &hkdf_salt)
-//             .extract(key_material.as_slice())
-//             .expand(&[label], &AES_256_GCM)
-//             .expect("Failed to derive sealing key from key material"),
-//     );
-//     let unsealing_key = OpeningKey::new(
-//         aesgcm_key,
-//         single_use_nonce,
-//     );
-
-//     let mut ciphertext = sealed.ciphertext.into();
-//     let plaintext_ref = unsealing_key
-//         .open_in_place(Aad::empty(), &mut ciphertext)?;
-//     let plaintext_len = plaintext_ref.len();
-
-//     ciphertext.truncate(plaintext_len);
-//     ciphertext
-// }
+    plaintext
+}
 
 // Function to generate a sealing key and associated metadata
 fn generate_seal_data() -> ([u8; 16], SealData) {
@@ -155,4 +91,14 @@ pub fn seal_recovered_secret(recovered_secret: BigInt) -> Sealed {
     let (sealing_key, sealing_data) = generate_seal_data();
     let serialized_secret = recovered_secret.to_biguint().unwrap().to_bytes_be();
     seal_data(&serialized_secret, &sealing_key, sealing_data)
+}
+
+#[test]
+fn test_seal_and_unseal() {
+    let recovered_secret = BigInt::parse_bytes(b"ffffffffffffffffffffffffffffffffffffff", 16).unwrap();
+    let (sealing_key, sealing_data) = generate_seal_data();
+    let serialized_secret = recovered_secret.to_biguint().unwrap().to_bytes_be();
+    let sealed = seal_data(&serialized_secret, &sealing_key, sealing_data);
+    let plaintext = unseal_data(&sealing_key, sealed.nonce, sealed.ciphertext);
+    assert_eq!(recovered_secret.to_str_radix(16), encode(secret));
 }

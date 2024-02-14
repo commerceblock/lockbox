@@ -1,5 +1,6 @@
 mod utils;
 mod sealing;
+mod db;
 use serde::Serialize;
 use serde::Deserialize;
 use serde_json::json;
@@ -9,7 +10,6 @@ use std::sync::{Arc, Mutex};
 use num_bigint::BigInt;
 use base64::{encode, decode};
 use shamir_secret_sharing::ShamirSecretSharing as SSS;
-use std::fs::File;
 
 const SHAMIR_SHARES: usize = 3;
 const SHAMIR_THRESHOLD: usize = 2;
@@ -106,13 +106,7 @@ fn handle_initialize(state: Arc<GlobalState>, key_type: String, share: String) -
 
         let (seal_data, label) = sealing::seal_recovered_secret(recovered_secret.clone());
 
-        let data = SealedData {
-            label: encode(label),
-            nonce: encode(seal_data.nonce),
-            ciphertext: encode(seal_data.ciphertext)
-        };
-        let mut file = File::create(format!("sealed_{}.json", key_type)).unwrap();
-        serde_json::to_writer(file, &data).unwrap();
+        db::save_seal_data_to_db(seal_data, label);
 
         return serde_json::to_string(&json!({
             "status": format!("accepted key for {:?}, threshold reached", key_type),

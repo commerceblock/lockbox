@@ -16,7 +16,8 @@ pub struct SealData {
     miscselect: Miscselect,
 }
 
-// Define a structure to hold the sealing key and cipher text
+// Define a structure to hold the nonce and cipher text
+#[derive(Debug, Clone)]
 pub struct Sealed {
     pub nonce: Vec<u8>,
     pub ciphertext: Vec<u8>

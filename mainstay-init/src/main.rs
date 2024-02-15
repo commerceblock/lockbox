@@ -1,9 +1,11 @@
 use rand::Rng;
 use bitcoin::secp256k1::{SecretKey, PublicKey, Secp256k1};
 use hex::encode;
+use hex::decode;
 
 use shamir_secret_sharing::ShamirSecretSharing as SSS;
 use num_bigint::BigInt;
+use bip39::{Mnemonic, Language};
 
 fn main() {
     // Generate a random 32-byte private key
@@ -22,7 +24,7 @@ fn main() {
     // Convert the public key to hex format
     let public_key_hex = encode(&public_key.serialize());
 
-    println!("Private Key: {:x}", secret_key);
+    println!("Generating random private key ...");
     println!("Public Key: {}", public_key_hex);
 
 
@@ -34,20 +36,52 @@ fn main() {
     
     let secret = BigInt::parse_bytes(secret_key.to_string().as_bytes(),16).unwrap();
 
-    let secret_hex = format!("{:?}", secret.to_str_radix(16).as_str());
+    println!("Generating secret shares ...");
 
-    println!("Shared Secret: {}", secret_hex);
-    
+    println!(" ");
+
     let shares = sss.split(secret.clone());
     
     for i in 0..shares.len() {
 
         println!("       Share {}: {:?}", i, shares[i].1.to_str_radix(16));
+        // Encode the private key as a mnemonic
+        let mnemonic = encode_private_key(&decode(&shares[i].1.to_str_radix(16)).unwrap()[..]);
+        println!("Encoded mnemonic: {}", mnemonic);
+        println!(" ");
+
+        // Decode the mnemonic back to the private key
+        let decoded_private_key = decode_private_key(&mnemonic).unwrap();
+
+        println!("Decoded private key: {:?}", encode(&decoded_private_key[0..32]));
+
+        assert_eq!(shares[i].1.to_bytes_be().1, decoded_private_key[0..32]);
 
     }
 
     assert_eq!(secret, sss.recover(&shares[0..sss.threshold as usize]));
     
-    println!("Recovered Shared Secret: {:?}", sss.recover(&shares[0..sss.threshold as usize]).to_str_radix(16));
+    assert_eq!(secret, sss.recover(&shares[1..3 as usize]));
 
+
+    // println!("Recovered Shared Secret: {:?}", sss.recover(&shares[0..sss.threshold as usize]).to_str_radix(16));
+
+}
+
+fn encode_private_key(private_key: &[u8]) -> String {
+    // Create a BIP39 mnemonic from the private key
+    let mnemonic = Mnemonic::from_entropy(private_key).unwrap();
+
+    // Convert the mnemonic to a String
+    mnemonic.to_string()
+}
+
+fn decode_private_key(mnemonic: &str) -> Result<[u8; 33], bip39::Error> {
+    // Parse the mnemonic back to a BIP39 object
+    let mnemonic = Mnemonic::parse_in_normalized(Language::English, mnemonic)?;
+
+    // Get the seed from the mnemonic
+    let private_key = mnemonic.to_entropy_array();
+
+    Ok(private_key.0)
 }

@@ -35,13 +35,6 @@ pub struct TxDetails {
     merkle_root: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SealedData {
-    label: String,
-    nonce: String,
-    ciphertext: String,
-}
-
 pub fn get_default_global_state() -> GlobalState {
     let sss = SSS {
         threshold: SHAMIR_THRESHOLD,
@@ -104,9 +97,15 @@ fn handle_initialize(state: Arc<GlobalState>, key_type: String, share: String) -
         let recovered_secret = keys_attr.sss.recover(&shares);
         *keys_attr.recovered_secret.lock().unwrap() = Some(recovered_secret.clone());
 
-        let (seal_data, label) = sealing::seal_recovered_secret(recovered_secret.clone());
+        // let (seal_data, label) = sealing::seal_recovered_secret(recovered_secret.clone());
 
-        db::save_seal_data_to_db(seal_data, label);
+        let data = db::SealedData {
+            label: "label".to_string(),
+            nonce: "nonce".to_string(),
+            ciphertext: "cipher".to_string()
+        };
+
+        db::save_seal_data_to_db(data);
 
         return serde_json::to_string(&json!({
             "status": format!("accepted key for {:?}, threshold reached", key_type),

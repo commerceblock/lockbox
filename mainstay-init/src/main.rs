@@ -53,8 +53,6 @@ fn main() {
         // Decode the mnemonic back to the private key
         let decoded_private_key = decode_private_key(&mnemonic).unwrap();
 
-        println!("Decoded private key: {:?}", encode(&decoded_private_key[0..32]));
-
         assert_eq!(shares[i].1.to_bytes_be().1, decoded_private_key[0..32]);
 
     }
@@ -63,6 +61,9 @@ fn main() {
     
     assert_eq!(secret, sss.recover(&shares[1..3 as usize]));
 
+    let rec_shares = vec![shares[2].clone(), shares[0].clone()];
+
+    assert_eq!(secret, sss.recover(rec_shares.as_slice()));
 
     // println!("Recovered Shared Secret: {:?}", sss.recover(&shares[0..sss.threshold as usize]).to_str_radix(16));
 

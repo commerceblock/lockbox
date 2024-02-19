@@ -98,7 +98,7 @@ pub fn seal_recovered_secret(recovered_secret: BigInt) -> (Sealed, [u8; 16]) {
 // Function to unseal recovered secret
 pub fn unseal_recovered_secret(sealed_data: SealedData) -> String {
     let report = Report::for_self();
-    let label = sealed_data.label.as_bytes();
+    let label = decode(sealed_data.label).unwrap();
     let mut label_array = [0u8; 16];
     label_array.copy_from_slice(&label[..16]);
     let seal_data = SealData {
@@ -112,8 +112,8 @@ pub fn unseal_recovered_secret(sealed_data: SealedData) -> String {
         Ok(key) => key,
         Err(_) => panic!("Failed to generate sealing key"),
     };
-    let nonce_bytes = sealed_data.nonce.as_bytes().to_vec();
-    let ciphertext_bytes = sealed_data.cipher.as_bytes().to_vec();
+    let nonce_bytes = decode(sealed_data.nonce).unwrap();
+    let ciphertext_bytes = decode(sealed_data.cipher).unwrap();
     encode(unseal_data(&sealing_key, nonce_bytes, ciphertext_bytes))
 }
 

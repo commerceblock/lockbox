@@ -8,7 +8,7 @@ use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use num_bigint::BigInt;
-use base64::{encode, decode};
+use hex::{encode, decode};
 use shamir_secret_sharing::ShamirSecretSharing as SSS;
 
 const SHAMIR_SHARES: usize = 3;
@@ -100,9 +100,9 @@ fn handle_initialize(state: Arc<GlobalState>, key_type: String, share: String) -
         let (seal_data, label) = sealing::seal_recovered_secret(recovered_secret.clone());
 
         let data = db::SealedData {
-            label: String::from_utf8(label.to_vec()).unwrap(),
-            nonce: String::from_utf8(seal_data.nonce).unwrap(),
-            cipher: String::from_utf8(seal_data.ciphertext).unwrap()
+            label: encode(label),
+            nonce: encode(seal_data.nonce),
+            cipher: encode(seal_data.ciphertext)
         };
 
         if let Err(err) = db::save_seal_data_to_db(data, key_type.clone()) {

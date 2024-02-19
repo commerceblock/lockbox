@@ -127,12 +127,12 @@ fn handle_client(mut stream: TcpStream, global_state: Arc<GlobalState>) {
     if let Ok(Some(sealed_data)) = db::get_seal_data_from_db("signing".to_string()) {
         println!("sealed data {:?}", sealed_data);
         let secret = sealing::unseal_recovered_secret(sealed_data);
-        *global_state.signing.recovered_secret.lock().unwrap() = Some(secret);
+        *global_state.signing.recovered_secret.lock().unwrap() = Some(BigInt::parse_bytes(secret.as_bytes(), 16).unwrap());
     }
     if let Ok(Some(sealed_data)) = db::get_seal_data_from_db("topup".to_string()) {
         println!("sealed data {:?}", sealed_data);
         let secret = sealing::unseal_recovered_secret(sealed_data);
-        *global_state.topup.recovered_secret.lock().unwrap() = Some(secret);
+        *global_state.topup.recovered_secret.lock().unwrap() = Some(BigInt::parse_bytes(secret.as_bytes(), 16).unwrap());
     }
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();

@@ -143,5 +143,8 @@ fn test_sealing_key_derivation() {
         Ok(key) => key,
         Err(_) => panic!("Failed to generate sealing key"),
     };
-    assert_eq!(sealing_key, sealing_key_from_label);
+    let serialized_secret = recovered_secret.to_biguint().unwrap().to_bytes_be();
+    let sealed = seal_data(&serialized_secret, &sealing_key, sealing_data);
+    let sealed_from_label = seal_data(&serialized_secret, &sealing_key_from_label, sealing_data);
+    assert_eq!(sealed, sealed_from_label);
 }

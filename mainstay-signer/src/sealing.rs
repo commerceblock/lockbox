@@ -18,7 +18,7 @@ pub struct SealData {
 }
 
 // Define a structure to hold the nonce and cipher text
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Sealed {
     pub nonce: Vec<u8>,
     pub ciphertext: Vec<u8>
@@ -132,19 +132,19 @@ fn test_sealing_key_derivation() {
     let recovered_secret = BigInt::parse_bytes(b"ffffffffffffffffffffffffffffffffffffff", 16).unwrap();
     let (sealing_key, sealing_data, label) = generate_seal_data();
     let report = Report::for_self();
-    let seal_data = SealData {
+    let seal_data_for_label = SealData {
         rand: random(),
         isvsvn: report.isvsvn,
         cpusvn: report.cpusvn,
         attributes: report.attributes,
         miscselect: report.miscselect,
     };
-    let sealing_key_from_label = match egetkey(label, &seal_data) {
+    let sealing_key_from_label = match egetkey(label, &seal_data_for_label) {
         Ok(key) => key,
         Err(_) => panic!("Failed to generate sealing key"),
     };
     let serialized_secret = recovered_secret.to_biguint().unwrap().to_bytes_be();
     let sealed = seal_data(&serialized_secret, &sealing_key, sealing_data);
-    let sealed_from_label = seal_data(&serialized_secret, &sealing_key_from_label, sealing_data);
+    let sealed_from_label = seal_data(&serialized_secret, &sealing_key_from_label, seal_data_for_label);
     assert_eq!(sealed, sealed_from_label);
 }

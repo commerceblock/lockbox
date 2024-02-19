@@ -15,6 +15,11 @@ use std::str;
 use std::sync::Arc;
 use crate::GlobalState;
 
+const DEPTH: &str = "0";
+const PARENT_FINGERPRINT: &str = "00000000";
+const CHILD_NUMBER: &str = "0";
+const CHAINCODE: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+
 fn derive_privkey_from_merkle_root(merkle_root: Vec<u8>, initial_priv_key_hex: String) -> [u8; 32] {
     let rev_merkle_root: Vec<u8> = merkle_root.iter().rev().cloned().collect();
     let rev_merkle_root_hex = encode(rev_merkle_root);
@@ -129,20 +134,15 @@ pub fn sign_tx(state: &Arc<GlobalState>, sighash_string: Vec<String>, merkle_roo
 }
 
 pub fn get_config_values() -> (u8, [u8; 4], u32, [u8; 32]) {
-    dotenv().ok();
-    let depth_str = env::var("DEPTH").expect("You've not set the DEPTH in .env");
-    let depth = depth_str.parse::<u8>().unwrap();
+    let depth = DEPTH.parse::<u8>().unwrap();
 
-    let parent_fp_str = env::var("PARENT_FINGERPRINT").expect("You've not set the DEPTH in .env");
-    let parent_fp = decode(parent_fp_str).unwrap();
+    let parent_fp = decode(PARENT_FINGERPRINT).unwrap();
     let mut parent_fp_bytes = [0u8; 4];
     parent_fp_bytes.copy_from_slice(&parent_fp);
 
-    let child_number_str = env::var("CHILD_NUMBER").expect("You've not set the CHILD_NUMBER in .env");
-    let child_number = child_number_str.parse().unwrap();
+    let child_number = CHILD_NUMBER.parse().unwrap();
 
-    let chain_code_str = env::var("CHAINCODE").expect("You've not set the CHAINCODE in .env");
-    let chain_code = decode(chain_code_str).unwrap();
+    let chain_code = decode(CHAINCODE).unwrap();
     let mut chain_code_bytes = [0u8; 32];
     chain_code_bytes.copy_from_slice(&chain_code);
 

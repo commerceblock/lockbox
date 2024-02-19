@@ -12,9 +12,9 @@ pub struct SealedData {
     pub cipher: String,
 }
 
+const POSTGREST_URL: &str = "localhost:3000";
+
 pub fn save_seal_data_to_db(sealed_data: SealedData, key_type: String) -> Result<(), Box<dyn std::error::Error>> {
-    dotenv().ok();
-    let url = env::var("POSTGREST_URL").expect("You've not set the POSTGREST_URL in .env");
     let request_body = format!("label={}&nonce={}&cipher={}&key_type={}", 
                                     sealed_data.label, sealed_data.nonce, sealed_data.cipher, key_type);
 
@@ -24,7 +24,7 @@ pub fn save_seal_data_to_db(sealed_data: SealedData, key_type: String) -> Result
                             \r\n\
                             {}", request_body.len(), request_body);
 
-    let mut stream = TcpStream::connect(url).expect("Failed to connect to server");
+    let mut stream = TcpStream::connect(POSTGREST_URL).expect("Failed to connect to server");
 
     stream.write_all(client_request.as_bytes()).expect("Failed to send request");
 
@@ -42,12 +42,9 @@ pub fn save_seal_data_to_db(sealed_data: SealedData, key_type: String) -> Result
 }
 
 pub fn get_seal_data_from_db(key_type: String) -> Result<Option<SealedData>, Box<dyn std::error::Error>>{
-    dotenv().ok();
-    let url = env::var("POSTGREST_URL").expect("You've not set the POSTGREST_URL in .env");
-
     let client_request = format!("GET /sealed_data?key_type=eq.{} HTTP/1.1\r\nConnection: close\r\n\r\n", key_type);
 
-    let mut stream = TcpStream::connect(url).expect("Failed to connect to server");
+    let mut stream = TcpStream::connect(POSTGREST_URL).expect("Failed to connect to server");
 
     stream.write_all(client_request.as_bytes()).expect("Failed to send request");
 
@@ -56,7 +53,7 @@ pub fn get_seal_data_from_db(key_type: String) -> Result<Option<SealedData>, Box
 
     // Extract JSON data from the response
     let json_start_index = response.find('{').unwrap_or(0);
-    let json_end_index = response.rfind('}').unwrap_or(response.len());
+    let json_end_index = response.rfind('}').unwrap_or(0);
 
     if json_start_index < json_end_index {
         let json_data = &response[json_start_index..=json_end_index];

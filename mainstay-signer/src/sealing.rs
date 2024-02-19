@@ -105,15 +105,15 @@ pub fn unseal_recovered_secret(sealed_data: SealedData) -> String {
         attributes: report.attributes,
         miscselect: report.miscselect,
     };
-    let label = decode(sealed_data.label).unwrap();
+    let label = sealed_data.label.as_bytes();
     let mut label_array = [0u8; 16];
     label_array.copy_from_slice(&label[..16]);
     let sealing_key = match egetkey(label_array, &seal_data) {
         Ok(key) => key,
         Err(_) => panic!("Failed to generate sealing key"),
     };
-    let nonce_bytes = decode(sealed_data.nonce).unwrap();
-    let ciphertext_bytes = decode(sealed_data.cipher).unwrap();
+    let nonce_bytes = sealed_data.nonce.as_bytes().to_vec();
+    let ciphertext_bytes = sealed_data.cipher.as_bytes().to_vec();
     encode(unseal_data(&sealing_key, nonce_bytes, ciphertext_bytes))
 }
 
@@ -125,4 +125,23 @@ fn test_seal_and_unseal() {
     let sealed = seal_data(&serialized_secret, &sealing_key, sealing_data);
     let plaintext = unseal_data(&sealing_key, sealed.nonce, sealed.ciphertext);
     assert_eq!(recovered_secret.to_str_radix(16), encode(plaintext));
+}
+
+#[test]
+fn test_sealing_key_derivation() {
+    let recovered_secret = BigInt::parse_bytes(b"ffffffffffffffffffffffffffffffffffffff", 16).unwrap();
+    let (sealing_key, sealing_data, label) = generate_seal_data();
+    let report = Report::for_self();
+    let seal_data = SealData {
+        rand: random(),
+        isvsvn: report.isvsvn,
+        cpusvn: report.cpusvn,
+        attributes: report.attributes,
+        miscselect: report.miscselect,
+    };
+    let sealing_key_from_label = match egetkey(label, &seal_data) {
+        Ok(key) => key,
+        Err(_) => panic!("Failed to generate sealing key"),
+    };
+    assert_eq!(sealing_key, sealing_key_from_label);
 }

@@ -97,15 +97,19 @@ fn handle_initialize(state: Arc<GlobalState>, key_type: String, share: String) -
         let recovered_secret = keys_attr.sss.recover(&shares);
         *keys_attr.recovered_secret.lock().unwrap() = Some(recovered_secret.clone());
 
-        // let (seal_data, label) = sealing::seal_recovered_secret(recovered_secret.clone());
+        let (seal_data, label) = sealing::seal_recovered_secret(recovered_secret.clone());
 
         let data = db::SealedData {
             label: "label".to_string(),
             nonce: "nonce".to_string(),
-            ciphertext: "cipher".to_string()
+            cipher: "cipher".to_string()
         };
 
-        db::save_seal_data_to_db(data);
+        if let Err(err) = db::save_seal_data_to_db(data, key_type.clone()) {
+            return serde_json::to_string(&json!({
+                "status": format!("error in saving key to db for {:?}", key_type),
+            })).unwrap();
+        }
 
         return serde_json::to_string(&json!({
             "status": format!("accepted key for {:?}, threshold reached", key_type),
@@ -120,6 +124,16 @@ fn handle_initialize(state: Arc<GlobalState>, key_type: String, share: String) -
 }
 
 fn handle_client(mut stream: TcpStream, global_state: Arc<GlobalState>) {
+    if let Ok(Some(sealed_data)) = db::get_seal_data_from_db("signing".to_string()) {
+        println!("sealed data {:?}", sealed_data);
+        let secret = sealing::unseal_recovered_secret(sealed_data);
+        *global_state.signing.recovered_secret.lock().unwrap() = Some(secret);
+    }
+    if let Ok(Some(sealed_data)) = db::get_seal_data_from_db("topup".to_string()) {
+        println!("sealed data {:?}", sealed_data);
+        let secret = sealing::unseal_recovered_secret(sealed_data);
+        *global_state.topup.recovered_secret.lock().unwrap() = Some(secret);
+    }
     let mut buffer = [0; 1024];
     stream.read(&mut buffer).unwrap();
 

@@ -19,4 +19,3 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.108"
 sgx-isa = { version = "0.4.0", features = ["sgxstd"] }
 shamir_secret_sharing = "0.1.1"
-sled = "0.34.7"

@@ -4,7 +4,8 @@ use rand::random;
 use rand::rngs::OsRng;
 use aes_gcm::{Key, Aes128Gcm, KeyInit, AeadCore};
 use aes_gcm::aead::Aead;
-use hex::encode;
+use hex::{encode, decode};
+use crate::db::SealedData;
 
 // Define a structure to keep metadata about the sealed data that should be stored alongside the sealed data.
 #[derive(Debug, Clone)]
@@ -78,7 +79,7 @@ fn generate_seal_data() -> ([u8; 16], SealData, [u8; 16]) {
         miscselect: report.miscselect,
     };
 
-    let label = seal_data.rand; // Use a random label for each seal operation
+    let label = random(); // Use a random label for each seal operation
     let sealing_key = match egetkey(label, &seal_data) {
         Ok(key) => key,
         Err(_) => panic!("Failed to generate sealing key"),
@@ -92,6 +93,28 @@ pub fn seal_recovered_secret(recovered_secret: BigInt) -> (Sealed, [u8; 16]) {
     let (sealing_key, sealing_data, label) = generate_seal_data();
     let serialized_secret = recovered_secret.to_biguint().unwrap().to_bytes_be();
     (seal_data(&serialized_secret, &sealing_key, sealing_data), label)
+}
+
+// Function to unseal recovered secret
+pub fn unseal_recovered_secret(sealed_data: SealedData) -> String {
+    let report = Report::for_self();
+    let seal_data = SealData {
+        rand: random(),
+        isvsvn: report.isvsvn,
+        cpusvn: report.cpusvn,
+        attributes: report.attributes,
+        miscselect: report.miscselect,
+    };
+    let label = decode(sealed_data.label).unwrap();
+    let mut label_array = [0u8; 16];
+    label_array.copy_from_slice(&label[..16]);
+    let sealing_key = match egetkey(label_array, &seal_data) {
+        Ok(key) => key,
+        Err(_) => panic!("Failed to generate sealing key"),
+    };
+    let nonce_bytes = decode(sealed_data.nonce).unwrap();
+    let ciphertext_bytes = decode(sealed_data.cipher).unwrap();
+    encode(unseal_data(&sealing_key, nonce_bytes, ciphertext_bytes))
 }
 
 #[test]

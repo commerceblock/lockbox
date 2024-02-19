@@ -100,9 +100,9 @@ fn handle_initialize(state: Arc<GlobalState>, key_type: String, share: String) -
         let (seal_data, label) = sealing::seal_recovered_secret(recovered_secret.clone());
 
         let data = db::SealedData {
-            label: "label".to_string(),
-            nonce: "nonce".to_string(),
-            cipher: "cipher".to_string()
+            label: encode(label),
+            nonce: encode(seal_data.nonce),
+            cipher: encode(seal_data.ciphertext)
         };
 
         if let Err(err) = db::save_seal_data_to_db(data, key_type.clone()) {

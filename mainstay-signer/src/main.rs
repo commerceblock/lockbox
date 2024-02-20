@@ -91,8 +91,13 @@ fn handle_initialize(state: Arc<GlobalState>, key_type: String, share: String) -
 
         let mut shares: Vec<(usize, BigInt)> = Vec::new();
 
-        for (index, key) in keys.iter().enumerate() {
-            shares.push((index+1, BigInt::parse_bytes(&key.clone().unwrap().as_bytes(), 16).unwrap()));
+        for (_, key) in keys.iter().enumerate() {
+            let key_clone = key.clone().unwrap();
+            let key_parts: Vec<&str> = key_clone.split(":").collect();
+            shares.push((
+                key_parts[1].parse::<usize>().unwrap(), 
+                BigInt::parse_bytes(key_parts[0].clone().as_bytes(), 16).unwrap()
+            ));
         }
         let recovered_secret = keys_attr.sss.recover(&shares);
         *keys_attr.recovered_secret.lock().unwrap() = Some(recovered_secret.clone());
@@ -176,6 +181,21 @@ fn main() {
             handle_client(stream.unwrap(), global_state);
         });
     }
+}
+
+#[test]
+fn key_init_from_diff_pair_of_shares() {
+    let global_state = Arc::new(get_default_global_state());
+    let secret = BigInt::parse_bytes(b"ffffffffffffffffffffffffffffffffffffff", 16).unwrap();
+    let shares = global_state.signing.sss.split(secret.clone());
+    // shares 0 & 1
+    assert_eq!(secret, global_state.signing.sss.recover(&shares[0..2 as usize]));
+
+    // shares 1 & 2
+    assert_eq!(secret, global_state.signing.sss.recover(&shares[1..3 as usize]));
+
+    // shares 0 & 2
+    assert_eq!(secret, global_state.signing.sss.recover(&[shares[0].clone(), shares[2].clone()]));
 }
 
 // #[test]

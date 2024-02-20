@@ -2,7 +2,6 @@ use serde::{Serialize, Deserialize};
 use serde_json::json;
 use std::net::TcpStream;
 use std::io::{Read, Write};
-use dotenv::dotenv;
 use std::env;
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -10,7 +10,6 @@ use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode::deserialize;
 use hex::FromHex;
 use std::env;
-use dotenv::dotenv;
 use std::str;
 use std::sync::Arc;
 use crate::GlobalState;

@@ -58,7 +58,7 @@ cargo run main.rs
 
 ### API documentation
 
-# For initializing the keys (minimum 2 shares required out of 3 with proper share indexes):- 
+### For initializing the keys (minimum 2 shares required out of 3 with proper share indexes):- 
 request:-
 ```
 curl --data "share_string_1:share_index_for_string_1" http://localhost:8000/initialize/signing
@@ -66,7 +66,7 @@ curl --data "share_string_1:share_index_for_string_1" http://localhost:8000/init
 curl --data "share_string_2:share_index_for_string_2" http://localhost:8000/initialize/signing
 ```
 
-# For signing:-
+### For signing:-
 request:-
 ```
 curl --location 'http://127.0.0.1:8000/sign' \
@@ -76,7 +76,7 @@ curl --location 'http://127.0.0.1:8000/sign' \
     "merkle_root": "MERKLE_ROOT"
 }'
 ```
-response
+response:-
 ```
 {
     "witness": ["WITNESS_SIGNATURE"]

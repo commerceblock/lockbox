@@ -31,7 +31,7 @@ CREATE TABLE sealed_data (
 6. Create a configuration file named `postgrest.conf` for PostgREST and configure it as follows:-
 
 ```
-db-uri = "postgres://postgres:pass@localhost:5432/sealed_data_db"
+db-uri = "postgres://postgres:[your-password]@localhost:5432/sealed_data_db"
 db-schemas = "public"
 db-anon-role = "postgres"
 ```
@@ -54,4 +54,25 @@ cargo build
 
 ```
 cargo run main.rs
+```
+
+### API documentation
+
+For initializing the keys (minimum 2 shares required out of 3 with proper share indexes):- 
+
+```
+curl --data "share_string_1:share_index_for_string_1" http://localhost:8000/initialize/signing
+
+curl --data "share_string_2:share_index_for_string_2" http://localhost:8000/initialize/signing
+```
+
+For signing:-
+
+```
+curl --location 'http://127.0.0.1:8000/sign' \
+--header 'Content-Type: application/json' \
+--data '{
+    "sighash_string": ["CALCULATED_WITNESS_SIGHASH_FOR_TX"],
+    "merkle_root": "MERKLE_ROOT"
+}'
 ```

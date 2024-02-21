@@ -56,7 +56,7 @@ cargo build
 cargo run main.rs
 ```
 
-### API documentation
+## API documentation
 
 ### For initializing the keys (minimum 2 shares required out of 3 with proper share indexes):- 
 request:-

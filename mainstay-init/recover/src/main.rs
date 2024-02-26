@@ -1,16 +1,19 @@
 use hex::encode;
-use hex::decode;
 
 use bip39::{Mnemonic, Language};
 
 fn main() {
 
-    let mnemonic = "vintage endorse comic voyage metal grape abandon beauty battle dream warfare stomach hole spread resist pact dizzy interest crunch trap address device icon town".to_string();
+    let mnemonic_sign = "vintage endorse comic voyage metal grape abandon beauty battle dream warfare stomach hole spread resist pact dizzy interest crunch trap address device icon town".to_string();
+
+    let mnemonic_topup = "vintage endorse comic voyage metal grape abandon beauty battle dream warfare stomach hole spread resist pact dizzy interest crunch trap address device icon town".to_string();
 
     // Decode the mnemonic back to the private key
-    let decoded_private_key = decode_private_key(&mnemonic).unwrap();
+    let decoded_sign_private_key = decode_private_key(&mnemonic_sign).unwrap();
+    let decoded_topup_private_key = decode_private_key(&mnemonic_topup).unwrap();
 
-    println!("Decoded private key: {:?}", encode(&decoded_private_key[0..32]));
+    println!("Decoded sign private key: {:?}", encode(&decoded_sign_private_key[0..32]));
+    println!("Decoded topup private key: {:?}", encode(&decoded_topup_private_key[0..32]));
 
 }
 

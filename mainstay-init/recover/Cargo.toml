@@ -6,10 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rand = "0.8"
-bitcoin = "0.26"
 hex = "0.4"
-shamir_secret_sharing = "0.1.1"
-num-bigint = "0.2.6"
 bip39 = "1.0.0"
-qrcode = "0.13.0"

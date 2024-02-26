@@ -17,7 +17,7 @@ use crate::GlobalState;
 const DEPTH: &str = "0";
 const PARENT_FINGERPRINT: &str = "00000000";
 const CHILD_NUMBER: &str = "0";
-const CHAINCODE: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+const CHAINCODE: &str = "14df7ece79e83f0f479a37832d770294014edc6884b0c8bfa2e0aaf51fb00229";
 
 fn derive_privkey_from_merkle_root(merkle_root: Vec<u8>, initial_priv_key_hex: String) -> [u8; 32] {
     let rev_merkle_root: Vec<u8> = merkle_root.iter().rev().cloned().collect();

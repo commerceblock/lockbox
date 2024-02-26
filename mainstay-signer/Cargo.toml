@@ -6,14 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+aes-gcm = "0.10.3"
 base64 = "0.21.7"
 bip32 = { version = "0.5.1", features = ["secp256k1"] }
-bitcoin = "0.23.0"
-btc-transaction-utils = "0.9.0"
-dotenv = "0.15.0"
+bitcoin = "0.31.1"
 hex = "0.4.3"
 num-bigint = "0.2.6"
-rocket = { version = "0.5.0", features = ["json"] }
-secp256k1 = "0.28.1"
+rand = "0.8.5"
+secp256k1 = "0.28.2"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.108"
+sgx-isa = { version = "0.4.0", features = ["sgxstd"] }
 shamir_secret_sharing = "0.1.1"

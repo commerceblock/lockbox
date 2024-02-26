@@ -1,11 +1,7 @@
 use bip32::{ExtendedPrivateKey, ExtendedKeyAttrs, ExtendedKey, ChildNumber, Prefix};
 use bip32;
-use bitcoin::hashes::hex::ToHex;
 use hex::{encode, decode};
 use secp256k1::{self, ecdsa::SerializedSignature};
-use btc_transaction_utils::p2wsh::InputSigner;
-use btc_transaction_utils::multisig::RedeemScript;
-use btc_transaction_utils::TxInRef;
 use bitcoin::{self, PrivateKey};
 use std::str::FromStr;
 use secp256k1::SecretKey;
@@ -14,11 +10,14 @@ use bitcoin::blockdata::transaction::Transaction;
 use bitcoin::consensus::encode::deserialize;
 use hex::FromHex;
 use std::env;
-use dotenv::dotenv;
-use bitcoin::util::bip143;
 use std::str;
-use rocket::State;
+use std::sync::Arc;
 use crate::GlobalState;
+
+const DEPTH: &str = "0";
+const PARENT_FINGERPRINT: &str = "00000000";
+const CHILD_NUMBER: &str = "0";
+const CHAINCODE: &str = "14df7ece79e83f0f479a37832d770294014edc6884b0c8bfa2e0aaf51fb00229";
 
 fn derive_privkey_from_merkle_root(merkle_root: Vec<u8>, initial_priv_key_hex: String) -> [u8; 32] {
     let rev_merkle_root: Vec<u8> = merkle_root.iter().rev().cloned().collect();
@@ -94,14 +93,13 @@ fn derive_child_priv_key(parent: &ExtendedPrivateKey<bip32::secp256k1::SecretKey
     private_key
 }
 
-pub fn sign_tx(state: &State<GlobalState>, sighash_string: Vec<String>, merkle_root: String) -> Vec<String> {
+pub fn sign_tx(state: &Arc<GlobalState>, sighash_string: Vec<String>, merkle_root: String) -> Vec<String> {
     let merkle_root_bytes = decode(merkle_root).expect("Invalid merkle root hex string");
-    dotenv().ok();
     let priv_key = state.signing.recovered_secret.lock().unwrap().clone().unwrap().to_str_radix(16);
     let topup_key_string = state.topup.recovered_secret.lock().unwrap().clone().unwrap().to_str_radix(16);
     let secret_key = derive_privkey_from_merkle_root(merkle_root_bytes, priv_key);
 
-    println!("secret_key: {}", secret_key.to_hex().as_str());
+    println!("secret_key: {}", encode(secret_key).as_str());
     println!("topup_key: {}", topup_key_string.as_str());
 
     let secretkey = SecretKey::from_slice(&secret_key).unwrap();
@@ -116,7 +114,7 @@ pub fn sign_tx(state: &State<GlobalState>, sighash_string: Vec<String>, merkle_r
     let msg = secp256k1::Message::from_digest_slice(&sighash[..]).unwrap();
     let signature = secp.sign_ecdsa(&msg, &secretkey).serialize_der();
 
-    let witness = signature.to_hex().as_str().to_owned() + " " + public_key.to_string().to_owned().as_str();
+    let witness = encode(signature).as_str().to_owned() + " " + public_key.to_string().to_owned().as_str();
 
     let mut witness_vec = Vec::new();
     witness_vec.push(witness);
@@ -125,7 +123,7 @@ pub fn sign_tx(state: &State<GlobalState>, sighash_string: Vec<String>, merkle_r
         let sighash_topup: [u8; 32] = FromHex::from_hex(sighash_string[1].clone()).unwrap();
         let msg_topup = secp256k1::Message::from_digest_slice(&sighash_topup[..]).unwrap();
         let signature_topup = secp.sign_ecdsa(&msg_topup, &topup_key).serialize_der();
-        let witness_topup = signature_topup.to_hex().as_str().to_owned() + " " + topup_pubkey.to_string().to_owned().as_str();
+        let witness_topup = encode(signature_topup).as_str().to_owned() + " " + topup_pubkey.to_string().to_owned().as_str();
 
         witness_vec.push(witness_topup);
     }
@@ -135,20 +133,15 @@ pub fn sign_tx(state: &State<GlobalState>, sighash_string: Vec<String>, merkle_r
 }
 
 pub fn get_config_values() -> (u8, [u8; 4], u32, [u8; 32]) {
+    let depth = DEPTH.parse::<u8>().unwrap();
 
-    let depth_str = env::var("DEPTH").expect("You've not set the DEPTH in .env");
-    let depth = depth_str.parse::<u8>().unwrap();
-
-    let parent_fp_str = env::var("PARENT_FINGERPRINT").expect("You've not set the DEPTH in .env");
-    let parent_fp = decode(parent_fp_str).unwrap();
+    let parent_fp = decode(PARENT_FINGERPRINT).unwrap();
     let mut parent_fp_bytes = [0u8; 4];
     parent_fp_bytes.copy_from_slice(&parent_fp);
 
-    let child_number_str = env::var("CHILD_NUMBER").expect("You've not set the CHILD_NUMBER in .env");
-    let child_number = child_number_str.parse().unwrap();
+    let child_number = CHILD_NUMBER.parse().unwrap();
 
-    let chain_code_str = env::var("CHAINCODE").expect("You've not set the CHAINCODE in .env");
-    let chain_code = decode(chain_code_str).unwrap();
+    let chain_code = decode(CHAINCODE).unwrap();
     let mut chain_code_bytes = [0u8; 32];
     chain_code_bytes.copy_from_slice(&chain_code);
 

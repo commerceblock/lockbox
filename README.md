@@ -1,14 +1,18 @@
 # Lockbox
 
-Key management in SGX secure enclaves. 
+Key management and signing in SGX secure enclaves. 
 
 `/mercury`
 
 Key management server for mercury layer
 
-`/mainstay`
+`/mainstay-signer`
 
 Mainstay transaction signing server
+
+`/mainstay-init`
+
+Mainstay Shamir key generation
 
 ## Docker build
 

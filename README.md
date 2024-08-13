@@ -10,10 +10,6 @@ Key management server for mercury layer
 
 Mainstay transaction signing server
 
-`/vls_hsm`
-
-Signing server for Lightning VLS
-
 ## Docker build
 
 ### Build docker image by executing:
